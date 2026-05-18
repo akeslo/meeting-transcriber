@@ -18,6 +18,12 @@ struct AudioSettingsView: View {
                         }
                     }
                     .onAppear { refreshAudioDevices() }
+                    .onReceive(
+                        NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
+                    ) { _ in refreshAudioDevices() }
+                    .onReceive(
+                        NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)
+                    ) { _ in refreshAudioDevices() }
                 }
             }
 
@@ -29,6 +35,7 @@ struct AudioSettingsView: View {
                     HStack {
                         Text("Threshold:")
                         Slider(value: $settings.vadThreshold, in: 0.3 ... 0.9, step: 0.05)
+                        .accessibilityLabel("Voice activity detection threshold")
                         Text(String(format: "%.2f", settings.vadThreshold))
                             .monospacedDigit()
                             .frame(width: 35)

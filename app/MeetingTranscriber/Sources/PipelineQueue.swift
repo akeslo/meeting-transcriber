@@ -494,12 +494,14 @@ class PipelineQueue {
         }
         let jobID = jobs[index].id
         let shortID = jobs[index].shortID
-        let title = jobs[index].meetingTitle
+        let title = AppPaths.sanitizedPathComponent(jobs[index].meetingTitle)
         let mixPath = jobs[index].mixPath
         let appPath = jobs[index].appPath
         let micPath = jobs[index].micPath
         let micDelay = jobs[index].micDelay
         let participants = jobs[index].participants
+        let diarizeOverride = jobs[index].diarizeOverride
+        let numSpeakersOverride = jobs[index].numSpeakersOverride
 
         do {
             // --- Transcription ---
@@ -600,7 +602,8 @@ class PipelineQueue {
 
             // --- Diarization (optional) ---
             var finalTranscript = transcript
-            if diarizeEnabled, let diarizationFactory {
+            let shouldDiarize = diarizeOverride ?? diarizeEnabled
+            if shouldDiarize, let diarizationFactory {
                 let diarizeProcess = diarizationFactory()
                 if diarizeProcess.isAvailable {
                     updateJobState(id: jobID, to: .diarizing)
@@ -631,7 +634,8 @@ class PipelineQueue {
                         let useDualTrack = isDualSource
 
                         // Diarization + naming loop: re-runs if user requests different speaker count
-                        var speakerCount = numSpeakers > 0 ? numSpeakers : nil
+                        let effectiveNumSpeakers = numSpeakersOverride ?? numSpeakers
+                        var speakerCount = effectiveNumSpeakers > 0 ? effectiveNumSpeakers : nil
                         var autoNames: [String: String] = [:]
 
                         // Dual-track: separate diarization results
@@ -670,11 +674,14 @@ class PipelineQueue {
 
                                 if let micDiar = micDiarization {
                                     // Merge for speaker naming (prefixed IDs: R_, M_)
-                                    // swiftlint:disable force_unwrapping
+                                    guard let appDiar = appDiarization else {
+                                        // appDiarization unexpectedly nil — fall through to app-only path
+                                        diarization = nil
+                                        break diarizationLoop
+                                    }
                                     diarization = DiarizationProcess.mergeDualTrackDiarization(
-                                        appDiarization: appDiarization!,
+                                        appDiarization: appDiar,
                                         micDiarization: micDiar,
-                                        // swiftlint:enable force_unwrapping
                                     )
                                 } else {
                                     // App-only fallback. Feeds the speaker-naming
@@ -824,7 +831,10 @@ class PipelineQueue {
                             finalTranscript = merged.map(\.formattedLine).joined(separator: "\n")
                         } else if useDualTrack, let appDiar = appDiarization, let cached = cachedSegments {
                             // Mic diarization failed (silent track / no input
-                            // device). Diarize the app track normally and keep
+                            // device) — fall back to app-only diarization so
+                            // the remote audio still gets speaker labels.
+                            logger.warning("[pipeline] Mic diarization unavailable — applying app-only speaker labels, mic segments keep raw label")
+                            // Diarize the app track normally and keep
                             // the mic transcript with its raw `micLabel` —
                             // better than emitting "speakers not identified"
                             // on a recording that has perfectly good remote
@@ -1004,6 +1014,11 @@ class PipelineQueue {
               let jobIndex = jobs.firstIndex(where: { $0.id == jobID }) else { return }
 
         let slug = jobs[jobIndex].namingSlug
+        // Capture the transcript path before any await so we don't need to
+        // index into jobs after the async gap.
+        let transcriptPath = jobs[jobIndex].transcriptPath
+        // Capture title before await to avoid stale-index access post-await.
+        let meetingTitle = jobs[jobIndex].meetingTitle
 
         // Update speaker matcher DB
         let matcher = speakerMatcherFactory()
@@ -1017,7 +1032,7 @@ class PipelineQueue {
             embeddings: namingData.embeddings,
         )
 
-        if let transcriptPath = jobs[jobIndex].transcriptPath {
+        if let transcriptPath {
             do {
                 var transcript = try String(contentsOf: transcriptPath, encoding: .utf8)
                 // Format from `TimestampedSegment.formattedLine`: `[MM:SS] Speaker: text`.
@@ -1035,7 +1050,7 @@ class PipelineQueue {
                     await generateProtocol(
                         jobID: jobID,
                         transcript: transcript,
-                        title: jobs[jobIndex].meetingTitle,
+                        title: meetingTitle,
                         protocolsDir: outputDir.appendingPathComponent("protocols"),
                     )
                 }
@@ -1045,7 +1060,10 @@ class PipelineQueue {
         }
 
         removeNamingData(jobID: jobID, slug: slug)
-        updateJobState(id: jobID, to: .done)
+        // Look up the job by ID after the async gap — do not use the captured index.
+        if jobs.firstIndex(where: { $0.id == jobID }) != nil {
+            updateJobState(id: jobID, to: .done)
+        }
     }
 
     // MARK: - Late Re-diarization
@@ -1326,11 +1344,9 @@ class PipelineQueue {
             if let slug = job.namingSlug, let data = loadNamingData(slug: slug) {
                 speakerNamingDataByJob[job.id] = data
             } else {
-                // Naming data lost — transition to done
+                // Naming data lost — transition to done via proper state machine
                 logger.warning("Naming data not found for job \(job.id), marking as done")
-                if let idx = jobs.firstIndex(where: { $0.id == job.id }) {
-                    jobs[idx].state = .done
-                }
+                updateJobState(id: job.id, to: .done)
             }
         }
 

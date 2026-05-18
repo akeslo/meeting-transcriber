@@ -104,10 +104,15 @@ struct KnownVoicesView: View {
             HStack {
                 Text("Known Voices").font(.title2).bold()
                 Spacer()
-                Text("\(speakers.count) total").foregroundStyle(.secondary)
+                if filter.isEmpty {
+                    Text("\(speakers.count) total").foregroundStyle(.secondary)
+                } else {
+                    Text("\(filteredSpeakers.count) of \(speakers.count)").foregroundStyle(.secondary)
+                }
             }
             TextField("Filter…", text: $filter)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Filter speakers by name")
 
             speakerTable
                 .frame(minHeight: 280)

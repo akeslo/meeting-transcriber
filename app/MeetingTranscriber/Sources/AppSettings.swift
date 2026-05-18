@@ -87,8 +87,19 @@ final class AppSettings {
         didSet { defaults.set(watchWebex, forKey: "watchWebex") }
     }
 
-    var watchTeamsBrowser: Bool {
-        didSet { defaults.set(watchTeamsBrowser, forKey: "watchTeamsBrowser") }
+    /// Browser/website watch entries. Replaces the old `watchTeamsBrowser` bool.
+    var websiteWatchEntries: [WebsiteWatchEntry] {
+        get {
+            guard let data = defaults.data(forKey: "websiteWatchEntries"),
+                  let entries = try? JSONDecoder().decode([WebsiteWatchEntry].self, from: data)
+            else { return WebsiteWatchEntry.defaults }
+            return entries
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: "websiteWatchEntries")
+            }
+        }
     }
 
 
@@ -260,7 +271,10 @@ final class AppSettings {
         set { defaults.set(newValue, forKey: "customOutputDirBookmark") }
     }
 
-    /// Resolved URL from the security-scoped bookmark. Calls `startAccessingSecurityScopedResource()`.
+    /// Resolved URL from the security-scoped bookmark.
+    /// Does NOT call `startAccessingSecurityScopedResource()` — callers are
+    /// responsible for starting and stopping security-scoped access around
+    /// any file operations that require it.
     var customOutputDir: URL? {
         guard let data = customOutputDirBookmark else { return nil }
         var isStale = false
@@ -351,7 +365,7 @@ final class AppSettings {
         watchTeams = defaults.object(forKey: "watchTeams") as? Bool ?? true
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
         watchWebex = defaults.object(forKey: "watchWebex") as? Bool ?? true
-        watchTeamsBrowser = defaults.object(forKey: "watchTeamsBrowser") as? Bool ?? false
+        // websiteWatchEntries is a computed property (JSON in UserDefaults) — no init needed
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
@@ -361,8 +375,13 @@ final class AppSettings {
         micDeviceUID = defaults.object(forKey: "micDeviceUID") as? String ?? ""
         micName = defaults.object(forKey: "micName") as? String ?? "Me"
 
-        transcriptionEngine = (defaults.string(forKey: "transcriptionEngine")
-            .flatMap(TranscriptionEngineSetting.init(rawValue:))) ?? .whisperKit
+        let storedEngine = defaults.string(forKey: "transcriptionEngine")
+            .flatMap(TranscriptionEngineSetting.init(rawValue:))
+        if let engine = storedEngine, engine.isAvailable {
+            transcriptionEngine = engine
+        } else {
+            transcriptionEngine = .whisperKit
+        }
         whisperKitModel = defaults.object(forKey: "whisperKitModel") as? String
             ?? "openai_whisper-large-v3-v20240930_turbo"
         whisperLanguage = defaults.object(forKey: "whisperLanguage") as? String ?? "en"
@@ -384,7 +403,7 @@ final class AppSettings {
             protocolProvider = storedProvider ?? .claudeCLI
             claudeBin = defaults.object(forKey: "claudeBin") as? String ?? "claude"
         #endif
-        protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "English"
+        protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "German"
 
         openAIEndpoint = defaults.object(forKey: "openAIEndpoint") as? String
             ?? "http://localhost:11434/v1/chat/completions"

@@ -105,7 +105,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .audio: "mic"
         case .transcription: "waveform"
         case .speakers: "person.2"
-        case .output: "doc.text"
+        case .output: "folder.badge.gearshape"
         case .advanced: "wrench.and.screwdriver"
         }
     }

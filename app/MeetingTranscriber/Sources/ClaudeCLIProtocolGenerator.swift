@@ -13,6 +13,10 @@
         static let timeoutSeconds: TimeInterval = 600
 
         /// Search paths for Claude CLI binaries.
+        /// Note: paths like ~/.local/bin and ~/.npm-global/bin are user-writable
+        /// and could be used for PATH hijacking by a compromised user environment.
+        /// These are accepted as common Claude CLI install locations; users should
+        /// ensure only trusted binaries exist at these paths.
         static let searchPaths = [
             "\(NSHomeDirectory())/.local/bin",
             "/usr/local/bin",
@@ -23,6 +27,12 @@
         // MARK: - ProtocolGenerating
 
         func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
+            // The meeting transcript is passed verbatim as untrusted user input to the
+            // LLM via stdin. This is intentional by design: the LLM's job is to
+            // summarise whatever was said, including meeting content that may contain
+            // instruction-like phrasing. No sanitisation is applied because doing so
+            // would corrupt the transcript. Callers should be aware that this means
+            // prompt injection from meeting content is an accepted risk.
             let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language) + transcript
 
             let process = Process()
@@ -217,6 +227,10 @@
 
             for path in searchPaths.map({ "\($0)/\(bin)" })
                 where FileManager.default.isExecutableFile(atPath: path) {
+                let isNonStandard = !path.hasPrefix("/usr/") && !path.hasPrefix("/opt/homebrew/")
+                if isNonStandard {
+                    logger.warning("Claude CLI resolved from non-standard path: \(path, privacy: .public) — ensure only trusted binaries exist there")
+                }
                 return path
             }
             // Fallback: hope it's in PATH

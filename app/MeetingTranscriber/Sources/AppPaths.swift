@@ -52,6 +52,23 @@ enum AppPaths {
 
     private static let logger = Logger(subsystem: logSubsystem, category: "AppPaths")
 
+    /// Sanitize an arbitrary string for use as a path component.
+    /// Strips path separators and `..` so a crafted meeting title cannot
+    /// traverse outside the intended output directory. Also removes null bytes,
+    /// normalises Unicode to NFC, and caps length at 200 characters.
+    static func sanitizedPathComponent(_ title: String) -> String {
+        let maxLength = 200
+        return title
+            .replacingOccurrences(of: "\0", with: "")
+            .precomposedStringWithCanonicalMapping
+            .components(separatedBy: "/").joined(separator: "-")
+            .components(separatedBy: "\\").joined(separator: "-")
+            .replacingOccurrences(of: "..", with: "--")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(maxLength)
+            .description
+    }
+
     /// Migrate IPC files from `~/.meeting-transcriber/` to `dataDir/ipc/`.
     /// Safe to call multiple times — copyItem fails gracefully if destination exists.
     static func migrateIfNeeded() {

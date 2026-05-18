@@ -433,8 +433,9 @@ class SpeakerMatcher {
     func saveDB(_ speakers: [StoredSpeaker]) {
         do {
             let data = try JSONEncoder().encode(speakers)
-            let tmp = dbPath.deletingLastPathComponent()
-                .appendingPathComponent("speakers.json.tmp")
+            let dir = dbPath.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let tmp = dir.appendingPathComponent("speakers.json.tmp")
             try data.write(to: tmp)
             _ = try FileManager.default.replaceItemAt(dbPath, withItemAt: tmp)
         } catch {

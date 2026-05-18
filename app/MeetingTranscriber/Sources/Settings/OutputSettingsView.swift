@@ -135,7 +135,7 @@ struct OutputSettingsView: View {
     private var openAIConfigView: some View { // swiftlint:disable:this attributes
         VStack(alignment: .leading, spacing: 4) {
             Text("Endpoint")
-            TextField("", text: $settings.openAIEndpoint)
+            TextField("http://localhost:11434/v1", text: $settings.openAIEndpoint)
                 .textFieldStyle(.roundedBorder)
         }
 
@@ -149,7 +149,7 @@ struct OutputSettingsView: View {
             HStack {
                 Text("Model")
                 Spacer()
-                TextField("", text: $settings.openAIModel)
+                TextField("e.g. llama3.2", text: $settings.openAIModel)
                     .frame(width: 200)
                     .multilineTextAlignment(.trailing)
             }
@@ -158,7 +158,7 @@ struct OutputSettingsView: View {
         HStack {
             Text("API Key")
             Spacer()
-            SecureField("", text: $settings.openAIAPIKey)
+            SecureField("Optional API key", text: $settings.openAIAPIKey)
                 .frame(width: 200)
         }
         Text("Leave empty if your local server doesn't require authentication")
@@ -174,10 +174,11 @@ struct OutputSettingsView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
-                    Text(availableModels.isEmpty ? "Fetch Models" : "Refresh Models")
+                    Text("Test Connection")
                 }
             }
             .disabled(testingConnection)
+            .help("Connect to endpoint and retrieve available models")
 
             if let result = connectionTestResult {
                 switch result {
@@ -265,9 +266,10 @@ struct OutputSettingsView: View {
                 availableModels = models
                 if !models.isEmpty {
                     if !models.contains(settings.openAIModel) {
-                        settings.openAIModel = models[0]
+                        connectionTestResult = .success("Connected (\(models.count) models) — configured model not in list")
+                    } else {
+                        connectionTestResult = .success("Connected (\(models.count) models)")
                     }
-                    connectionTestResult = .success("Connected (\(models.count) models)")
                 } else {
                     connectionTestResult = .success("Connected")
                 }

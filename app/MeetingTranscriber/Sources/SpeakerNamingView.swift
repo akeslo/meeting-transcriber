@@ -127,7 +127,7 @@ struct SpeakerNamingView: View {
     var body: some View {
         // swiftlint:disable:next closure_body_length
         VStack(spacing: 16) {
-            Text("Name Speakers — \"\(data.meetingTitle)\"")
+            Text("Name Speakers: \(data.meetingTitle)")
                 .font(.headline)
                 .padding(.top, 8)
 
@@ -158,6 +158,12 @@ struct SpeakerNamingView: View {
                 .font(.caption)
                 .accessibilityIdentifier("rerun-button")
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.secondary.opacity(0.08))
+            )
 
             HStack(spacing: 12) {
                 Button("Skip") {
@@ -247,7 +253,7 @@ struct SpeakerNamingView: View {
                 } else {
                     Text("Unknown")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.orange)
                 }
 
                 if index < names.count {

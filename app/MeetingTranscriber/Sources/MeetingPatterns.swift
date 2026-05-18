@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// Pattern definition for detecting active meetings via window titles.
 struct AppMeetingPattern: Equatable {
@@ -6,6 +7,8 @@ struct AppMeetingPattern: Equatable {
     let ownerNames: [String]
     let meetingPatterns: [String]
     let idlePatterns: [String]
+    /// Regex patterns applied in sequence to clean the raw window title before use as meeting name.
+    let titleCleanupPatterns: [String]
     let minWindowWidth: CGFloat
     let minWindowHeight: CGFloat
 
@@ -14,6 +17,7 @@ struct AppMeetingPattern: Equatable {
         ownerNames: [String],
         meetingPatterns: [String],
         idlePatterns: [String] = [],
+        titleCleanupPatterns: [String] = [],
         minWindowWidth: CGFloat = 200,
         minWindowHeight: CGFloat = 200,
     ) {
@@ -21,6 +25,7 @@ struct AppMeetingPattern: Equatable {
         self.ownerNames = ownerNames
         self.meetingPatterns = meetingPatterns
         self.idlePatterns = idlePatterns
+        self.titleCleanupPatterns = titleCleanupPatterns
         self.minWindowWidth = minWindowWidth
         self.minWindowHeight = minWindowHeight
     }
@@ -46,6 +51,10 @@ extension AppMeetingPattern {
             #"^Calls \|"#,
             #"^People \|"#,
             #"^Notifications \|"#,
+        ],
+        titleCleanupPatterns: [
+            #"^\(\d+\)\s+"#,                                           // strip "(4) " notification count
+            #"\s*\|\s*Microsoft Teams(?:\s+\(work or school\))?$"#,   // strip " | Microsoft Teams" suffix
         ],
     )
 
@@ -92,10 +101,7 @@ extension AppMeetingPattern {
 
     static let teamsBrowser = AppMeetingPattern(
         appName: "Microsoft Teams (Web)",
-        ownerNames: [
-            "Google Chrome", "Microsoft Edge", "Safari",
-            "Firefox", "Arc", "Brave Browser",
-        ],
+        ownerNames: browserOwnerNames,
         meetingPatterns: [
             #".+\s+\|\s+Microsoft Teams"#,
         ],
@@ -104,16 +110,17 @@ extension AppMeetingPattern {
             #"^Microsoft Teams - Microsoft Edge$"#,
             #"^Microsoft Teams - Google Chrome$"#,
         ],
+        titleCleanupPatterns: [
+            #"^\(\d+\)\s+"#,                          // strip "(4) " notification count
+            #"\s*\|\s*Microsoft Teams$"#,             // strip " | Microsoft Teams" suffix
+        ],
         minWindowWidth: 400,
         minWindowHeight: 300,
     )
 
     static let youtube = AppMeetingPattern(
         appName: "YouTube",
-        ownerNames: [
-            "Google Chrome", "Microsoft Edge", "Safari",
-            "Firefox", "Arc", "Brave Browser",
-        ],
+        ownerNames: browserOwnerNames,
         meetingPatterns: [
             #".+ - YouTube$"#,
             #".+ - YouTube — .+"#,   // browser-name suffix variant (em dash)
@@ -129,7 +136,34 @@ extension AppMeetingPattern {
         minWindowHeight: 300,
     )
 
-    static let all: [AppMeetingPattern] = [teams, zoom, webex, teamsBrowser, youtube, simulator]
+    /// Browser process names checked for website patterns.
+    static let browserOwnerNames = [
+        "Google Chrome", "Microsoft Edge", "Safari",
+        "Firefox", "Arc", "Brave Browser",
+        "Dia", "Opera", "Vivaldi", "Orion",
+    ]
+
+    /// Build an `AppMeetingPattern` from a user-configured `WebsiteWatchEntry`.
+    /// Matches any browser window whose title contains `entry.titleContains`,
+    /// skips when the title is exactly the site name, and strips the suffix to
+    /// produce a clean meeting name.
+    static func pattern(for entry: WebsiteWatchEntry) -> AppMeetingPattern {
+        let escaped = NSRegularExpression.escapedPattern(for: entry.titleContains)
+        return AppMeetingPattern(
+            appName: entry.name,
+            ownerNames: browserOwnerNames,
+            meetingPatterns: [escaped],
+            idlePatterns: ["^\(escaped)$"],
+            titleCleanupPatterns: [
+                #"^\(\d+\)\s+"#,
+                "\\s*[|\\-]\\s*\(escaped).*$",
+            ],
+            minWindowWidth: 400,
+            minWindowHeight: 300,
+        )
+    }
+
+    static let all: [AppMeetingPattern] = [teams, zoom, webex, simulator]
 
     static let byName: [String: AppMeetingPattern] = {
         var dict: [String: AppMeetingPattern] = [:]

@@ -45,17 +45,8 @@ enum AudioMixer {
 
         let clampedDelay = clampMicDelay(micDelay)
 
-        // Apply echo suppression
-        if !appSamples.isEmpty && !micSamples.isEmpty {
-            suppressEcho(
-                appSamples: appSamples,
-                micSamples: &micSamples,
-                sampleRate: sampleRate,
-                micDelay: clampedDelay,
-            )
-        }
-
-        // Align by mic delay (shift mic samples)
+        // Align by mic delay first (shift mic samples) so echo suppression
+        // operates on already-aligned tracks.
         if clampedDelay > 0 {
             let delaySamples = Int(clampedDelay * Double(sampleRate))
             if delaySamples > 0 && delaySamples < micSamples.count {
@@ -68,6 +59,17 @@ enum AudioMixer {
                 // App started later: prepend zeros to app
                 appSamples = [Float](repeating: 0, count: delaySamples) + appSamples
             }
+        }
+
+        // Apply echo suppression after alignment (delay is already incorporated
+        // into sample positions, so pass micDelay: 0).
+        if !appSamples.isEmpty && !micSamples.isEmpty {
+            suppressEcho(
+                appSamples: appSamples,
+                micSamples: &micSamples,
+                sampleRate: sampleRate,
+                micDelay: 0,
+            )
         }
 
         // Average the two tracks

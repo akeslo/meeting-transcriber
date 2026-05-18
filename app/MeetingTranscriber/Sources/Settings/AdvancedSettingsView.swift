@@ -87,9 +87,14 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 if let file = lastExportFile {
-                    Text("Exported to: \(file)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Button("Exported to: \(URL(fileURLWithPath: file).lastPathComponent)") {
+                        NSWorkspace.shared.activateFileViewerSelecting(
+                            [URL(fileURLWithPath: file)]
+                        )
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
                 }
                 if let err = lastExportError {
                     Text("Export failed: \(err)")
@@ -168,9 +173,12 @@ struct AdvancedSettingsView: View {
     }()
 
     private func refreshPermissions() {
-        micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
-        screenRecordingOK = Permissions.checkScreenRecording()
-        accessibilityOK = AXIsProcessTrusted()
+        Task { @MainActor in
+            let result = await PermissionHealthCheck.runLive()
+            micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
+            screenRecordingOK = result.screenRecording == .healthy
+            accessibilityOK = result.accessibility == .healthy
+        }
     }
 
     private func exportDiagnostics() {
@@ -203,7 +211,7 @@ struct AdvancedSettingsView: View {
                 isExportingDiagnostics = false
                 switch result {
                 case let .success(count):
-                    lastExportFile = outURL.lastPathComponent
+                    lastExportFile = outURL.path
                     lastExportError = nil
                     NSWorkspace.shared.activateFileViewerSelecting([outURL])
                     let exportedFile = outURL.lastPathComponent

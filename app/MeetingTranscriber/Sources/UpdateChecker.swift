@@ -76,15 +76,27 @@ struct GitHubReleaseProvider: UpdateProviding {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+    private static let allowedDmgHosts: Set<String> = [
+        "github.com",
+        "objects.githubusercontent.com",
+    ]
+
     private func mapRelease(_ release: GitHubRelease) -> ReleaseInfo {
         let dmgAsset = release.assets.first { $0.name.hasSuffix(".dmg") }
+        let dmgURL = dmgAsset.flatMap { asset -> URL? in
+            guard let url = URL(string: asset.browserDownloadURL),
+                  let host = url.host,
+                  Self.allowedDmgHosts.contains(host)
+            else { return nil }
+            return url
+        }
         return ReleaseInfo(
             tagName: release.tagName,
             name: release.name ?? release.tagName,
             prerelease: release.prerelease,
             // swiftlint:disable:next force_unwrapping
             htmlURL: URL(string: release.htmlURL)!,
-            dmgURL: dmgAsset.flatMap { URL(string: $0.browserDownloadURL) },
+            dmgURL: dmgURL,
         )
     }
 }

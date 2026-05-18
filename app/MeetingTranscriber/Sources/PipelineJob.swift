@@ -50,6 +50,9 @@ struct PipelineJob: Identifiable, Codable {
     let micPath: URL?
     let micDelay: TimeInterval
     let participants: [String]
+    /// Per-job overrides set by manual recording options. nil = use queue defaults.
+    let diarizeOverride: Bool?
+    let numSpeakersOverride: Int?
     let enqueuedAt: Date
     var state: JobState
     var error: String?
@@ -66,6 +69,8 @@ struct PipelineJob: Identifiable, Codable {
         micPath: URL?,
         micDelay: TimeInterval,
         participants: [String] = [],
+        diarizeOverride: Bool? = nil,
+        numSpeakersOverride: Int? = nil,
     ) {
         self.id = UUID()
         self.meetingTitle = meetingTitle
@@ -75,6 +80,8 @@ struct PipelineJob: Identifiable, Codable {
         self.micPath = micPath
         self.micDelay = micDelay
         self.participants = participants
+        self.diarizeOverride = diarizeOverride
+        self.numSpeakersOverride = numSpeakersOverride
         self.enqueuedAt = Date()
         self.state = .waiting
         self.error = nil

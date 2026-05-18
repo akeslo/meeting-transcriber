@@ -32,10 +32,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load .env if present (APP_PASSWORD, DEVELOPER_ID, etc.)
+# Only source if owned by current user and not group/world writable (prevents
+# privilege escalation via a tampered .env on shared machines).
 if [ -f "$PROJECT_ROOT/.env" ]; then
-    set -a
-    source "$PROJECT_ROOT/.env"
-    set +a
+    _env_perms=$(stat -f "%Mp%Lp" "$PROJECT_ROOT/.env" 2>/dev/null || echo "0000")
+    _env_owner=$(stat -f "%u" "$PROJECT_ROOT/.env" 2>/dev/null || echo "0")
+    if [ "$_env_owner" = "$(id -u)" ] && [[ "$_env_perms" != *[2367]* ]]; then
+        set -a
+        source "$PROJECT_ROOT/.env"
+        set +a
+    else
+        echo "WARNING: .env has unsafe permissions or wrong owner — skipping source" >&2
+    fi
 fi
 
 BUILD_DIR="$PROJECT_ROOT/.build/release"

@@ -50,6 +50,7 @@ struct SpeakersSettingsView: View {
                             .multilineTextAlignment(.trailing)
                         Stepper("", value: $settings.numSpeakers, in: 0 ... 10)
                             .labelsHidden()
+                            .accessibilityValue(settings.numSpeakers == 0 ? "Auto" : "\(settings.numSpeakers)")
                     }
                 }
             }

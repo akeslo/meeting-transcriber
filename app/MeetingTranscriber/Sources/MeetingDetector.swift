@@ -100,6 +100,10 @@ class MeetingDetector: MeetingDetecting {
                let pattern = patterns.first(where: { $0.appName == appName }) {
                 let pid = match.window["kCGWindowOwnerPID"] as? Int32 ?? 0
 
+                // Reset counter before returning so a re-detection after the
+                // meeting ends requires a fresh run of consecutive hits.
+                consecutiveHits[appName] = 0
+
                 return DetectedMeeting(
                     pattern: pattern,
                     windowTitle: match.title,
@@ -221,9 +225,13 @@ class MeetingDetector: MeetingDetecting {
         let app = AXUIElementCreateApplication(pid_t(pid))
         var focusedWindow: AnyObject?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
-              let window = focusedWindow else { return nil }
+              let focusedWindowObj = focusedWindow,
+              CFGetTypeID(focusedWindowObj as CFTypeRef) == AXUIElementGetTypeID()
+        else { return nil }
+        // Safe: type ID confirmed above
+        let window = focusedWindowObj as! AXUIElement // swiftlint:disable:this force_cast
         var titleVal: AnyObject?
-        guard AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &titleVal) == .success,
+        guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleVal) == .success,
               let title = titleVal as? String else { return nil }
         return title
     }

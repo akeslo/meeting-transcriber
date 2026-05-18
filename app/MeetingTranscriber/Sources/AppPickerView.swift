@@ -38,16 +38,18 @@ struct SystemRunningAppsProvider: RunningAppsProvider {
 @MainActor
 struct AppPickerView: View {
     let appsProvider: any RunningAppsProvider
-    let onStartRecording: (pid_t, String, String) -> Void
+    let onStartRecording: (pid_t, String, String, Bool, Int) -> Void
     let onCancel: () -> Void
 
     @State private var apps: [RunningApp] = []
     @State private var selectedApp: RunningApp?
     @State private var meetingTitle: String = ""
+    @State private var includeMic: Bool = true
+    @State private var numSpeakers: Int = 2
 
     init(
         appsProvider: any RunningAppsProvider = SystemRunningAppsProvider(),
-        onStartRecording: @escaping (pid_t, String, String) -> Void,
+        onStartRecording: @escaping (pid_t, String, String, Bool, Int) -> Void,
         onCancel: @escaping () -> Void,
     ) {
         self.appsProvider = appsProvider
@@ -70,6 +72,7 @@ struct AppPickerView: View {
                         .labelStyle(.iconOnly)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Refresh")
             }
             .padding()
 
@@ -88,9 +91,6 @@ struct AppPickerView: View {
                     }
                     Text(app.name)
                     Spacer()
-                    Text("PID \(app.id)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 .tag(app)
             }
@@ -103,6 +103,17 @@ struct AppPickerView: View {
                 TextField("Meeting title (optional)", text: $meetingTitle)
                     .textFieldStyle(.roundedBorder)
 
+                HStack(spacing: 16) {
+                    Toggle("Include Mic", isOn: $includeMic)
+                    Spacer()
+                    Stepper(
+                        numSpeakers == 1 ? "1 speaker (no diarization)" : "\(numSpeakers) speakers",
+                        value: $numSpeakers, in: 1 ... 10,
+                    )
+                    .accessibilityLabel("Number of speakers")
+                    .accessibilityValue("\(numSpeakers)")
+                }
+
                 HStack {
                     Button("Cancel") {
                         onCancel()
@@ -114,7 +125,7 @@ struct AppPickerView: View {
                     Button("Start Recording") {
                         guard let app = selectedApp else { return }
                         let title = meetingTitle.isEmpty ? app.name : meetingTitle
-                        onStartRecording(app.id, app.name, title)
+                        onStartRecording(app.id, app.name, title, includeMic, numSpeakers)
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(selectedApp == nil)

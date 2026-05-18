@@ -350,7 +350,9 @@ enum PermissionHealthCheck {
         }
     }
 
-    private static let debugLogFile = DebugLogFile(path: "/tmp/mt-permission.log")
+    private static let debugLogFile = DebugLogFile(
+        path: AppPaths.dataDir.appendingPathComponent("mt-permission.log").path
+    )
 
     static func debugLog(_ line: String) {
         debugLogFile.append(line)

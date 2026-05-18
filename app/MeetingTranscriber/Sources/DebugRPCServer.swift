@@ -46,13 +46,14 @@
 
         /// Validate the request's `Host` header against `127.0.0.1` /
         /// `localhost` (with or without our bound port). Empty Host is
-        /// accepted because old HTTP/1.0 clients and our own loopback
-        /// probes don't always set one; the bind + bearer check still
-        /// gates them. Defense-in-depth against DNS-rebinding payloads
-        /// where an attacker's site resolves a hostname to 127.0.0.1
-        /// and the browser dutifully sends `Host: evil.example`.
-        nonisolated static func isHostAllowed(_ host: String, port: UInt16) -> Bool {
-            if host.isEmpty { return true }
+        /// accepted only when it arrives without an `Origin` header —
+        /// plain HTTP/1.0 clients don't send either, so both absent is a
+        /// safe loopback probe. When Origin is present alongside an empty
+        /// Host the request likely came from a browser context and is
+        /// rejected to block DNS-rebinding payloads where an attacker's
+        /// site resolves a hostname to 127.0.0.1.
+        nonisolated static func isHostAllowed(_ host: String, port: UInt16, hasOrigin: Bool = false) -> Bool {
+            if host.isEmpty { return !hasOrigin }
             let allowedNoPort: Set = ["127.0.0.1", "localhost"]
             if allowedNoPort.contains(host) { return true }
             let allowedWithPort: Set = [
@@ -111,13 +112,14 @@
         }
 
         /// Generate a 32-byte hex token, persist atomically with mode 0600, return it.
-        /// Reuses an existing non-empty file so `mt-cli` survives across launches.
+        /// Reuses an existing file only when it matches the expected 64-hex-char format;
+        /// rotates (writes a fresh token) if the file is missing, empty, or malformed.
         nonisolated static func loadOrCreateToken() -> String {
             let url = tokenFileURL
             if let data = try? Data(contentsOf: url),
                let existing = String(data: data, encoding: .utf8)?
                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !existing.isEmpty {
+               existing.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil {
                 return existing
             }
             return rotateToken(at: url)
@@ -221,11 +223,13 @@
 
         // swiftlint:disable:next cyclomatic_complexity
         func route(_ request: HTTPRequest) async -> HTTPResponse {
-            if let origin = request.headers["origin"], !origin.isEmpty, origin != "null" {
+            let originHeader = request.headers["origin"]
+            let hasOrigin = originHeader != nil
+            if let origin = originHeader, !origin.isEmpty, origin != "null" {
                 return HTTPResponse.forbidden()
             }
             let hostPort = boundPort ?? port.rawValue
-            guard Self.isHostAllowed(request.headers["host"] ?? "", port: hostPort) else {
+            guard Self.isHostAllowed(request.headers["host"] ?? "", port: hostPort, hasOrigin: hasOrigin) else {
                 return HTTPResponse.forbidden()
             }
             let provided = request.headers["authorization"] ?? ""
@@ -262,11 +266,16 @@
                 // — the same code path NSOpenPanel hits via "Open from
                 // Recording". Used by `scripts/e2e-app.sh` to chain a
                 // record-only run with a re-import + transcript assertion.
-                // 400 on missing/empty path or undecodable JSON.
+                // 400 on missing/empty path, undecodable JSON, or path
+                // outside the allowed directories (dataDir / recordingsDir).
                 guard let p = try? JSONDecoder().decode(EnqueueFilePayload.self, from: request.body),
                       !p.path.isEmpty
                 else { return HTTPResponse.badRequest() }
-                let url = URL(fileURLWithPath: p.path)
+                let url = URL(fileURLWithPath: p.path).standardized
+                let allowedRoots = [AppPaths.dataDir, AppPaths.recordingsDir]
+                guard allowedRoots.contains(where: { url.path.hasPrefix($0.standardized.path + "/") || url.path == $0.standardized.path }) else {
+                    return HTTPResponse.badRequest()
+                }
                 guard enqueueFile(url) else { return HTTPResponse.badRequest() }
                 return HTTPResponse.ok(body: Data("ok\n".utf8), contentType: "text/plain")
 

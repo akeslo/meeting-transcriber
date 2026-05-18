@@ -32,6 +32,7 @@ class WatchLoop {
     private(set) var manualRecordingInfo: ManualRecordingInfo?
     private var activeRecorder: (any RecordingProvider)?
     private var manualRecordingTask: Task<Void, Never>?
+    private var manualNumSpeakers: Int = 0
 
     var isManualRecording: Bool {
         manualRecordingInfo != nil
@@ -178,7 +179,13 @@ class WatchLoop {
 
     // MARK: - Manual Recording
 
-    func startManualRecording(pid: pid_t, appName: String, title: String) async throws {
+    func startManualRecording(
+        pid: pid_t,
+        appName: String,
+        title: String,
+        includeMic: Bool = true,
+        numSpeakers: Int = 0,
+    ) async throws {
         guard state != .recording else {
             logger.warning("Cannot start manual recording — already recording")
             return
@@ -195,11 +202,12 @@ class WatchLoop {
 
         let recorder = recorderFactory()
         try recorder.start(
-            appPID: pid, noMic: noMic, micDeviceUID: micDeviceUID,
+            appPID: pid, noMic: !includeMic, micDeviceUID: micDeviceUID,
             debugLogging: verboseDiagnostics(),
         )
 
         activeRecorder = recorder
+        manualNumSpeakers = numSpeakers
         update { next in
             next.phase = .recording
             next.manualRecordingInfo = ManualRecordingInfo(pid: pid, appName: appName, title: title)
@@ -214,6 +222,39 @@ class WatchLoop {
         logger.info("Manual recording started for \(appName) (PID \(pid)): \(title)")
     }
 
+    /// Stop the current auto-detected recording and enqueue it, but keep the
+    /// watch loop running so the next meeting is automatically detected.
+    func stopCurrentRecordingAndKeepWatching() {
+        guard state == .recording, !isManualRecording,
+              let meeting = currentMeeting else { return }
+        // Cancel the watch task so it doesn't interfere with the recorder stop.
+        watchTask?.cancel()
+        watchTask = nil
+
+        // Reset the detector for this app now (before the new watchTask fires)
+        // so the old task's cooldown reset doesn't race with a fresh detection.
+        detector.reset(appName: meeting.pattern.appName)
+
+        // The recorder is embedded inside handleMeeting's local scope.
+        // Cancelling the watch task causes handleMeeting to throw
+        // CancellationError, which stops the recorder and enqueues the
+        // recording via the normal path. We then restart the loop below.
+
+        // Restart watching in a fresh task; the old task was cancelled above
+        // which causes handleMeeting to throw CancellationError and stop the
+        // recorder + enqueue via the normal path.
+        update { next in
+            next.phase = .watching
+            next.currentMeeting = nil
+            next.detail = "Polling for meetings..."
+        }
+        watchTask = Task { [weak self] in
+            guard let self else { return }
+            await self.watchLoop()
+        }
+        logger.info("Stopped auto-detected recording and resumed watching")
+    }
+
     func stopManualRecording() {
         guard let recorder = activeRecorder, let info = manualRecordingInfo else { return }
 
@@ -223,7 +264,10 @@ class WatchLoop {
         var failureMessage: String?
         do {
             let recording = try recorder.stop()
-            enqueueRecording(title: info.title, appName: info.appName, recording: recording)
+            enqueueRecording(
+                title: info.title, appName: info.appName,
+                recording: recording, numSpeakers: manualNumSpeakers,
+            )
         } catch {
             logger.error("Failed to stop manual recording: \(error)")
             failureMessage = error.localizedDescription
@@ -388,6 +432,7 @@ class WatchLoop {
         appName: String,
         recording: RecordingResult,
         participants: [String] = [],
+        numSpeakers: Int = 0,
     ) {
         if recordOnly() {
             writeRecordOnlySidecar(
@@ -399,6 +444,8 @@ class WatchLoop {
             return
         }
 
+        let diarizeOverride: Bool? = numSpeakers > 0 ? numSpeakers > 1 : nil
+        let numSpeakersOverride: Int? = numSpeakers > 0 ? numSpeakers : nil
         let job = PipelineJob(
             meetingTitle: title,
             appName: appName,
@@ -407,6 +454,8 @@ class WatchLoop {
             micPath: recording.micPath,
             micDelay: recording.micDelay,
             participants: participants,
+            diarizeOverride: diarizeOverride,
+            numSpeakersOverride: numSpeakersOverride,
         )
         pipelineQueue?.enqueue(job)
         logger.info("Enqueued pipeline job for: \(title)")

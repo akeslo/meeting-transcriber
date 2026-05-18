@@ -65,10 +65,24 @@ struct MeetingTranscriberApp: App {
                 isWatching: appState.isWatching,
                 pipelineQueue: appState.pipelineQueue,
                 updateChecker: appState.updateChecker,
+                currentMicUID: appState.settings.micDeviceUID,
+                isRPCActive: {
+                    #if !APPSTORE
+                        return appState.isRPCActive
+                    #else
+                        return false
+                    #endif
+                }(),
+                onSelectMic: { uid in appState.settings.micDeviceUID = uid },
                 onStartStop: appState.toggleWatching,
                 onRecordApp: { bringWindowToFront(id: "record-app") },
+                onRecordWindow: { bringWindowToFront(id: "record-window") },
                 onStopManualRecording: appState.watchLoop?.isManualRecording == true ? {
                     appState.stopManualRecording()
+                } : nil,
+                onStopAutoRecording: (appState.watchLoop?.isManualRecording == false
+                    && appState.watchLoop?.state == .recording) ? {
+                    appState.stopCurrentRecordingAndKeepWatching()
                 } : nil,
                 onOpenLastProtocol: openLastProtocol,
                 onOpenProtocol: { url in NSWorkspace.shared.open(url) },
@@ -80,7 +94,16 @@ struct MeetingTranscriberApp: App {
                     bringWindowToFront(id: "speaker-naming")
                 },
                 onProcessFiles: processAudioFiles,
-                onDismissJob: { id in appState.pipelineQueue.removeJob(id: id) },
+                onDismissJob: { id in
+                    // If the job is still waiting for speaker naming, resolve it
+                    // as skipped before removing — otherwise the pipeline task
+                    // stays suspended forever waiting for a result it will never get.
+                    if let job = appState.pipelineQueue.jobs.first(where: { $0.id == id }),
+                       job.state == .speakerNamingPending {
+                        appState.pipelineQueue.completeSpeakerNaming(jobID: id, result: .skipped)
+                    }
+                    appState.pipelineQueue.removeJob(id: id)
+                },
                 onQuit: quit,
             )
         } label: { // swiftlint:disable:this closure_body_length
@@ -185,11 +208,28 @@ struct MeetingTranscriberApp: App {
 
         Window("Record App", id: "record-app") {
             AppPickerView(
-                onStartRecording: { pid, appName, title in
-                    appState.startManualRecording(pid: pid, appName: appName, title: title)
+                onStartRecording: { pid, appName, title, includeMic, numSpeakers in
+                    appState.startManualRecording(
+                        pid: pid, appName: appName, title: title,
+                        includeMic: includeMic, numSpeakers: numSpeakers,
+                    )
                     closeWindow(id: "record-app")
                 },
                 onCancel: { closeWindow(id: "record-app") },
+            )
+        }
+        .windowResizability(.contentSize)
+
+        Window("Record Window", id: "record-window") {
+            WindowPickerView(
+                onStartRecording: { pid, appName, title, includeMic, numSpeakers in
+                    appState.startManualRecording(
+                        pid: pid, appName: appName, title: title,
+                        includeMic: includeMic, numSpeakers: numSpeakers,
+                    )
+                    closeWindow(id: "record-window")
+                },
+                onCancel: { closeWindow(id: "record-window") },
             )
         }
         .windowResizability(.contentSize)

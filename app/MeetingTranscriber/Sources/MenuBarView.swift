@@ -5,9 +5,14 @@ struct MenuBarView: View {
     let isWatching: Bool
     let pipelineQueue: PipelineQueue
     var updateChecker: UpdateChecker?
+    let currentMicUID: String
+    var isRPCActive: Bool = false
+    let onSelectMic: (String) -> Void
     let onStartStop: () -> Void
     let onRecordApp: () -> Void
+    let onRecordWindow: () -> Void
     let onStopManualRecording: (() -> Void)?
+    let onStopAutoRecording: (() -> Void)?
     let onOpenLastProtocol: () -> Void
     let onOpenProtocol: (URL) -> Void
     let onOpenProtocolsFolder: () -> Void
@@ -17,8 +22,15 @@ struct MenuBarView: View {
     let onDismissJob: (UUID) -> Void
     let onQuit: () -> Void
 
+    @State private var audioInputDevices: [(uid: String, name: String, channels: UInt32)] = []
+
     private var state: TranscriberState {
         status?.state ?? .idle
+    }
+
+    private var currentMicName: String {
+        if currentMicUID.isEmpty { return "System Default" }
+        return audioInputDevices.first { $0.uid == currentMicUID }?.name ?? "Unknown"
     }
 
     var body: some View {
@@ -32,8 +44,15 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            if isRPCActive {
+                Label("RPC Active", systemImage: "network")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
         }
         .padding(.horizontal, 4)
+        .onAppear { audioInputDevices = MicRecorder.listDevices() }
 
         // Meeting info
         if let meeting = status?.meeting {
@@ -42,7 +61,7 @@ struct MenuBarView: View {
                 Text(meeting.title)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Text("\(meeting.app) (PID \(meeting.pid))")
+                Text(meeting.app)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -79,13 +98,25 @@ struct MenuBarView: View {
                 Label("Stop Recording", systemImage: "stop.circle.fill")
             }
             .keyboardShortcut(".")
+        } else if state == .recording, let onStopAutoRecording {
+            Button {
+                onStopAutoRecording()
+            } label: {
+                Label("Stop Recording (keep watching)", systemImage: "stop.circle")
+            }
+            .keyboardShortcut(".")
         } else if state != .recording {
+            Button {
+                onRecordWindow()
+            } label: {
+                Label("Record Window...", systemImage: "macwindow.badge.plus")
+            }
+            .keyboardShortcut("r")
             Button {
                 onRecordApp()
             } label: {
                 Label("Record App...", systemImage: "record.circle")
             }
-            .keyboardShortcut("r")
         }
 
         if let onNameSpeakers {
@@ -149,6 +180,36 @@ struct MenuBarView: View {
 
         Divider()
 
+        Menu {
+            Button {
+                onSelectMic("")
+            } label: {
+                if currentMicUID.isEmpty {
+                    Label("System Default", systemImage: "checkmark")
+                } else {
+                    Text("System Default")
+                }
+            }
+            if !audioInputDevices.isEmpty {
+                Divider()
+                ForEach(audioInputDevices, id: \.uid) { device in
+                    Button {
+                        onSelectMic(device.uid)
+                    } label: {
+                        if currentMicUID == device.uid {
+                            Label(device.name, systemImage: "checkmark")
+                        } else {
+                            Text(device.name)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Mic: \(currentMicName)", systemImage: "mic")
+        }
+
+        Divider()
+
         Button {
             onOpenSettings()
         } label: {
@@ -161,7 +222,7 @@ struct MenuBarView: View {
         Button {
             onQuit()
         } label: {
-            Text("Quit")
+            Label("Quit", systemImage: "power")
         }
         .keyboardShortcut("q")
     }
@@ -182,19 +243,23 @@ struct MenuBarView: View {
             if job.state == .done, let path = job.protocolPath ?? job.transcriptPath {
                 Button("Open") { onOpenProtocol(path) }
                     .font(.caption2)
+                    .accessibilityLabel("Open protocol for \(job.meetingTitle)")
             }
             if job.state == .speakerNamingPending {
                 Button("Name Speakers") { onNameSpeakers?() }
                     .font(.caption2)
+                    .accessibilityLabel("Name speakers for \(job.meetingTitle)")
             }
             if job.state == .waiting || job.state == .transcribing
                 || job.state == .diarizing || job.state == .generatingProtocol {
                 Button("Cancel") { pipelineQueue.cancelJob(id: job.id) }
                     .font(.caption2)
+                    .accessibilityLabel("Cancel processing \(job.meetingTitle)")
             }
             if job.state == .done || job.state == .error || job.state == .speakerNamingPending {
                 Button("Dismiss") { onDismissJob(job.id) }
                     .font(.caption2)
+                    .accessibilityLabel("Dismiss \(job.meetingTitle)")
             }
         }
         .padding(.horizontal, 4)

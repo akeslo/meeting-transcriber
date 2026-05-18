@@ -319,16 +319,21 @@ public class AppAudioCapture {
         aggregateID = newAggregateID
         logger.info("Created aggregate device: \(self.aggregateID)")
 
-        // Set up IOProc to read audio data and write to file descriptor
+        // Set up IOProc to read audio data and write to file descriptor.
+        // nil queue: run inline on the CoreAudio IO thread. Passing a non-nil
+        // dispatch queue to AudioDeviceCreateIOProcIDWithBlock silently prevents
+        // the callback from ever firing for process-tap aggregate devices on some
+        // macOS configurations. We copy the buffer immediately (cheap memcpy) and
+        // dispatch the file write + RMS work to writeQueue to keep the IO thread free.
         let fd = outputFileDescriptor
         var newProcID: AudioDeviceIOProcID?
         let ioProcStatus = AudioDeviceCreateIOProcIDWithBlock(
-            &newProcID, aggregateID, writeQueue,
+            &newProcID, aggregateID, nil,
         ) { [weak self] _, inInputData, _, _, _ in
             guard let self, self.isRunning else { return }
             let abl = inInputData.pointee
 
-            // Log format on first callback
+            // Log format on first callback (IO thread — one-time, fast)
             if !self.didLogFormat {
                 self.didLogFormat = true
                 // Only record the very first frame time — not after device restarts.
@@ -356,14 +361,25 @@ public class AppAudioCapture {
                 )
             }
 
-            // CATapDescription delivers interleaved float32 — write directly
-            guard let data = abl.mBuffers.mData else { return }
+            // CATapDescription delivers interleaved float32.
+            // Copy the buffer before returning — CoreAudio reclaims it after this callback.
+            guard let rawData = abl.mBuffers.mData else { return }
             let byteCount = Int(abl.mBuffers.mDataByteSize)
-            writeAllToFileHandle(fd, data, count: byteCount)
+            guard byteCount > 0 else { return }
+            let dataCopy = Data(bytes: rawData, count: byteCount)
+            let debugLogging = self.debugLogging
 
-            if self.debugLogging {
-                self.accumulateDebugRMS(data: data, byteCount: byteCount)
-                self.maybeReportDebugRMS()
+            self.writeQueue.async { [fd, weak self] in
+                dataCopy.withUnsafeBytes { ptr in
+                    guard let base = ptr.baseAddress else { return }
+                    writeAllToFileHandle(fd, base, count: byteCount)
+                    if debugLogging, let self {
+                        self.accumulateDebugRMS(
+                            data: UnsafeMutableRawPointer(mutating: base), byteCount: byteCount,
+                        )
+                        self.maybeReportDebugRMS()
+                    }
+                }
             }
         }
 
@@ -380,6 +396,12 @@ public class AppAudioCapture {
         }
         procID = validProcID
 
+        // Resolve the actual sample rate before starting the IOProc so the
+        // IOProc never reads a stale value (data race fix).
+        actualSampleRate = Self.resolveActualSampleRate(
+            deviceID: aggregateID, tapID: tapID, requestedRate: sampleRate,
+        )
+
         let startStatus = AudioDeviceStart(aggregateID, procID)
         guard startStatus == noErr else {
             AudioHardwareDestroyAggregateDevice(aggregateID)
@@ -395,9 +417,6 @@ public class AppAudioCapture {
 
         isRunning = true
 
-        actualSampleRate = Self.resolveActualSampleRate(
-            deviceID: aggregateID, tapID: tapID, requestedRate: sampleRate,
-        )
         logger.info("Audio capture started (PID \(self.pid), rate: \(self.actualSampleRate) Hz)")
     }
 

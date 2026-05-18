@@ -101,8 +101,11 @@ struct VoiceEnrollmentView: View {
     private func diarizingBody(url: URL) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Diarizing \(url.lastPathComponent)…").font(.headline)
+            ProgressView()
+                .progressViewStyle(.linear)
             HStack {
                 ProgressView()
+                    .controlSize(.small)
                 Text(String(format: "%.0f s elapsed", elapsed))
                     .font(.caption)
                     .foregroundStyle(.secondary)

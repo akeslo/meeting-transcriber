@@ -126,6 +126,9 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         guard let chatURL = URL(string: endpoint) else {
             return .failure(ProtocolError.connectionFailed("Invalid endpoint URL"))
         }
+        guard let scheme = chatURL.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            return .failure(ProtocolError.connectionFailed("Endpoint must use http or https scheme"))
+        }
 
         // Navigate from .../v1/chat/completions to .../v1/models
         let baseURL = chatURL.deletingLastPathComponent().deletingLastPathComponent()

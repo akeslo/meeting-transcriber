@@ -116,8 +116,8 @@ enum ParticipantReader {
             // Skip strings with path separators (UI navigation, file paths)
             if text.contains("/") && text.count(where: { $0 == "/" }) >= 2 { continue }
 
-            // Skip timestamps like "10:30"
-            if text.contains(":") && text.contains(where: \.isNumber) { continue }
+            // Skip HH:MM style timestamps like "10:30" or "9:05"
+            if text.range(of: #"^\d{1,2}:\d{2}$"#, options: .regularExpression) != nil { continue }
 
             // Skip known UI labels
             if skipPatterns.contains(lower) { continue }

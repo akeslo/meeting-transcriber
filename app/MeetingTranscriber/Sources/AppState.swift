@@ -232,6 +232,13 @@ final class AppState { // swiftlint:disable:this type_body_length
 
     // MARK: - Derived properties
 
+    #if !APPSTORE
+        /// True when the debug RPC server is currently running.
+        var isRPCActive: Bool {
+            debugRPCServer != nil
+        }
+    #endif
+
     var isWatching: Bool {
         watchLoop?.isActive == true && watchLoop?.isManualRecording == false
     }
@@ -275,13 +282,17 @@ final class AppState { // swiftlint:disable:this type_body_length
             }
         }
 
+        let lastProtocolPath = pipelineQueue.completedJobs.last
+            .flatMap { $0.protocolPath ?? $0.transcriptPath }
+            .map(\.path)
+
         return TranscriberStatus(
             version: 1,
             timestamp: Self.isoFormatter.string(from: Date()),
             state: loop.transcriberState,
             detail: loop.detail,
             meeting: meeting,
-            protocolPath: nil,
+            protocolPath: lastProtocolPath,
             error: loop.lastError,
             audioPath: nil,
             pid: Int(ProcessInfo.processInfo.processIdentifier),
@@ -303,16 +314,28 @@ final class AppState { // swiftlint:disable:this type_body_length
                 syncLanguageSettings()
                 pipelineQueue = makePipelineQueue()
 
-                let powerDetector = PowerAssertionDetector()
-                var browserPatterns: [AppMeetingPattern] = []
-                if settings.watchTeams && settings.watchTeamsBrowser {
-                    browserPatterns.append(.teamsBrowser)
+                // Build the enabled-app filter for PAD: only report a detected app
+                // if the corresponding watch toggle is on.
+                let watchTeams = settings.watchTeams
+                let watchZoom = settings.watchZoom
+                let watchWebex = settings.watchWebex
+                let enabledPADPatterns = PowerAssertionDetector.defaultPatterns.filter { pattern in
+                    switch pattern.appName {
+                    case "Microsoft Teams": return watchTeams
+                    case "Zoom": return watchZoom
+                    case "Webex": return watchWebex
+                    default: return true // simulator and unknown apps pass through
+                    }
                 }
-                let detector: any MeetingDetecting = browserPatterns.isEmpty
+                let powerDetector = PowerAssertionDetector(patterns: enabledPADPatterns)
+                let websitePatterns = settings.websiteWatchEntries
+                    .filter { $0.enabled }
+                    .map { AppMeetingPattern.pattern(for: $0) }
+                let detector: any MeetingDetecting = websitePatterns.isEmpty
                     ? powerDetector
                     : CombinedDetector(detectors: [
                         powerDetector,
-                        MeetingDetector(patterns: browserPatterns),
+                        MeetingDetector(patterns: websitePatterns),
                     ])
 
                 let loop = WatchLoop(
@@ -363,6 +386,12 @@ final class AppState { // swiftlint:disable:this type_body_length
     }
 
     func startManualRecording(pid: pid_t, appName: String, title: String, includeMic: Bool = true, numSpeakers: Int = 0) {
+        // Reject privileged or non-regular processes to prevent tapping system daemons.
+        guard let runningApp = NSRunningApplication(processIdentifier: pid),
+              runningApp.activationPolicy == .regular else {
+            return
+        }
+
         // Stop auto-watch if active
         if let loop = watchLoop, loop.isActive, !loop.isManualRecording {
             loop.stop()
@@ -413,6 +442,12 @@ final class AppState { // swiftlint:disable:this type_body_length
     func stopManualRecording() {
         watchLoop?.stopManualRecording()
         watchLoop = nil
+    }
+
+    /// Stop the current auto-detected recording and enqueue it, while keeping
+    /// the watch loop running so the next meeting is automatically detected.
+    func stopCurrentRecordingAndKeepWatching() {
+        watchLoop?.stopCurrentRecordingAndKeepWatching()
     }
 
     /// Filters `urls` to files that currently exist on disk, forwards them to

@@ -22,7 +22,7 @@ final class AppPickerViewTests: XCTestCase {
     func testStartButtonExists() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -32,7 +32,7 @@ final class AppPickerViewTests: XCTestCase {
     func testStartButtonDisabledWithoutSelection() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -43,7 +43,7 @@ final class AppPickerViewTests: XCTestCase {
     func testCancelButtonExists() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -54,7 +54,7 @@ final class AppPickerViewTests: XCTestCase {
         var called = false
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: { called = true },
         )
         let body = try sut.inspect()
@@ -67,7 +67,7 @@ final class AppPickerViewTests: XCTestCase {
     func testHeaderShown() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -79,7 +79,7 @@ final class AppPickerViewTests: XCTestCase {
     func testMeetingTitlePlaceholderExists() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -92,7 +92,7 @@ final class AppPickerViewTests: XCTestCase {
     func testRefreshButtonExists() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: testApps),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
@@ -106,7 +106,7 @@ final class AppPickerViewTests: XCTestCase {
     func testEmptyAppListStillShowsButtons() throws {
         let sut = AppPickerView(
             appsProvider: MockAppsProvider(apps: []),
-            onStartRecording: { _, _, _ in },
+            onStartRecording: { _, _, _, _, _ in },
             onCancel: {},
         )
         let body = try sut.inspect()
