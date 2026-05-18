@@ -1,3 +1,4 @@
+@preconcurrency import ApplicationServices
 import CoreGraphics
 import Foundation
 import os.log
@@ -19,6 +20,7 @@ class MeetingDetector: MeetingDetecting {
     /// Pre-compiled regex for each pattern to avoid re-compilation on every poll.
     private let compiledMeetingPatterns: [String: [NSRegularExpression]]
     private let compiledIdlePatterns: [String: [NSRegularExpression]]
+    private let compiledTitleCleanupPatterns: [String: [NSRegularExpression]]
 
     /// Closure that provides the window list. Defaults to CGWindowListCopyWindowInfo.
     /// Override in tests to inject mock window data.
@@ -30,6 +32,7 @@ class MeetingDetector: MeetingDetecting {
 
         var meeting: [String: [NSRegularExpression]] = [:]
         var idle: [String: [NSRegularExpression]] = [:]
+        var cleanup: [String: [NSRegularExpression]] = [:]
         for p in patterns {
             meeting[p.appName] = p.meetingPatterns.compactMap { pattern in
                 do {
@@ -47,9 +50,18 @@ class MeetingDetector: MeetingDetecting {
                     return nil
                 }
             }
+            cleanup[p.appName] = p.titleCleanupPatterns.compactMap { pattern in
+                do {
+                    return try NSRegularExpression(pattern: pattern)
+                } catch {
+                    logger.error("Invalid title cleanup regex for \(p.appName): \(pattern) — \(error.localizedDescription)")
+                    return nil
+                }
+            }
         }
         self.compiledMeetingPatterns = meeting
         self.compiledIdlePatterns = idle
+        self.compiledTitleCleanupPatterns = cleanup
     }
 
     /// Single poll: check all windows against all patterns.
@@ -58,6 +70,8 @@ class MeetingDetector: MeetingDetecting {
     /// positive detections for the same app.
     func checkOnce() -> DetectedMeeting? {
         let windows = windowListProvider()
+        let patternCount = self.patterns.count
+        logger.debug("[detect] poll: windows=\(windows.count, privacy: .public) patterns=\(patternCount, privacy: .public)")
         var hitsThisRound: Set<String> = []
         // Track first matching window per pattern for returning DetectedMeeting
         var firstMatch: [String: (title: String, window: [String: Any])] = [:]
@@ -123,14 +137,38 @@ class MeetingDetector: MeetingDetecting {
     // MARK: - Private
 
     /// Match a window dict against a meeting pattern. Returns the title if matched.
+    ///
+    /// The ownerName check is the primary spoofing defence for browser patterns
+    /// like `teamsBrowser`: a crafted page title can match the meeting regex but
+    /// it can only reach the regex check if the OS-reported `kCGWindowOwnerName`
+    /// is one of the expected browser process names listed in `pattern.ownerNames`.
     private func matchWindow(_ window: [String: Any], pattern: AppMeetingPattern) -> String? {
-        guard let owner = window["kCGWindowOwnerName"] as? String,
-              pattern.ownerNames.contains(owner) else {
+        // Always verify the OS-reported ownerName is in the allowed list before
+        // matching the window title.  This prevents a web page whose title ends
+        // with " | Microsoft Teams" from being treated as a real Teams meeting.
+        guard let owner = window["kCGWindowOwnerName"] as? String else {
+            return nil
+        }
+        guard pattern.ownerNames.contains(owner) else {
+            logger.debug("[detect] owner-mismatch: owner=\(owner, privacy: .public) expected=\(pattern.ownerNames.joined(separator: "|"), privacy: .public)")
             return nil
         }
 
-        guard let title = window["kCGWindowName"] as? String, !title.isEmpty else {
-            return nil
+        let rawTitle = window["kCGWindowName"] as? String ?? ""
+        let title: String
+        if rawTitle.isEmpty {
+            // Some browsers (e.g. Dia) don't expose kCGWindowName — fall back to AX focused window title.
+            if let pid = window["kCGWindowOwnerPID"] as? Int32,
+               let axTitle = MeetingDetector.axWindowTitle(pid: pid),
+               !axTitle.isEmpty {
+                logger.debug("[detect] ax-title-fallback: owner=\(owner, privacy: .public) title=\(axTitle, privacy: .public)")
+                title = axTitle
+            } else {
+                logger.debug("[detect] empty-title: owner=\(owner, privacy: .public) pattern=\(pattern.appName, privacy: .public)")
+                return nil
+            }
+        } else {
+            title = rawTitle
         }
 
         // Check minimum size
@@ -138,6 +176,7 @@ class MeetingDetector: MeetingDetecting {
             let width = bounds["Width"] as? CGFloat ?? 0
             let height = bounds["Height"] as? CGFloat ?? 0
             if width < pattern.minWindowWidth || height < pattern.minWindowHeight {
+                logger.debug("[detect] too-small: owner=\(owner, privacy: .public) size=\(width, privacy: .public)x\(height, privacy: .public) min=\(pattern.minWindowWidth, privacy: .public)x\(pattern.minWindowHeight, privacy: .public)")
                 return nil
             }
         }
@@ -146,6 +185,7 @@ class MeetingDetector: MeetingDetecting {
         let range = NSRange(title.startIndex..., in: title)
         if let idleRegexes = compiledIdlePatterns[pattern.appName] {
             for regex in idleRegexes where regex.firstMatch(in: title, range: range) != nil {
+                logger.debug("[detect] idle-match: title=\(title, privacy: .public) pattern=\(pattern.appName, privacy: .public)")
                 return nil
             }
         }
@@ -153,11 +193,39 @@ class MeetingDetector: MeetingDetecting {
         // Match meeting patterns (pre-compiled)
         if let meetingRegexes = compiledMeetingPatterns[pattern.appName] {
             for regex in meetingRegexes where regex.firstMatch(in: title, range: range) != nil {
-                return title
+                let cleaned = cleanTitle(title, pattern: pattern)
+                logger.debug("[detect] meeting-match: title=\(title, privacy: .public) cleaned=\(cleaned, privacy: .public) pattern=\(pattern.appName, privacy: .public)")
+                return cleaned
             }
         }
 
         return nil
+    }
+
+    private func cleanTitle(_ title: String, pattern: AppMeetingPattern) -> String {
+        guard let regexes = compiledTitleCleanupPatterns[pattern.appName], !regexes.isEmpty else {
+            return title
+        }
+        var result = title
+        for regex in regexes {
+            let r = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, range: r, withTemplate: "")
+        }
+        let trimmed = result.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? title : trimmed
+    }
+
+    /// Read the focused window title for a process via AX API.
+    /// Returns nil if AX isn't available or the process has no focused window.
+    static func axWindowTitle(pid: Int32) -> String? {
+        let app = AXUIElementCreateApplication(pid_t(pid))
+        var focusedWindow: AnyObject?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
+              let window = focusedWindow else { return nil }
+        var titleVal: AnyObject?
+        guard AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &titleVal) == .success,
+              let title = titleVal as? String else { return nil }
+        return title
     }
 
     /// Default window list provider using CGWindowListCopyWindowInfo.
