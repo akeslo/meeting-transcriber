@@ -42,3 +42,21 @@ extension MeetingDetecting {
         reset(appName: nil)
     }
 }
+
+/// Runs multiple detectors in order, returning the first positive result.
+/// Used to combine PowerAssertionDetector (native apps) with MeetingDetector (browser).
+struct CombinedDetector: MeetingDetecting {
+    let detectors: [any MeetingDetecting]
+
+    func checkOnce() -> DetectedMeeting? {
+        detectors.lazy.compactMap { $0.checkOnce() }.first
+    }
+
+    func isMeetingActive(_ meeting: DetectedMeeting) -> Bool {
+        detectors.contains { $0.isMeetingActive(meeting) }
+    }
+
+    func reset(appName: String?) {
+        detectors.forEach { $0.reset(appName: appName) }
+    }
+}

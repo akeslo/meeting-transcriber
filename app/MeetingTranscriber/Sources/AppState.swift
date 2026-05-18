@@ -303,7 +303,17 @@ final class AppState { // swiftlint:disable:this type_body_length
                 syncLanguageSettings()
                 pipelineQueue = makePipelineQueue()
 
-                let detector: any MeetingDetecting = PowerAssertionDetector()
+                let powerDetector = PowerAssertionDetector()
+                var browserPatterns: [AppMeetingPattern] = []
+                if settings.watchTeams && settings.watchTeamsBrowser {
+                    browserPatterns.append(.teamsBrowser)
+                }
+                let detector: any MeetingDetecting = browserPatterns.isEmpty
+                    ? powerDetector
+                    : CombinedDetector(detectors: [
+                        powerDetector,
+                        MeetingDetector(patterns: browserPatterns),
+                    ])
 
                 let loop = WatchLoop(
                     detector: detector,
@@ -352,7 +362,7 @@ final class AppState { // swiftlint:disable:this type_body_length
         }
     }
 
-    func startManualRecording(pid: pid_t, appName: String, title: String) {
+    func startManualRecording(pid: pid_t, appName: String, title: String, includeMic: Bool = true, numSpeakers: Int = 0) {
         // Stop auto-watch if active
         if let loop = watchLoop, loop.isActive, !loop.isManualRecording {
             loop.stop()
@@ -385,7 +395,10 @@ final class AppState { // swiftlint:disable:this type_body_length
             }
 
             do {
-                try await loop.startManualRecording(pid: pid, appName: appName, title: title)
+                try await loop.startManualRecording(
+                    pid: pid, appName: appName, title: title,
+                    includeMic: includeMic, numSpeakers: numSpeakers,
+                )
                 notifier.notify(
                     title: "Manual Recording",
                     body: "Recording: \(title)",

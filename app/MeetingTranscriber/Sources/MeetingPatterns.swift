@@ -90,7 +90,46 @@ extension AppMeetingPattern {
         minWindowHeight: 100,
     )
 
-    static let all: [AppMeetingPattern] = [teams, zoom, webex, simulator]
+    static let teamsBrowser = AppMeetingPattern(
+        appName: "Microsoft Teams (Web)",
+        ownerNames: [
+            "Google Chrome", "Microsoft Edge", "Safari",
+            "Firefox", "Arc", "Brave Browser",
+        ],
+        meetingPatterns: [
+            #".+\s+\|\s+Microsoft Teams"#,
+        ],
+        idlePatterns: [
+            #"^Microsoft Teams$"#,
+            #"^Microsoft Teams - Microsoft Edge$"#,
+            #"^Microsoft Teams - Google Chrome$"#,
+        ],
+        minWindowWidth: 400,
+        minWindowHeight: 300,
+    )
+
+    static let youtube = AppMeetingPattern(
+        appName: "YouTube",
+        ownerNames: [
+            "Google Chrome", "Microsoft Edge", "Safari",
+            "Firefox", "Arc", "Brave Browser",
+        ],
+        meetingPatterns: [
+            #".+ - YouTube$"#,
+            #".+ - YouTube — .+"#,   // browser-name suffix variant (em dash)
+            #".+ - YouTube - .+"#,   // browser-name suffix variant (hyphen)
+        ],
+        idlePatterns: [
+            #"^YouTube$"#,
+            #"^YouTube Studio"#,
+            #"^YouTube Music"#,
+            #"^YouTube TV"#,
+        ],
+        minWindowWidth: 400,
+        minWindowHeight: 300,
+    )
+
+    static let all: [AppMeetingPattern] = [teams, zoom, webex, teamsBrowser, youtube, simulator]
 
     static let byName: [String: AppMeetingPattern] = {
         var dict: [String: AppMeetingPattern] = [:]
