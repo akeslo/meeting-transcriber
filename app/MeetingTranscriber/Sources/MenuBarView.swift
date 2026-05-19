@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct MenuBarView: View {
@@ -53,6 +54,12 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, 4)
         .onAppear { audioInputDevices = MicRecorder.listDevices() }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+            audioInputDevices = MicRecorder.listDevices()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+            audioInputDevices = MicRecorder.listDevices()
+        }
 
         // Meeting info
         if let meeting = status?.meeting {
@@ -106,17 +113,20 @@ struct MenuBarView: View {
             }
             .keyboardShortcut(".")
         } else if state != .recording {
+            Divider()
             Button {
                 onRecordWindow()
             } label: {
                 Label("Record Window...", systemImage: "macwindow.badge.plus")
             }
             .keyboardShortcut("r")
+            .help(isWatching ? "Stops auto-watching and starts manual recording" : "")
             Button {
                 onRecordApp()
             } label: {
                 Label("Record App...", systemImage: "record.circle")
             }
+            .help(isWatching ? "Stops auto-watching and starts manual recording" : "")
         }
 
         if let onNameSpeakers {
@@ -149,15 +159,27 @@ struct MenuBarView: View {
 
         Divider()
 
-        // Open last protocol
-        if let protocolPath = status?.protocolPath {
+        // Open last protocol / transcript — always rendered so the "o"
+        // shortcut is always visible in the menu; disabled when nothing to open.
+        let latestDoneJob = pipelineQueue.jobs.last { $0.state == .done }
+        let latestJobTranscriptPath = latestDoneJob?.transcriptPath
+        let hasProtocol = !(status?.protocolPath ?? "").isEmpty
+        let hasTranscriptOnly = latestJobTranscriptPath != nil && latestDoneJob?.protocolPath == nil
+        if hasTranscriptOnly, let transcriptPath = latestJobTranscriptPath {
+            Button {
+                onOpenProtocol(transcriptPath)
+            } label: {
+                Label("Open Last Transcript", systemImage: "doc.text")
+            }
+            .keyboardShortcut("o")
+        } else {
             Button {
                 onOpenLastProtocol()
             } label: {
                 Label("Open Last Protocol", systemImage: "doc.text")
             }
             .keyboardShortcut("o")
-            .disabled(protocolPath.isEmpty)
+            .disabled(!hasProtocol)
         }
 
         Button {
@@ -205,8 +227,9 @@ struct MenuBarView: View {
                 }
             }
         } label: {
-            Label("Mic: \(currentMicName)", systemImage: "mic")
+            Label(currentMicName, systemImage: "mic")
         }
+        .accessibilityLabel("Microphone: \(currentMicName)")
 
         Divider()
 
@@ -234,6 +257,7 @@ struct MenuBarView: View {
             Circle()
                 .fill(jobColor(job))
                 .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
             VStack(alignment: .leading) {
                 Text(job.meetingTitle)
                     .font(.caption)

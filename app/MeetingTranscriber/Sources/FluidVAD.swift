@@ -93,27 +93,47 @@ struct VadSegmentMap {
 /// `@unchecked Sendable` because `PipelineQueue` caches a single instance
 /// and reuses it across jobs (`detectSpeech` may be called concurrently if
 /// future code adds parallel pre-processing). The mutable `manager` is
-/// initialised at most once via `ensureManager()`, and FluidAudio's
-/// VadManager is itself safe for concurrent inference reads.
+/// owned by a private `ManagerHolder` actor, which serialises concurrent
+/// calls to `ensureManager()` so only one `VadManager` is ever created.
+/// FluidAudio's VadManager is itself safe for concurrent inference reads.
 final class FluidVAD: @unchecked Sendable {
     private static let mergeGapSeconds: TimeInterval = 0.3
     private static let minRegionSeconds: TimeInterval = 0.15
 
     private let threshold: Float
-    private var manager: VadManager?
+
+    /// Actor that serialises lazy initialisation of `VadManager`.
+    /// Holding a lock across `await VadManager(config:)` is unsound, so an
+    /// actor is used instead — the Swift runtime queues concurrent callers
+    /// and only one creation task runs at a time.
+    private actor ManagerHolder {
+        private var manager: VadManager?
+        private let threshold: Float
+
+        init(threshold: Float) {
+            self.threshold = threshold
+        }
+
+        func ensureManager() async throws -> VadManager {
+            if let manager { return manager }
+            let config = VadConfig(defaultThreshold: threshold)
+            let mgr = try await VadManager(config: config)
+            manager = mgr
+            logger.info("VAD model loaded (threshold: \(self.threshold))")
+            return mgr
+        }
+    }
+
+    private let holder: ManagerHolder
 
     init(threshold: Float = 0.5) {
         self.threshold = threshold
+        self.holder = ManagerHolder(threshold: threshold)
     }
 
     /// Ensure the VadManager is loaded, creating it lazily on first use.
     private func ensureManager() async throws -> VadManager {
-        if let manager { return manager }
-        let config = VadConfig(defaultThreshold: threshold)
-        let mgr = try await VadManager(config: config)
-        manager = mgr
-        logger.info("VAD model loaded (threshold: \(self.threshold))")
-        return mgr
+        try await holder.ensureManager()
     }
 
     /// Detect speech regions from pre-loaded audio samples (16kHz Float32).

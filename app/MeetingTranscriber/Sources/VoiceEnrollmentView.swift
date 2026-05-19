@@ -101,8 +101,6 @@ struct VoiceEnrollmentView: View {
     private func diarizingBody(url: URL) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Diarizing \(url.lastPathComponent)…").font(.headline)
-            ProgressView()
-                .progressViewStyle(.linear)
             HStack {
                 ProgressView()
                     .controlSize(.small)
@@ -166,7 +164,7 @@ struct VoiceEnrollmentView: View {
 
     private func pickFile(initialDirectory: URL?) {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav]
+        panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .mpeg4Movie, .quickTimeMovie]
         panel.allowsMultipleSelection = false
         if let initialDirectory {
             try? FileManager.default.createDirectory(

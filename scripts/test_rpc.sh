@@ -60,6 +60,9 @@ trap 'pkill -f MeetingTranscriber-Dev 2>/dev/null || true' EXIT
 
 [ -s "$TOKEN_FILE" ] || fail "token file not created"
 TOKEN=$(cat "$TOKEN_FILE")
+if ! echo "$TOKEN" | grep -qE '^[0-9a-f]{64}$'; then
+    fail "ERROR: Invalid token format — expected 64 hex characters"
+fi
 ok "token file present (chmod $(stat -f '%Lp' "$TOKEN_FILE"))"
 
 # --- Endpoint roundtrips. ---

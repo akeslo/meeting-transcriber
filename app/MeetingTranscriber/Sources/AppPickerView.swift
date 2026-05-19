@@ -49,12 +49,14 @@ struct AppPickerView: View {
 
     init(
         appsProvider: any RunningAppsProvider = SystemRunningAppsProvider(),
+        initialNumSpeakers: Int = 2,
         onStartRecording: @escaping (pid_t, String, String, Bool, Int) -> Void,
         onCancel: @escaping () -> Void,
     ) {
         self.appsProvider = appsProvider
         self.onStartRecording = onStartRecording
         self.onCancel = onCancel
+        _numSpeakers = State(initialValue: max(initialNumSpeakers, 1))
     }
 
     var body: some View {
@@ -129,11 +131,12 @@ struct AppPickerView: View {
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(selectedApp == nil)
+                    .help(selectedApp == nil ? "Select an app to enable recording" : "")
                 }
             }
             .padding()
         }
-        .frame(width: 400, height: 400)
+        .frame(width: 520, height: 460)
         .onAppear {
             apps = appsProvider.runningApps()
         }

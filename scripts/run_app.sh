@@ -53,7 +53,14 @@ cp "$BUILD_BINARY" "$APP_BINARY"
 
 # Code-sign so macOS keeps Screen Recording permission across rebuilds.
 # Uses SHA-1 hash to avoid "ambiguous identity" errors with duplicate names.
-SIGN_HASH=$(security find-identity -v -p codesigning | head -1 | awk '{print $2}')
+# Prefer "Developer ID Application" certs so ad-hoc and self-signed certs
+# (e.g. from setup-self-hosted-runner.sh) don't shadow the real identity.
+# Falls back to the first available cert when no Developer ID is present.
+SIGN_HASH=$(security find-identity -v -p codesigning \
+    | grep "Developer ID Application" | head -1 | awk '{print $2}')
+if [ -z "$SIGN_HASH" ]; then
+    SIGN_HASH=$(security find-identity -v -p codesigning | head -1 | awk '{print $2}')
+fi
 ENTITLEMENTS="$TRANSCRIBER_ROOT/app/MeetingTranscriber/Entitlements/Homebrew.entitlements"
 if [ -n "$SIGN_HASH" ]; then
     codesign --force --sign "$SIGN_HASH" --entitlements "$ENTITLEMENTS" "$APP_BUNDLE" 2>/dev/null && \

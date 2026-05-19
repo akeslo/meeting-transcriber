@@ -29,6 +29,15 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
     }
 
     func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
+        // Refuse to send the API key over a cleartext connection to a
+        // non-loopback host — the key would be visible on the network.
+        if endpoint.scheme?.lowercased() == "http",
+           let host = endpoint.host,
+           host != "127.0.0.1", host != "::1", host != "localhost" {
+            throw ProtocolError.connectionFailed(
+                "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
+            )
+        }
         let systemPrompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language)
 
         let messages: [[String: Any]] = [

@@ -43,7 +43,7 @@ struct RecognitionStatsView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                ProgressView().frame(maxWidth: .infinity, alignment: .center)
+                ProgressView("Loading stats...").frame(maxWidth: .infinity, alignment: .center)
             }
 
             HStack {

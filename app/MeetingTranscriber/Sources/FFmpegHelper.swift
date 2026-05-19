@@ -17,11 +17,18 @@ enum FFmpegHelper {
     /// Cached path to the ffmpeg binary, or `nil` if not found.
     /// Thread-safe via Swift static let semantics (dispatch_once).
     static let ffmpegPath: String? = {
-        // 1. Environment variable override
-        if let envPath = ProcessInfo.processInfo.environment["FFMPEG_BINARY"],
-           FileManager.default.isExecutableFile(atPath: envPath) {
-            logger.info("ffmpeg found via FFMPEG_BINARY: \(envPath)")
-            return envPath
+        // 1. Environment variable override — only accepted when the path
+        //    is under a known system-managed prefix to prevent loading a
+        //    malicious binary injected via the environment.
+        let allowedEnvPrefixes = ["/usr/", "/opt/homebrew/", "/usr/local/"]
+        if let envPath = ProcessInfo.processInfo.environment["FFMPEG_BINARY"] {
+            let isTrusted = allowedEnvPrefixes.contains(where: { envPath.hasPrefix($0) })
+            if isTrusted, FileManager.default.isExecutableFile(atPath: envPath) {
+                logger.info("ffmpeg found via FFMPEG_BINARY: \(envPath)")
+                return envPath
+            } else if !isTrusted {
+                logger.warning("FFMPEG_BINARY ignored — path '\(envPath)' is not under a trusted prefix (/usr/, /opt/homebrew/, /usr/local/)")
+            }
         }
 
         // 2. Search known paths

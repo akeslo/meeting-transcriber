@@ -131,7 +131,10 @@ struct KnownVoicesView: View {
             Button("Cancel", role: .cancel) { modal = nil }
             Button("Save") { applyRename() }
         } message: {
-            Text("If a speaker with the new name already exists, the two will be merged.")
+            Text(
+                "If a speaker with the new name already exists, the two will be merged. "
+                    + "Merging combines voice embeddings and cannot be undone."
+            )
         }
         .alert("Delete speaker?", isPresented: isDelete) {
             Button("Cancel", role: .cancel) { modal = nil }
@@ -241,14 +244,24 @@ struct KnownVoicesView: View {
             TableColumn("Name") { speaker in
                 HStack(spacing: 6) {
                     Text(speaker.name)
+                        .accessibilityLabel("Name: \(speaker.name)")
                     if speaker.isSynthetic {
                         syntheticTag
                     }
                 }
             }
-            TableColumn("Last used") { Text(KnownVoicesFormatting.lastUsedLabel($0.lastUsed)) }
-            TableColumn("Uses") { Text("\($0.useCount)") }
-            TableColumn("Samples") { Text("\($0.embeddings.count)") }
+            TableColumn("Last used") { speaker in
+                Text(KnownVoicesFormatting.lastUsedLabel(speaker.lastUsed))
+                    .accessibilityLabel("Last used: \(KnownVoicesFormatting.lastUsedLabel(speaker.lastUsed))")
+            }
+            TableColumn("Uses") { speaker in
+                Text("\(speaker.useCount)")
+                    .accessibilityLabel("Uses: \(speaker.useCount)")
+            }
+            TableColumn("Samples") { speaker in
+                Text("\(speaker.embeddings.count)")
+                    .accessibilityLabel("Samples: \(speaker.embeddings.count)")
+            }
         }
     }
 
@@ -292,6 +305,7 @@ struct KnownVoicesView: View {
                 .disabled(selection == nil)
             Button("Merge into…") { startMerge() }
                 .disabled(selection == nil || speakers.count < 2)
+            Spacer()
             Button("Delete", role: .destructive) {
                 if let selection { modal = .delete(name: selection) }
             }

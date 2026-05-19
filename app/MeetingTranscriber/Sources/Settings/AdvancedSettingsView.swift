@@ -43,7 +43,7 @@ struct AdvancedSettingsView: View {
                 PermissionRow(
                     label: "Microphone",
                     detail: micPermission == .authorized ? "Granted"
-                        : micPermission == .notDetermined ? "Will prompt on first recording"
+                        : micPermission == .notDetermined ? "Not yet granted — will prompt when you start recording"
                         : "Denied — click to open Settings",
                     granted: micPermission == .authorized,
                     warning: micPermission == .notDetermined,
@@ -191,12 +191,13 @@ struct AdvancedSettingsView: View {
             commit: Bundle.main.gitCommitHash,
             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
             settings: [
-                "verboseDiagnostics": "\(settings.verboseDiagnostics)",
+                "audioDebugLogging": "\(settings.verboseDiagnostics)",
                 "diarize": "\(settings.diarize)",
-                "vadEnabled": "\(settings.vadEnabled)",
-                "transcriptionEngine": settings.transcriptionEngine.rawValue,
                 "protocolProvider": settings.protocolProvider.rawValue,
                 "recordOnly": "\(settings.recordOnly)",
+                "transcriptionEngine": settings.transcriptionEngine.rawValue,
+                "vadEnabled": "\(settings.vadEnabled)",
+                "verboseDiagnostics": "\(settings.verboseDiagnostics)",
             ],
         )
 

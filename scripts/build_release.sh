@@ -32,17 +32,25 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load .env if present (APP_PASSWORD, DEVELOPER_ID, etc.)
-# Only source if owned by current user and not group/world writable (prevents
-# privilege escalation via a tampered .env on shared machines).
+# Only source if owned by current user, not group/world writable, and not
+# group/world readable (prevents credential leakage and privilege escalation
+# via a tampered .env on shared machines). Recommended permissions: 0600.
 if [ -f "$PROJECT_ROOT/.env" ]; then
-    _env_perms=$(stat -f "%Mp%Lp" "$PROJECT_ROOT/.env" 2>/dev/null || echo "0000")
+    # %Lp gives the 3-digit octal permissions (user/group/other).
+    _env_perms=$(stat -f "%Lp" "$PROJECT_ROOT/.env" 2>/dev/null || echo "777")
     _env_owner=$(stat -f "%u" "$PROJECT_ROOT/.env" 2>/dev/null || echo "0")
-    if [ "$_env_owner" = "$(id -u)" ] && [[ "$_env_perms" != *[2367]* ]]; then
+    # Extract group and other permission digits (positions 1 and 2 of 3-digit octal).
+    _env_group_perm="${_env_perms:1:1}"
+    _env_other_perm="${_env_perms:2:1}"
+    # Reject if group or other has any permission bits set (read=4, write=2, exec=1).
+    if [ "$_env_owner" = "$(id -u)" ] \
+        && [ "${_env_group_perm:-0}" = "0" ] \
+        && [ "${_env_other_perm:-0}" = "0" ]; then
         set -a
         source "$PROJECT_ROOT/.env"
         set +a
     else
-        echo "WARNING: .env has unsafe permissions or wrong owner — skipping source" >&2
+        echo "WARNING: .env has unsafe permissions ($(stat -f "%Mp%Lp" "$PROJECT_ROOT/.env" 2>/dev/null)) or wrong owner — skipping source. Run: chmod 600 \"$PROJECT_ROOT/.env\"" >&2
     fi
 fi
 

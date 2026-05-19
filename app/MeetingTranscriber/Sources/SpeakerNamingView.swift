@@ -142,22 +142,24 @@ struct SpeakerNamingView: View {
 
             Divider()
 
-            HStack(spacing: 8) {
-                Text("Wrong count?")
+            DisclosureGroup("Wrong count? Re-run diarization") {
+                HStack(spacing: 8) {
+                    Stepper("\(rerunCount) speakers", value: $rerunCount, in: 1 ... 10)
+                        .font(.caption)
+                        .accessibilityIdentifier("rerun-stepper")
+                    Button("Re-run") {
+                        guard completedJobID != data.jobID else { return }
+                        completedJobID = data.jobID
+                        player?.stop()
+                        onComplete(.rerun(rerunCount))
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                Stepper("\(rerunCount) speakers", value: $rerunCount, in: 1 ... 10)
-                    .font(.caption)
-                    .accessibilityIdentifier("rerun-stepper")
-                Button("Re-run") {
-                    guard completedJobID != data.jobID else { return }
-                    completedJobID = data.jobID
-                    player?.stop()
-                    onComplete(.rerun(rerunCount))
+                    .accessibilityIdentifier("rerun-button")
                 }
-                .font(.caption)
-                .accessibilityIdentifier("rerun-button")
+                .padding(.top, 4)
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
@@ -238,6 +240,11 @@ struct SpeakerNamingView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("play-\(speaker.label)")
+                        .accessibilityLabel(
+                            playingLabel == speaker.label
+                                ? "Stop playback for \(speaker.label)"
+                                : "Play audio sample for \(speaker.label)"
+                        )
                     }
 
                     Spacer()
@@ -251,9 +258,10 @@ struct SpeakerNamingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Unknown")
+                    Text("New speaker")
                         .font(.caption)
                         .foregroundStyle(.orange)
+                        .help("No voice match found. Enter a name manually or pick from suggestions.")
                 }
 
                 if index < names.count {

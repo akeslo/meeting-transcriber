@@ -73,6 +73,10 @@ struct TranscriptionSettingsView: View {
                     }
                 }
 
+                Text("Takes effect on next transcription.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 engineStatusView
             }
             .accessibilityIdentifier("transcriptionSection")

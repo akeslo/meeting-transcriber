@@ -45,7 +45,7 @@ struct GeneralSettingsView: View {
                 }
                 Button {
                     settings.websiteWatchEntries.append(
-                        WebsiteWatchEntry(name: "", titleContains: "", enabled: true)
+                        WebsiteWatchEntry(name: "", titleContains: "", enabled: false)
                     )
                 } label: {
                     Label("Add Website", systemImage: "plus.circle")

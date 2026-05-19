@@ -114,6 +114,8 @@
         /// Generate a 32-byte hex token, persist atomically with mode 0600, return it.
         /// Reuses an existing file only when it matches the expected 64-hex-char format;
         /// rotates (writes a fresh token) if the file is missing, empty, or malformed.
+        /// Returns empty string when `SecRandomCopyBytes` fails — callers must treat
+        /// empty string as a signal not to start the server.
         nonisolated static func loadOrCreateToken() -> String {
             let url = tokenFileURL
             if let data = try? Data(contentsOf: url),
@@ -127,36 +129,50 @@
 
         /// Unconditionally write a fresh 32-byte hex token to `url`. Used by the
         /// settings toggle so that flipping the server off → on invalidates any
-        /// previously-leaked token. Mode 0600 is set at create time to avoid
-        /// the brief 0644 window a write-then-chmod sequence would have.
+        /// previously-leaked token. Uses write-to-temp-then-rename for atomic
+        /// creation so a crash between removeItem and createFile can't leave
+        /// the server running with no token file. Mode 0600 is applied at
+        /// create time on the temp file before rename.
         @discardableResult
         nonisolated static func rotateToken(at url: URL = tokenFileURL) -> String {
             var bytes = [UInt8](repeating: 0, count: 32)
-            // SecRandomCopyBytes returning non-zero means the buffer is
-            // unmodified (all zeros) — refuse to write that as a token.
+            // SecRandomCopyBytes returning non-zero means the PRNG failed.
+            // Refuse to start the server with a predictable UUID token.
             guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
-                logger.error("DebugRPCServer: SecRandomCopyBytes failed; using UUID fallback")
-                return UUID().uuidString
+                logger.error("DebugRPCServer: SecRandomCopyBytes failed; refusing to generate token")
+                return ""
             }
             let token = bytes.map { String(format: "%02x", $0) }.joined()
-            try? FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
-            )
-            // Remove any prior file so createFile re-applies the 0600 attribute
-            // even if the existing inode had drifted to a looser mode.
-            try? FileManager.default.removeItem(at: url)
+            let dir = url.deletingLastPathComponent()
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            // Write to a temp file with 0600 then rename atomically so there
+            // is no window where the token file is absent or world-readable.
+            let tmpURL = dir.appendingPathComponent(".\(UUID().uuidString).rpc-token.tmp")
             FileManager.default.createFile(
-                atPath: url.path,
+                atPath: tmpURL.path,
                 contents: Data(token.utf8),
                 attributes: [.posixPermissions: 0o600],
             )
+            do {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmpURL)
+            } catch {
+                // replaceItemAt failed (e.g. first-time, no prior file) — fall
+                // back to a plain rename which is also atomic on the same volume.
+                try? FileManager.default.moveItem(at: tmpURL, to: url)
+            }
             return token
         }
 
         /// Start listening. Failures (port in use, etc.) are logged and the
         /// server stays down — the app still functions normally.
+        /// Refuses to start when the bearer token is empty (indicates
+        /// `SecRandomCopyBytes` failure during token generation).
         func start() {
             guard listener == nil else { return }
+            guard !expectedAuth.isEmpty, expectedAuth != "Bearer " else {
+                logger.error("DebugRPCServer: refusing to start with empty token")
+                return
+            }
             do {
                 let params = NWParameters.tcp
                 params.acceptLocalOnly = true
@@ -225,7 +241,10 @@
         func route(_ request: HTTPRequest) async -> HTTPResponse {
             let originHeader = request.headers["origin"]
             let hasOrigin = originHeader != nil
-            if let origin = originHeader, !origin.isEmpty, origin != "null" {
+            // Reject ANY request that carries an Origin header, including the
+            // literal string "null" (sent by sandboxed iframes / file:// pages).
+            // Legitimate callers (curl, mt-cli, native HTTP) never send Origin.
+            if let origin = originHeader, !origin.isEmpty {
                 return HTTPResponse.forbidden()
             }
             let hostPort = boundPort ?? port.rawValue
@@ -271,9 +290,12 @@
                 guard let p = try? JSONDecoder().decode(EnqueueFilePayload.self, from: request.body),
                       !p.path.isEmpty
                 else { return HTTPResponse.badRequest() }
-                let url = URL(fileURLWithPath: p.path).standardized
+                let url = URL(fileURLWithPath: p.path).standardized.resolvingSymlinksInPath()
                 let allowedRoots = [AppPaths.dataDir, AppPaths.recordingsDir]
-                guard allowedRoots.contains(where: { url.path.hasPrefix($0.standardized.path + "/") || url.path == $0.standardized.path }) else {
+                guard allowedRoots.contains(where: {
+                    let root = $0.standardized.resolvingSymlinksInPath()
+                    return url.path.hasPrefix(root.path + "/") || url.path == root.path
+                }) else {
                     return HTTPResponse.badRequest()
                 }
                 guard enqueueFile(url) else { return HTTPResponse.badRequest() }
@@ -288,8 +310,19 @@
                 guard let p = try? JSONDecoder().decode(EnqueueFilesPayload.self, from: request.body),
                       !p.paths.isEmpty
                 else { return HTTPResponse.badRequest() }
-                let urls = p.paths.map { URL(fileURLWithPath: $0) }
-                let count = enqueueFiles(urls)
+                let allowedRoots = [AppPaths.dataDir, AppPaths.recordingsDir]
+                var validURLs: [URL] = []
+                for path in p.paths {
+                    let url = URL(fileURLWithPath: path).standardized.resolvingSymlinksInPath()
+                    guard allowedRoots.contains(where: {
+                        let root = $0.standardized.resolvingSymlinksInPath()
+                        return url.path.hasPrefix(root.path + "/") || url.path == root.path
+                    }) else {
+                        return HTTPResponse.badRequest()
+                    }
+                    validURLs.append(url)
+                }
+                let count = enqueueFiles(validURLs)
                 let body = Data(#"{"enqueued":\#(count)}"#.utf8)
                 return HTTPResponse.ok(body: body, contentType: "application/json")
 

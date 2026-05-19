@@ -13,15 +13,14 @@
         static let timeoutSeconds: TimeInterval = 600
 
         /// Search paths for Claude CLI binaries.
-        /// Note: paths like ~/.local/bin and ~/.npm-global/bin are user-writable
-        /// and could be used for PATH hijacking by a compromised user environment.
-        /// These are accepted as common Claude CLI install locations; users should
-        /// ensure only trusted binaries exist at these paths.
+        /// System-managed paths are listed first to prevent PATH hijacking via
+        /// user-writable directories. ~/.local/bin and ~/.npm-global/bin are
+        /// checked last as common Claude CLI install locations.
         static let searchPaths = [
-            "\(NSHomeDirectory())/.local/bin",
             "/usr/local/bin",
-            "\(NSHomeDirectory())/.npm-global/bin",
             "/opt/homebrew/bin",
+            "\(NSHomeDirectory())/.local/bin",
+            "\(NSHomeDirectory())/.npm-global/bin",
         ]
 
         // MARK: - ProtocolGenerating
@@ -42,6 +41,7 @@
             process.environment = Self.buildEnvironment(
                 baseEnvironment: ProcessInfo.processInfo.environment,
                 searchPaths: Self.searchPaths,
+                resolvedBin: resolvedBin,
             )
 
             let stdinPipe = Pipe()
@@ -131,6 +131,16 @@
             // Read line-by-line from stdout
             var buffer = Data()
             while true {
+                // I1 fix: Wrap blocking availableData in Task.detached to avoid
+                // blocking Swift's cooperative thread pool. availableData blocks
+                // until data is available or EOF, which would starve other tasks.
+                let chunk = await Task.detached { handle.availableData }.value
+                if chunk.isEmpty { break } // EOF
+
+                // Check timeout AFTER the blocking read returns so that a
+                // stalled process can still be terminated (checking before
+                // the read means process.terminate() is never reached when
+                // availableData blocks indefinitely).
                 if ProcessInfo.processInfo.systemUptime - startTime > timeoutSeconds {
                     let elapsed = ProcessInfo.processInfo.systemUptime - startTime
                     let elapsedStr = String(format: "%.1f", elapsed)
@@ -140,12 +150,6 @@
                     process.terminate()
                     throw ProtocolError.timeout
                 }
-
-                // I1 fix: Wrap blocking availableData in Task.detached to avoid
-                // blocking Swift's cooperative thread pool. availableData blocks
-                // until data is available or EOF, which would starve other tasks.
-                let chunk = await Task.detached { handle.availableData }.value
-                if chunk.isEmpty { break } // EOF
 
                 buffer.append(chunk)
 
@@ -251,16 +255,26 @@
         }
 
         /// Strip `CLAUDECODE` (avoid nested-session detection by the child
-        /// CLI) and prepend `searchPaths` to `PATH` (app bundles inherit
-        /// a minimal `PATH`).
+        /// CLI) and construct a minimal subprocess PATH consisting of
+        /// well-known system directories plus the directory of the resolved
+        /// binary only. User-writable directories (e.g. ~/.local/bin,
+        /// ~/.npm-global/bin) are excluded to prevent PATH hijacking by
+        /// child processes spawned by the Claude CLI.
         static func buildEnvironment(
             baseEnvironment: [String: String],
             searchPaths: [String],
+            resolvedBin: String? = nil,
         ) -> [String: String] {
             var env = baseEnvironment
             env.removeValue(forKey: "CLAUDECODE")
-            let extraPaths = searchPaths.joined(separator: ":")
-            env["PATH"] = "\(extraPaths):\(env["PATH"] ?? "/usr/bin:/bin")"
+            var pathComponents = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+            if let resolvedBin, resolvedBin != "/usr/bin/env" {
+                let binDir = (resolvedBin as NSString).deletingLastPathComponent
+                if !binDir.isEmpty, !pathComponents.contains(binDir) {
+                    pathComponents.insert(binDir, at: 0)
+                }
+            }
+            env["PATH"] = pathComponents.joined(separator: ":")
             return env
         }
     }

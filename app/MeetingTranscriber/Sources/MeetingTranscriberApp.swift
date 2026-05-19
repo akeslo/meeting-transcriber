@@ -208,6 +208,7 @@ struct MeetingTranscriberApp: App {
 
         Window("Record App", id: "record-app") {
             AppPickerView(
+                initialNumSpeakers: appState.settings.numSpeakers,
                 onStartRecording: { pid, appName, title, includeMic, numSpeakers in
                     appState.startManualRecording(
                         pid: pid, appName: appName, title: title,
@@ -222,6 +223,7 @@ struct MeetingTranscriberApp: App {
 
         Window("Record Window", id: "record-window") {
             WindowPickerView(
+                initialNumSpeakers: appState.settings.numSpeakers,
                 onStartRecording: { pid, appName, title, includeMic, numSpeakers in
                     appState.startManualRecording(
                         pid: pid, appName: appName, title: title,

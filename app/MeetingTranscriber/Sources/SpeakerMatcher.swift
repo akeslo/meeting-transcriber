@@ -452,7 +452,16 @@ class SpeakerMatcher {
     ///   - mapping: Current label → name mapping (from `match()`)
     ///   - speakingTimes: Speaking time per label
     ///   - participants: Meeting participant names (e.g. from Teams)
-    ///   - excludeLabels: Labels to exclude (e.g. mic speaker already identified)
+    ///   - excludeLabels: Labels to exclude from participant pre-matching.
+    ///     NOTE: Excluded labels are still included in `unmatchedLabels` when
+    ///     their mapping[label] == label — this parameter only prevents them
+    ///     from being assigned a participant name via this method. It does NOT
+    ///     remove them from the returned mapping. Pass labels that already have
+    ///     a confirmed name from a prior step (e.g. the mic speaker identified
+    ///     via speaker-matching) to prevent overwriting them with a participant
+    ///     name here. Callers should ensure these labels already have a non-
+    ///     label value in `mapping` before calling if they want them truly
+    ///     excluded from the unmatched count.
     /// - Returns: Updated mapping with participants pre-assigned
     static func preMatchParticipants(
         mapping: [String: String],

@@ -44,6 +44,7 @@ struct OutputSettingsView: View {
 
     enum ConnectionTestResult {
         case success(String)
+        case modelMismatch(String)
         case failure(String)
     }
 
@@ -137,6 +138,7 @@ struct OutputSettingsView: View {
             Text("Endpoint")
             TextField("http://localhost:11434/v1", text: $settings.openAIEndpoint)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("API Endpoint URL")
         }
 
         if !availableModels.isEmpty {
@@ -187,6 +189,11 @@ struct OutputSettingsView: View {
                         .foregroundStyle(.green)
                         .font(.caption)
 
+                case let .modelMismatch(msg):
+                    Label(msg, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+
                 case let .failure(msg):
                     Label(msg, systemImage: "xmark.circle.fill")
                         .foregroundStyle(.red)
@@ -206,7 +213,6 @@ struct OutputSettingsView: View {
         HStack {
             Button("Edit Prompt") {
                 openCustomPrompt()
-                refreshCustomPromptState()
             }
 
             Button("Import Prompt") {
@@ -266,7 +272,7 @@ struct OutputSettingsView: View {
                 availableModels = models
                 if !models.isEmpty {
                     if !models.contains(settings.openAIModel) {
-                        connectionTestResult = .success("Connected (\(models.count) models) — configured model not in list")
+                        connectionTestResult = .modelMismatch("Connected (\(models.count) models) — configured model not in list")
                     } else {
                         connectionTestResult = .success("Connected (\(models.count) models)")
                     }

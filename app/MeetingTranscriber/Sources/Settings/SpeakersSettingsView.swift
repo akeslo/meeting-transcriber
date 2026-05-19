@@ -45,12 +45,12 @@ struct SpeakersSettingsView: View {
                     HStack {
                         Text("Expected Speakers")
                         Spacer()
-                        Text(settings.numSpeakers == 0 ? "Auto" : "\(settings.numSpeakers)")
-                            .frame(width: 40)
+                        Text(settings.numSpeakers == 0 ? "Auto" : "\(settings.numSpeakers) speakers")
+                            .frame(width: 80)
                             .multilineTextAlignment(.trailing)
                         Stepper("", value: $settings.numSpeakers, in: 0 ... 10)
                             .labelsHidden()
-                            .accessibilityValue(settings.numSpeakers == 0 ? "Auto" : "\(settings.numSpeakers)")
+                            .accessibilityValue(settings.numSpeakers == 0 ? "Auto" : "\(settings.numSpeakers) speakers")
                     }
                 }
             }

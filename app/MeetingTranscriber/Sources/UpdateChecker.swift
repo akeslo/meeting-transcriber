@@ -56,12 +56,15 @@ struct GitHubReleaseProvider: UpdateProviding {
 
     func latestRelease() async throws -> ReleaseInfo {
         let release: GitHubRelease = try await fetchJSON(path: "releases/latest")
-        return mapRelease(release)
+        guard let info = mapRelease(release) else {
+            throw UpdateCheckerError.networkError("Release htmlURL failed host validation")
+        }
+        return info
     }
 
     func allReleases() async throws -> [ReleaseInfo] {
         let releases: [GitHubRelease] = try await fetchJSON(path: "releases")
-        return releases.map { mapRelease($0) }
+        return releases.compactMap { mapRelease($0) }
     }
 
     private func fetchJSON<T: Decodable>(path: String) async throws -> T {
@@ -76,26 +79,31 @@ struct GitHubReleaseProvider: UpdateProviding {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private static let allowedDmgHosts: Set<String> = [
+    private static let allowedHosts: Set<String> = [
         "github.com",
         "objects.githubusercontent.com",
     ]
 
-    private func mapRelease(_ release: GitHubRelease) -> ReleaseInfo {
+    private func mapRelease(_ release: GitHubRelease) -> ReleaseInfo? {
         let dmgAsset = release.assets.first { $0.name.hasSuffix(".dmg") }
         let dmgURL = dmgAsset.flatMap { asset -> URL? in
             guard let url = URL(string: asset.browserDownloadURL),
                   let host = url.host,
-                  Self.allowedDmgHosts.contains(host)
+                  Self.allowedHosts.contains(host)
             else { return nil }
             return url
+        }
+        guard let htmlURL = URL(string: release.htmlURL),
+              let htmlHost = htmlURL.host,
+              Self.allowedHosts.contains(htmlHost)
+        else {
+            return nil
         }
         return ReleaseInfo(
             tagName: release.tagName,
             name: release.name ?? release.tagName,
             prerelease: release.prerelease,
-            // swiftlint:disable:next force_unwrapping
-            htmlURL: URL(string: release.htmlURL)!,
+            htmlURL: htmlURL,
             dmgURL: dmgURL,
         )
     }

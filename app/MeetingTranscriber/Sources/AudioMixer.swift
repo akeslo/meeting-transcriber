@@ -52,6 +52,15 @@ enum AudioMixer {
             if delaySamples > 0 && delaySamples < micSamples.count {
                 // Mic started later: prepend zeros
                 micSamples = [Float](repeating: 0, count: delaySamples) + micSamples
+            } else if delaySamples >= micSamples.count {
+                // Delay exceeds entire mic track — mic contributes nothing
+                // to the mix. Log a warning and zero it out so the mix
+                // reflects only the app track rather than producing a
+                // badly-misaligned result.
+                let micStr = String(format: "%.2f", Double(micSamples.count) / Double(sampleRate))
+                let delayStr = String(format: "%.2f", clampedDelay)
+                logger.warning("mic_delay_exceeds_track delay=\(delayStr)s mic_duration=\(micStr)s — mic track treated as non-contributory")
+                micSamples = []
             }
         } else if clampedDelay < 0 {
             let delaySamples = Int(-clampedDelay * Double(sampleRate))

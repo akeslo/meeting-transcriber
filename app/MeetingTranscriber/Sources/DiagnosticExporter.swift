@@ -39,6 +39,9 @@ enum DiagnosticExporter {
     /// Pure function — settings dict is stringified verbatim into `key=value`
     /// pairs, sorted alphabetically for deterministic output. No PII is
     /// expected in `settings` (UI flags only).
+    ///
+    /// When `settings["audioDebugLogging"]` is `"true"`, an extra note is
+    /// added to remind readers that verbose audio logs are included.
     static func makeHeader(
         appVersion: String,
         commit: String,
@@ -49,11 +52,14 @@ enum DiagnosticExporter {
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: " ")
         let timestamp = formatter.string(from: Date())
+        let verboseNote = settings["audioDebugLogging"] == "true"
+            ? "\n# NOTE: Verbose audio logging was enabled — this file may contain detailed audio-pipeline debug output."
+            : ""
         return """
         # MeetingTranscriber \(appVersion) (\(commit))
         # macOS \(macOSVersion)
         # exported_at=\(timestamp)
-        # settings: \(pairs)
+        # settings: \(pairs)\(verboseNote)
         # ---
         """
     }

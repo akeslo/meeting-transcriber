@@ -421,6 +421,9 @@ public class AppAudioCapture {
     }
 
     private func stopCapture() {
+        // Set isRunning = false BEFORE AudioDeviceStop so that any IOProc
+        // callbacks that fire between Stop returning and DestroyIOProcID
+        // completing see the flag and do not enqueue new writeQueue blocks.
         isRunning = false
 
         if debugLogging {
@@ -431,13 +434,15 @@ public class AppAudioCapture {
 
         if let procID {
             AudioDeviceStop(aggregateID, procID)
+            // DestroyIOProcID is synchronous with respect to callbacks — no
+            // more IOProc calls can fire after this returns. We drain the
+            // writeQueue here (after Destroy) to catch any blocks that were
+            // already dispatched before isRunning was set to false.
             AudioDeviceDestroyIOProcID(aggregateID, procID)
             self.procID = nil
         }
-        // Drain pending IOProc blocks before the caller closes the fd —
-        // AudioDeviceStop doesn't synchronize against blocks already dispatched
-        // onto writeQueue, so without this barrier a late buffer could write
-        // to a closed/recycled fd.
+        // Drain pending writeQueue blocks so a late-dispatched block can't
+        // write to a closed/recycled fd after the caller returns.
         writeQueue.sync {}
         if aggregateID != kAudioObjectUnknown {
             AudioHardwareDestroyAggregateDevice(aggregateID)

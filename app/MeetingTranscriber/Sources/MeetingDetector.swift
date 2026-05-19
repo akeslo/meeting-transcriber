@@ -113,8 +113,14 @@ class MeetingDetector: MeetingDetecting {
             }
         }
 
-        // Reset counters for apps that had no hit this round
-        for appName in consecutiveHits.keys where !hitsThisRound.contains(appName) {
+        // Reset counters for apps that had no hit this round, but skip apps
+        // in cooldown — they were excluded from window scanning above and
+        // should not have their in-progress counter wiped as a side-effect.
+        let now = Date()
+        for appName in consecutiveHits.keys
+            where !hitsThisRound.contains(appName)
+            && !(cooldownUntil[appName].map { now < $0 } ?? false)
+        {
             consecutiveHits[appName] = 0
         }
 

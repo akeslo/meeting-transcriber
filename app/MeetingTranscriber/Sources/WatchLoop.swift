@@ -275,7 +275,7 @@ class WatchLoop {
 
         activeRecorder = nil
         update { next in
-            next.phase = .idle
+            next.phase = failureMessage != nil ? .error : .idle
             next.manualRecordingInfo = nil
             next.detail = ""
             if let failureMessage { next.lastError = failureMessage }

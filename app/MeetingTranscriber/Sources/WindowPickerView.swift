@@ -78,12 +78,14 @@ struct WindowPickerView: View {
 
     init(
         windowsProvider: any RunningWindowsProvider = SystemRunningWindowsProvider(),
+        initialNumSpeakers: Int = 2,
         onStartRecording: @escaping (pid_t, String, String, Bool, Int) -> Void,
         onCancel: @escaping () -> Void,
     ) {
         self.windowsProvider = windowsProvider
         self.onStartRecording = onStartRecording
         self.onCancel = onCancel
+        _numSpeakers = State(initialValue: max(initialNumSpeakers, 1))
     }
 
     var body: some View {
@@ -160,6 +162,7 @@ struct WindowPickerView: View {
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(selectedWindow == nil)
+                    .help(selectedWindow == nil ? "Select a window to enable recording" : "")
                 }
             }
             .padding()

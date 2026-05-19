@@ -36,6 +36,10 @@ class PipelineQueue {
     private var elapsedTimer: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
     private var cancelledJobIDs = Set<UUID>()
+    /// Tracks the ID of the job that `processTask` is currently running so
+    /// `cancelJob` doesn't cancel a *different* active job when the cancelled
+    /// job is still in `.waiting`.
+    private var currentlyProcessingJobID: UUID?
 
     /// Called when a job completes (success or error) — for notifications
     var onJobStateChange: ((PipelineJob, JobState, JobState) -> Void)?
@@ -404,7 +408,9 @@ class PipelineQueue {
 
         case .transcribing, .diarizing, .generatingProtocol:
             cancelledJobIDs.insert(id)
-            processTask?.cancel()
+            if currentlyProcessingJobID == id {
+                processTask?.cancel()
+            }
             removeNamingData(jobID: id, slug: slug)
             jobs.remove(at: index)
             saveSnapshot()
@@ -504,6 +510,7 @@ class PipelineQueue {
         let numSpeakersOverride = jobs[index].numSpeakersOverride
 
         do {
+            currentlyProcessingJobID = jobID
             // --- Transcription ---
             updateJobState(id: jobID, to: .transcribing)
             startElapsedTimer()
@@ -645,6 +652,7 @@ class PipelineQueue {
                         var diarization: DiarizationResult?
 
                         diarizationLoop: while true {
+                            autoNames = [:]
                             if useDualTrack {
                                 // Diarize app and mic tracks separately. Mic
                                 // failures (silent track on Mac mini hosts
@@ -962,6 +970,7 @@ class PipelineQueue {
             }
         }
 
+        currentlyProcessingJobID = nil
         isProcessing = false
         triggerProcessing()
     }
@@ -1597,6 +1606,11 @@ class PipelineQueue {
                     logger.error("Failed to write queue snapshot: \(error)")
                 }
             }
+            // Clear the worker reference only after the loop exits (all
+            // pending batches written). Setting it nil inside
+            // takeNextSnapshotBatch() would allow a second saveSnapshot()
+            // to spawn a duplicate writer while this task is still running.
+            await self?.clearSnapshotWorker()
         }
     }
 
@@ -1604,11 +1618,15 @@ class PipelineQueue {
     @MainActor
     private func takeNextSnapshotBatch() -> [PipelineJob]? {
         guard let next = pendingSnapshotJobs else {
-            snapshotWorker = nil
             return nil
         }
         pendingSnapshotJobs = nil
         return next
+    }
+
+    @MainActor
+    private func clearSnapshotWorker() {
+        snapshotWorker = nil
     }
 
     // swiftlint:enable discouraged_optional_collection

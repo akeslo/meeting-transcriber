@@ -45,6 +45,8 @@ struct PermissionRow: View {
                 .buttonStyle(.borderless)
                 .popover(isPresented: $showingHelp) {
                     VStack(alignment: .leading, spacing: 8) {
+                        Text(label)
+                            .font(.headline)
                         Text(help)
                             .font(.callout)
                         if !settingsURL.isEmpty {
