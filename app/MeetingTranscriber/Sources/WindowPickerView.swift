@@ -141,6 +141,16 @@ struct WindowPickerView: View {
             .onChange(of: selectedWindow) { _, newWindow in
                 if let w = newWindow {
                     recordingTitle = w.title
+                    // Announce the auto-filled title to assistive technologies so
+                    // keyboard/VoiceOver users know the field has been updated.
+                    NSAccessibility.post(
+                        element: NSApp as AnyObject,
+                        notification: .announcementRequested,
+                        userInfo: [
+                            .announcement: "Meeting title set to \(w.title)" as NSString,
+                            .priority: NSAccessibilityPriorityLevel.medium.rawValue as NSNumber,
+                        ],
+                    )
                 }
             }
 

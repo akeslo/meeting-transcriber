@@ -31,7 +31,12 @@ struct GeneralSettingsView: View {
                 ForEach($settings.websiteWatchEntries) { $entry in
                     HStack(spacing: 10) {
                         Toggle("", isOn: $entry.enabled).labelsHidden()
-                            .accessibilityLabel("Enable \(entry.name)")
+                            .accessibilityLabel(
+                                entry.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? "Enable website"
+                                    : "Enable \(entry.name)"
+                            )
+                            .accessibilityHint("Enter a window title pattern to enable")
                             .disabled(entry.titleContains.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .help(entry.titleContains.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                 ? "Enter a window title pattern above to enable this entry." : "")
@@ -74,6 +79,7 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                     Stepper("Poll interval in seconds", value: $settings.pollInterval, in: 1 ... 30, step: 0.5)
                         .labelsHidden()
+                        .accessibilityLabel("Poll interval")
                     Text("seconds").foregroundStyle(.secondary)
                 }
 
@@ -86,6 +92,7 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                     Stepper("Grace period in seconds", value: $settings.endGrace, in: 1 ... 120, step: 1)
                         .labelsHidden()
+                        .accessibilityLabel("Grace period")
                     Text("seconds").foregroundStyle(.secondary)
                 }
             }

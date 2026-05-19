@@ -14,7 +14,7 @@ enum FFmpegHelper {
         "/usr/bin",
     ]
 
-    /// Cached path to the ffmpeg binary, or `nil` if not found.
+    /// Cached path to the ffmpeg binary, or `nil` if not found or not a real ffmpeg.
     /// Thread-safe via Swift static let semantics (dispatch_once).
     static let ffmpegPath: String? = {
         // 1. Environment variable override — only accepted when the path
@@ -25,8 +25,12 @@ enum FFmpegHelper {
             let canonicalPath = (envPath as NSString).resolvingSymlinksInPath
             let isTrusted = allowedEnvPrefixes.contains(where: { canonicalPath.hasPrefix($0) })
             if isTrusted, FileManager.default.isExecutableFile(atPath: canonicalPath) {
-                logger.info("ffmpeg found via FFMPEG_BINARY: \(canonicalPath)")
-                return canonicalPath
+                if verifyIsFfmpeg(at: canonicalPath) {
+                    logger.info("ffmpeg found via FFMPEG_BINARY: \(canonicalPath)")
+                    return canonicalPath
+                } else {
+                    logger.warning("FFMPEG_BINARY ignored — binary at '\(canonicalPath)' does not identify as ffmpeg")
+                }
             } else if !isTrusted {
                 logger.warning("FFMPEG_BINARY ignored — path '\(canonicalPath)' is not under a trusted prefix (/usr/, /opt/homebrew/, /usr/local/)")
             }
@@ -35,7 +39,7 @@ enum FFmpegHelper {
         // 2. Search known paths
         for dir in searchPaths {
             let path = "\(dir)/ffmpeg"
-            if FileManager.default.isExecutableFile(atPath: path) {
+            if FileManager.default.isExecutableFile(atPath: path), verifyIsFfmpeg(at: path) {
                 logger.info("ffmpeg found: \(path)")
                 return path
             }
@@ -44,6 +48,27 @@ enum FFmpegHelper {
         logger.info("ffmpeg not found")
         return nil
     }()
+
+    /// Run `<path> -version` and verify the output contains "ffmpeg version"
+    /// to confirm the binary is actually ffmpeg, not an arbitrary executable.
+    /// Runs synchronously — called only once at discovery time (static let).
+    private static func verifyIsFfmpeg(at path: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["-version"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return false
+        }
+        guard process.terminationStatus == 0 else { return false }
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return output.lowercased().contains("ffmpeg version")
+    }
 
     /// Whether ffmpeg is available on this system.
     static var isAvailable: Bool {

@@ -35,10 +35,19 @@ struct AudioSettingsView: View {
                     HStack {
                         Text("Threshold:")
                         Slider(value: $settings.vadThreshold, in: 0.3 ... 0.9, step: 0.05)
-                        .accessibilityLabel("Voice activity detection threshold")
-                        Text(String(format: "%.2f", settings.vadThreshold))
-                            .monospacedDigit()
-                            .frame(width: 35)
+                            .accessibilityLabel("Voice activity detection threshold")
+                        TextField(
+                            "",
+                            value: $settings.vadThreshold,
+                            format: .number.precision(.fractionLength(2)),
+                        )
+                        .monospacedDigit()
+                        .frame(width: 50)
+                        .multilineTextAlignment(.trailing)
+                        .accessibilityLabel("VAD threshold value")
+                        .onSubmit {
+                            settings.vadThreshold = min(0.9, max(0.3, settings.vadThreshold))
+                        }
                     }
                 }
             }

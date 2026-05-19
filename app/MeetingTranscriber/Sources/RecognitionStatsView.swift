@@ -30,7 +30,9 @@ struct RecognitionStatsView: View {
         Section("Recognition Stats") {
             Picker("Window", selection: $windowDays) {
                 ForEach(WindowChoice.allCases) { choice in
-                    Text(choice.label).tag(choice)
+                    Text(choice.label)
+                        .tag(choice)
+                        .accessibilityLabel(choice.label)
                 }
             }
             .pickerStyle(.segmented)
@@ -105,9 +107,10 @@ struct RecognitionStatsView: View {
     }
 
     private func progressBar(count: Int, total: Int) -> some View {
-        ProgressView(value: Double(count), total: Double(total))
+        let ratio = total > 0 ? Double(count) / Double(total) : 0
+        return ProgressView(value: Double(count), total: Double(total))
             .frame(width: 80)
-            .accessibilityHidden(true)
+            .accessibilityLabel("\(Int((ratio * 100).rounded()))%")
     }
 
     private func reload() async {

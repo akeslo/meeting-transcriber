@@ -205,9 +205,12 @@ enum AudioMixer {
             return resampleLinear(samples, from: sourceRate, to: targetRate)
         }
         srcBuffer.frameLength = frameCount
+        guard let channelData = srcBuffer.floatChannelData else {
+            return resampleLinear(samples, from: sourceRate, to: targetRate)
+        }
         samples.withUnsafeBufferPointer { ptr in
-            // swiftlint:disable:next force_unwrapping
-            srcBuffer.floatChannelData![0].initialize(from: ptr.baseAddress!, count: samples.count)
+            guard let base = ptr.baseAddress else { return }
+            channelData[0].initialize(from: base, count: samples.count)
         }
 
         let outputCount = AVAudioFrameCount(Double(samples.count) * Double(targetRate) / Double(sourceRate))

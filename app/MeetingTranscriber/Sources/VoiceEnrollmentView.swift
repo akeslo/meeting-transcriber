@@ -107,7 +107,9 @@ struct VoiceEnrollmentView: View {
             HStack {
                 ProgressView()
                     .controlSize(.small)
-                Text(String(format: "%.0f s elapsed", elapsed))
+                Text(elapsed >= 60
+                    ? String(format: "%d m %d s elapsed", Int(elapsed) / 60, Int(elapsed) % 60)
+                    : String(format: "%.0f s elapsed", elapsed))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

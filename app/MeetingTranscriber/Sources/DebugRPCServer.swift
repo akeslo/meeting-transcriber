@@ -121,28 +121,40 @@
         /// empty string as a signal not to start the server.
         nonisolated static func loadOrCreateToken() -> String {
             let url = tokenFileURL
-            // Refuse to follow symlinks — a symlink at the token path could
-            // redirect reads to an attacker-controlled file.
-            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
-            if attrs?[.type] as? FileAttributeType == .typeSymbolicLink {
-                logger.warning("DebugRPCServer: token file is a symlink — rotating token for safety")
+            // Open the token file with O_NOFOLLOW to atomically reject symlinks.
+            // This eliminates the TOCTOU window between a symlink check and the
+            // subsequent read that existed when using attributesOfItem + Data(contentsOf:).
+            let fd = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+            if fd == -1 {
+                if errno == ELOOP || errno == ENOENT {
+                    // ELOOP: token path is a symlink — rotate for safety.
+                    // ENOENT: file doesn't exist yet — create a fresh token.
+                    if errno == ELOOP {
+                        logger.warning("DebugRPCServer: token file is a symlink — rotating token for safety")
+                    }
+                } else {
+                    logger.warning("DebugRPCServer: could not open token file (errno \(errno)) — rotating token")
+                }
                 return rotateToken(at: url)
             }
-            if let data = try? Data(contentsOf: url),
-               let existing = String(data: data, encoding: .utf8)?
-               .trimmingCharacters(in: .whitespacesAndNewlines),
-               existing.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil {
-                // Rotate if the file is group- or world-readable (permissions
-                // may have been widened since the token was first created).
-                if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                   let perms = attrs[.posixPermissions] as? Int,
-                   (perms & 0o077) != 0 {
-                    logger.warning("DebugRPCServer: token file has overly-permissive mode \(String(perms, radix: 8)); rotating token")
-                    return rotateToken(at: url)
-                }
-                return existing
+            defer { Darwin.close(fd) }
+            // Read via the open file descriptor to avoid any TOCTOU gap.
+            var buffer = [UInt8](repeating: 0, count: 128)
+            let bytesRead = Darwin.read(fd, &buffer, buffer.count)
+            guard bytesRead > 0 else { return rotateToken(at: url) }
+            let raw = String(bytes: buffer.prefix(bytesRead), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard raw.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil else {
+                return rotateToken(at: url)
             }
-            return rotateToken(at: url)
+            // Rotate if the file is group- or world-readable (permissions
+            // may have been widened since the token was first created).
+            var st = stat()
+            if fstat(fd, &st) == 0, (Int(st.st_mode) & 0o077) != 0 {
+                logger.warning("DebugRPCServer: token file has overly-permissive mode; rotating token")
+                return rotateToken(at: url)
+            }
+            return raw
         }
 
         /// Unconditionally write a fresh 32-byte hex token to `url`. Used by the
@@ -190,7 +202,11 @@
         /// `SecRandomCopyBytes` failure during token generation).
         func start() {
             guard listener == nil else { return }
-            guard !expectedAuth.isEmpty, expectedAuth != "Bearer " else {
+            // Refuse to start when the token is empty or reduces to a bare "Bearer " prefix.
+            // The condition is expressed as the invalid case to make the intent clear:
+            // expectedAuth.isEmpty catches a completely missing token;
+            // expectedAuth == "Bearer " catches a token string built from an empty hex value.
+            guard !(expectedAuth.isEmpty || expectedAuth == "Bearer ") else {
                 logger.error("DebugRPCServer: refusing to start with empty token")
                 return
             }
@@ -566,7 +582,9 @@
                 headers[key] = value
             }
 
+            let maxContentLength = 10 * 1024 * 1024 // 10 MB safety limit
             let contentLength = headers["content-length"].flatMap(Int.init) ?? 0
+            guard contentLength >= 0, contentLength <= maxContentLength else { return nil }
             let bodyStart = separatorRange.upperBound
             let availableBody = data.count - bodyStart
             guard availableBody >= contentLength else { return nil }

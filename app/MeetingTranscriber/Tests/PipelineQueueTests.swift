@@ -473,6 +473,13 @@ final class PipelineQueueTests: XCTestCase {
         let freshQueue = PipelineQueue(logDir: tmpDir)
         freshQueue.markProcessed(mixPath: mixFile)
 
+        // markProcessed writes on a detached task; yield to let it complete
+        let processedPath = tmpDir.appendingPathComponent("processed_recordings.json")
+        let deadline = Date().addingTimeInterval(2)
+        while !FileManager.default.fileExists(atPath: processedPath.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
         await freshQueue.recoverOrphanedRecordings(recordingsDir: recDir)
         XCTAssertEqual(freshQueue.jobs.count, 0)
     }

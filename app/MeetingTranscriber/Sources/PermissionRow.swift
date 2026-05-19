@@ -58,6 +58,11 @@ struct PermissionRow: View {
                                 showingHelp = false
                             }
                         }
+                        Button("Close") { showingHelp = false }
+                            .keyboardShortcut(.escape)
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .padding()
                     .frame(minWidth: 220)

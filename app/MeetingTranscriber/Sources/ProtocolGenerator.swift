@@ -86,8 +86,15 @@ enum ProtocolGenerator {
     static let maxPromptFileBytes = 1 * 1024 * 1024 // 1 MB
 
     static func loadPrompt(from url: URL = AppPaths.customPromptFile) -> String {
+        // Reject symlinks to prevent an attacker from redirecting reads to an
+        // arbitrary file by placing a symlink at the custom prompt path.
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        if attrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+            logger.warning("Custom prompt file is a symlink — falling back to built-in default")
+            return protocolPrompt
+        }
         // Cap file size before loading into memory to prevent OOM on crafted inputs.
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        let fileSize = (attrs?[.size] as? Int) ?? 0
         guard fileSize <= maxPromptFileBytes else {
             logger.warning("Custom prompt file exceeds 1 MB (\(fileSize) bytes) — falling back to built-in default")
             return protocolPrompt

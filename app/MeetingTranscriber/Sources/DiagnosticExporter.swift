@@ -35,14 +35,20 @@ enum DiagnosticExporter {
         return fmt
     }()
 
-    /// Keys (lowercased) whose values must be redacted from the export header.
-    private static let sensitiveKeySubstrings = ["key", "secret", "token", "password"]
+    /// Exact lowercased key names whose values must be redacted from the export header.
+    /// Using an explicit set rather than substring matching prevents false positives
+    /// (e.g. a setting named "socketAddress" falsely matching "key") and false negatives
+    /// (new sensitive fields added without a matching substring).
+    private static let sensitiveKeys: Set<String> = [
+        "openaiapikey",
+        "openaiendpoint",
+    ]
 
     /// Build the header that prefixes every exported diagnostic file.
     /// Pure function — settings dict is stringified into `key=value` pairs,
     /// sorted alphabetically for deterministic output. Values whose key name
-    /// contains a sensitive substring (key, secret, token, password) are
-    /// redacted to prevent API keys or passwords from leaking into exported logs.
+    /// is in the sensitiveKeys allowlist are redacted to prevent API keys from
+    /// leaking into exported logs.
     ///
     /// When `settings["audioDebugLogging"]` is `"true"`, an extra note is
     /// added to remind readers that verbose audio logs are included.
@@ -54,8 +60,7 @@ enum DiagnosticExporter {
     ) -> String {
         let pairs = settings.sorted { $0.key < $1.key }
             .map { key, value -> String in
-                let lowerKey = key.lowercased()
-                let isRedacted = sensitiveKeySubstrings.contains(where: { lowerKey.contains($0) })
+                let isRedacted = sensitiveKeys.contains(key.lowercased())
                 return "\(key)=\(isRedacted ? "<redacted>" : value)"
             }
             .joined(separator: " ")

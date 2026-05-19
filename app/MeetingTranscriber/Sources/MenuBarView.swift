@@ -253,7 +253,7 @@ struct MenuBarView: View {
                 Label("Open Last Protocol", systemImage: "doc.text")
             }
             .keyboardShortcut("o")
-            .disabled(latestJobProtocolPath == nil)
+            .disabled(latestJobProtocolPath == nil && latestJobTranscriptPath == nil)
         }
     }
 
@@ -273,22 +273,26 @@ struct MenuBarView: View {
                 Button("Open") { onOpenProtocol(path) }
                     .font(.caption2)
                     .accessibilityLabel("Open protocol for \(job.meetingTitle)")
+                    .accessibilityHint("Opens the protocol or transcript file in Finder")
             }
             if job.state == .speakerNamingPending {
                 Button("Name Speakers") { onNameSpeakers?() }
                     .font(.caption2)
                     .accessibilityLabel("Name speakers for \(job.meetingTitle)")
+                    .accessibilityHint("Opens the speaker naming dialog for this meeting")
             }
             if job.state == .waiting || job.state == .transcribing
                 || job.state == .diarizing || job.state == .generatingProtocol {
                 Button("Cancel") { pipelineQueue.cancelJob(id: job.id) }
                     .font(.caption2)
                     .accessibilityLabel("Cancel processing \(job.meetingTitle)")
+                    .accessibilityHint("Stops processing and removes this job from the queue")
             }
             if job.state == .done || job.state == .error || job.state == .speakerNamingPending {
                 Button("Dismiss") { onDismissJob(job.id) }
                     .font(.caption2)
                     .accessibilityLabel("Dismiss \(job.meetingTitle)")
+                    .accessibilityHint("Removes this job from the list")
             }
         }
         .padding(.horizontal, 4)

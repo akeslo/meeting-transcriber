@@ -240,7 +240,10 @@
         static func resolveClaudePath(_ bin: String) -> String {
             // If already an absolute path, validate it against trusted prefixes.
             if bin.hasPrefix("/") {
-                let canonical = (bin as NSString).standardizingPath
+                // Use resolvingSymlinksInPath() rather than standardizingPath so that
+                // paths like `/opt/homebrew/bin/../../../tmp/evil` are fully resolved
+                // before the prefix check, not just syntactically normalized.
+                let canonical = URL(fileURLWithPath: bin).resolvingSymlinksInPath().path
                 let isTrusted = trustedAbsolutePrefixes.contains(where: { canonical.hasPrefix($0) })
                 guard isTrusted else {
                     logger.warning("Absolute claudeBin path '\(bin, privacy: .public)' is not under a trusted prefix — falling back to search paths")
@@ -260,8 +263,17 @@
                 }
                 return path
             }
-            // Fallback: hope it's in PATH
-            return "/usr/bin/env"
+            // Fallback: hope it's in PATH — only allowed for simple filenames
+            // (no path separators, no spaces) so env(1) can't be used to run an
+            // arbitrary path by injecting a slash-prefixed component into claudeBin.
+            let isSafeFilename = !bin.contains("/") && !bin.contains(" ")
+            if isSafeFilename {
+                return "/usr/bin/env"
+            }
+            logger.warning("claudeBin '\(bin, privacy: .public)' contains path separators or spaces — not passing to env fallback")
+            return searchPaths.map({ "\($0)/claude" })
+                .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+                ?? "/usr/bin/env"
         }
 
         // MARK: - Pure subprocess builders
@@ -272,7 +284,13 @@
         static func buildSubprocessArgs(claudeBin: String, resolvedBin: String) -> [String] {
             var args = ["-p", "-", "--output-format", "stream-json", "--verbose", "--model", "sonnet"]
             if resolvedBin == "/usr/bin/env" {
-                args.insert(claudeBin, at: 0)
+                // Only insert claudeBin if it is a safe, simple filename — the
+                // resolution guard above already prevents reaching this branch with
+                // a path-separator-containing value, but guard again for clarity.
+                let isSafeFilename = !claudeBin.contains("/") && !claudeBin.contains(" ")
+                if isSafeFilename {
+                    args.insert(claudeBin, at: 0)
+                }
             }
             return args
         }

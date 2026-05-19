@@ -135,10 +135,24 @@ struct TranscriptionSettingsView: View {
                 Task { await engine.loadModel() }
             }
 
-        case .prewarming, .prewarmed, .downloaded:
+        case .downloaded:
             HStack {
                 ProgressView().controlSize(.small)
-                Text("Preparing model...")
+                Text("Download complete, preparing…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .prewarming:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Pre-warming model…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .prewarmed:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Model pre-warmed, loading…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

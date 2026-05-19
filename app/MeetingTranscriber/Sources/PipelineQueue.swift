@@ -1135,11 +1135,13 @@ class PipelineQueue {
             return
         }
 
+        // Capture title before any await boundary so the index remains valid at the read site.
+        let title = jobs[jobIndex].meetingTitle
+
         updateJobState(id: jobID, to: .diarizing)
         startElapsedTimer()
 
         do {
-            let title = jobs[jobIndex].meetingTitle
             let diarization: DiarizationResult
 
             if namingData.isDualSource {

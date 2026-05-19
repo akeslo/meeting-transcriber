@@ -300,9 +300,10 @@ struct KnownVoicesView: View {
                 Text("\(speaker.useCount)")
                     .accessibilityLabel("Uses: \(speaker.useCount)")
             }
-            TableColumn("Samples") { speaker in
+            TableColumn("Samples") { (speaker: StoredSpeaker) in
                 Text("\(speaker.embeddings.count)")
                     .accessibilityLabel("Samples: \(speaker.embeddings.count)")
+                    .help("Recent voice embeddings used for matching")
             }
         }
     }

@@ -160,7 +160,7 @@ struct OutputSettingsView: View {
             HStack {
                 Text("Model")
                 Spacer()
-                TextField("e.g. llama3.2", text: $settings.openAIModel)
+                TextField("", text: $settings.openAIModel, prompt: Text("e.g. gpt-4o"))
                     .frame(width: 200)
                     .multilineTextAlignment(.trailing)
             }

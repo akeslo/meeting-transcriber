@@ -68,6 +68,10 @@ struct GitHubReleaseProvider: UpdateProviding {
     }
 
     private func fetchJSON<T: Decodable>(path: String) async throws -> T {
+        // Force-unwrap is safe: the URL string is constructed from a hardcoded
+        // "https://api.github.com/repos/" prefix plus owner/repo/path values that
+        // are validated (non-empty, no whitespace) at init time. The URL cannot
+        // be nil unless the host constant itself is malformed, which is a programmer error.
         // swiftlint:disable:next force_unwrapping
         let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/\(path)")!
         let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url))

@@ -174,7 +174,6 @@ struct SpeakerNamingView: View {
                     completedJobID = data.jobID
                     onComplete(.skipped)
                 }
-                .keyboardShortcut(.escape)
                 .help("Skip naming — speakers will use default labels")
                 .accessibilityIdentifier("skip-button")
 
@@ -263,14 +262,19 @@ struct SpeakerNamingView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("New speaker")
+                    Text("New speaker — no voice match found")
                         .font(.caption)
                         .foregroundStyle(.orange)
-                        .help("No voice match found. Enter a name manually or pick from suggestions.")
                 }
 
                 if index < names.count {
                     nameField(for: index, label: speaker.label)
+                    if speaker.autoName == nil {
+                        Text("Enter a name manually or pick from suggestions below.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
                     suggestionChips(for: index)
                 }
             }

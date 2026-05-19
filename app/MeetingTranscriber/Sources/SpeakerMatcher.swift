@@ -446,7 +446,9 @@ class SpeakerMatcher {
             try data.write(to: tmp)
             _ = try FileManager.default.replaceItemAt(dbPath, withItemAt: tmp)
         } catch {
-            logger.error("Failed to save speaker DB: \(error)")
+            logger.error(
+                "speaker_db_save_failed path=\(self.dbPath.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)",
+            )
         }
     }
 

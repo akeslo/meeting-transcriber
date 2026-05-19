@@ -98,11 +98,14 @@ class DualSourceRecorder: RecordingProvider {
             micDeviceUID: (micDeviceUID?.isEmpty ?? true) ? nil : micDeviceUID,
             debugLogging: debugLogging,
         )
+        // Capture the start time before calling session.start() so that
+        // recordingStartTime reflects the moment recording was initiated, not
+        // slightly after the OS-level capture session opens.
+        recordingStartTime = ProcessInfo.processInfo.systemUptime
         try session.start()
         captureSession = session
 
         isRecording = true
-        recordingStartTime = ProcessInfo.processInfo.systemUptime
 
         logger.info("Recording started: PID \(appPID), \(self.recordRate) Hz, \(self.appChannels)ch")
     }

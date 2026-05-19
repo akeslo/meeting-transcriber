@@ -12,20 +12,28 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
     let timeoutSeconds: TimeInterval
     let session: URLSession
 
+    /// Default URLSession with TLS 1.2 minimum enforced.
+    static let secureSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        return URLSession(configuration: config)
+    }()
+
     init(
         endpoint: URL,
         model: String,
         language: String,
         apiKey: String? = nil,
         timeoutSeconds: TimeInterval = 600,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
     ) {
         self.endpoint = endpoint
         self.model = model
         self.language = language
         self.apiKey = apiKey
         self.timeoutSeconds = timeoutSeconds
-        self.session = session
+        // Use a session with TLS 1.2 minimum by default; callers (e.g. tests) can inject their own.
+        self.session = session ?? Self.secureSession
     }
 
     func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
@@ -33,14 +41,26 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         // non-loopback host — the key would be visible on the network.
         if endpoint.scheme?.lowercased() == "http",
            let host = endpoint.host {
-            let isLoopback = host == "127.0.0.1"
-                || host.hasPrefix("127.")
-                || host == "0.0.0.0"
-                || host == "::1"
-                || host == "localhost"
-                || host.lowercased().hasPrefix("fe80:")
-                || host.hasPrefix("169.254.")
-            if !isLoopback {
+            let lower = host.lowercased()
+            let isPrivate = lower == "127.0.0.1"
+                || lower.hasPrefix("127.")
+                || lower == "0.0.0.0"
+                || lower == "::1"
+                || lower == "localhost"
+                || lower.hasPrefix("fe80:")  // link-local IPv6
+                || lower.hasPrefix("169.254.")  // link-local IPv4
+                || lower.hasPrefix("10.")  // RFC-1918 class A
+                || lower.hasPrefix("192.168.")  // RFC-1918 class C
+                || (lower.hasPrefix("172.") && {  // RFC-1918 class B (172.16–31.x.x)
+                    let parts = lower.split(separator: ".")
+                    if parts.count >= 2, let second = Int(parts[1]) {
+                        return second >= 16 && second <= 31
+                    }
+                    return false
+                }())
+                || lower.hasPrefix("fd")  // ULA IPv6 (fc00::/7, most common fd::/8)
+                || lower.hasPrefix("fc")  // ULA IPv6
+            if !isPrivate {
                 throw ProtocolError.connectionFailed(
                     "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
                 )
