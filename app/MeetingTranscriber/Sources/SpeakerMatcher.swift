@@ -32,6 +32,8 @@ class SpeakerMatcher {
         self.dbPath = dbPath ?? AppPaths.speakersDB
         self.threshold = threshold
         self.confidenceMargin = confidenceMargin
+        Self.dbLock.lock()
+        defer { Self.dbLock.unlock() }
         Self.migrateIfNeeded(dbPath: self.dbPath)
     }
 
@@ -399,6 +401,11 @@ class SpeakerMatcher {
     func loadDB() -> [StoredSpeaker] {
         guard let data = try? Data(contentsOf: dbPath) else {
             // File missing or unreadable — expected on first launch.
+            return []
+        }
+        let maxDBBytes = 10 * 1024 * 1024  // 10 MB — protects against OOM on crafted inputs
+        guard data.count <= maxDBBytes else {
+            logger.warning("speakers.json exceeds size limit (\(data.count) bytes) — refusing to decode")
             return []
         }
         guard let decoded = try? JSONDecoder().decode([StoredSpeaker].self, from: data) else {

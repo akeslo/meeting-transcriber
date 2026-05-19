@@ -107,10 +107,9 @@ struct RecognitionStatsView: View {
     }
 
     private func progressBar(count: Int, total: Int) -> some View {
-        let ratio = total > 0 ? Double(count) / Double(total) : 0
         return ProgressView(value: Double(count), total: Double(total))
             .frame(width: 80)
-            .accessibilityLabel("\(Int((ratio * 100).rounded()))%")
+            .accessibilityLabel("\(count) of \(total)")
     }
 
     private func reload() async {

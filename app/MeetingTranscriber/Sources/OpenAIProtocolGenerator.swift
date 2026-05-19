@@ -170,6 +170,26 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         guard let scheme = chatURL.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
             return .failure(ProtocolError.connectionFailed("Endpoint must use http or https scheme"))
         }
+        // Apply the same cleartext + API-key guard used in generate(): refuse to
+        // send credentials over plain HTTP to a non-loopback/non-private host.
+        if scheme == "http", let host = chatURL.host, let apiKey, !apiKey.isEmpty {
+            let lower = host.lowercased()
+            let isPrivate = lower == "127.0.0.1" || lower.hasPrefix("127.")
+                || lower == "0.0.0.0" || lower == "::1" || lower == "localhost"
+                || lower.hasPrefix("fe80:") || lower.hasPrefix("169.254.")
+                || lower.hasPrefix("10.") || lower.hasPrefix("192.168.")
+                || lower.hasPrefix("fd") || lower.hasPrefix("fc")
+                || (lower.hasPrefix("172.") && {
+                    let parts = lower.split(separator: ".")
+                    if parts.count >= 2, let second = Int(parts[1]) { return second >= 16 && second <= 31 }
+                    return false
+                }())
+            if !isPrivate {
+                return .failure(ProtocolError.connectionFailed(
+                    "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
+                ))
+            }
+        }
 
         // Navigate from .../v1/chat/completions to .../v1/models
         let baseURL = chatURL.deletingLastPathComponent().deletingLastPathComponent()

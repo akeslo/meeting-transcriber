@@ -35,6 +35,13 @@
 
             let process = Process()
             let resolvedBin = Self.resolveClaudePath(claudeBin)
+            // Final symlink check at execution time: resolveClaudePath already called
+            // resolvingSymlinksInPath(), but the file could be replaced with a symlink
+            // in the window between resolution and execution.
+            let execAttrs = try? FileManager.default.attributesOfItem(atPath: resolvedBin)
+            if execAttrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+                throw ProtocolError.connectionFailed("Resolved Claude binary '\(resolvedBin)' is a symlink — refusing to execute")
+            }
             process.executableURL = URL(fileURLWithPath: resolvedBin)
             process.arguments = Self.buildSubprocessArgs(claudeBin: claudeBin, resolvedBin: resolvedBin)
             process.environment = Self.buildEnvironment(

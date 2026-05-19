@@ -99,12 +99,19 @@ enum ProtocolGenerator {
             logger.warning("Custom prompt file exceeds 1 MB (\(fileSize) bytes) — falling back to built-in default")
             return protocolPrompt
         }
-        if let custom = try? String(contentsOf: url, encoding: .utf8),
-           !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            logger.info("Using custom protocol prompt from \(url.path)")
-            return custom
-        }
-        return protocolPrompt
+        // Open with O_NOFOLLOW to close the TOCTOU window: if a symlink is swapped
+        // in between the attribute check above and this read, open() fails instead
+        // of following the attacker-controlled link.
+        let fd = open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard fd >= 0 else { return protocolPrompt }
+        defer { close(fd) }
+        let fh = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+        guard let data = try? fh.readToEnd(),
+              let custom = String(data: data, encoding: .utf8),
+              !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return protocolPrompt }
+        logger.info("Using custom protocol prompt from \(url.path)")
+        return custom
     }
 
     /// Build the localized system prompt: `loadPrompt` + `applyLanguage`

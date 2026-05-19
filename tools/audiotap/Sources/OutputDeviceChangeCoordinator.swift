@@ -77,6 +77,9 @@ struct OutputDeviceChangeCoordinator: Equatable {
             return .ignore
 
         case (.idle, .startSucceeded), (.idle, .startFailed):
+            // These events are logically unreachable in idle state (no restart is
+            // in progress), but are handled defensively in case of a race.
+            assertionFailure("unexpected start event received in idle state")
             return .ignore
         }
     }

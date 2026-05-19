@@ -180,6 +180,7 @@ final class UpdateChecker {
                 lastCheckDate = Date()
             } catch {
                 lastError = error.localizedDescription
+                availableUpdate = nil
             }
         }
     }

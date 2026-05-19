@@ -129,7 +129,7 @@ struct GeneralSettingsView: View {
                         Text("Each recording gets a ")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("<timestamp>_meta.json")
+                        Text("<basename>_meta.json")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                         Text(" sidecar next to its WAVs. No transcription, diarization, or protocol generation runs on this device.")

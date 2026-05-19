@@ -52,6 +52,7 @@ struct TranscriptionSettingsView: View {
                     HStack {
                         TextField("Custom vocabulary file", text: $settings.customVocabularyPath)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Custom vocabulary file path")
                         Button("Choose\u{2026}") {
                             let panel = NSOpenPanel()
                             panel.allowedContentTypes = [.plainText]

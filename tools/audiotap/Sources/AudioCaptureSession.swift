@@ -58,7 +58,10 @@ public class AudioCaptureSession {
         do {
             try capture.start()
         } catch {
-            try? handle.close()
+            // Do not explicitly close handle here: AppAudioCapture holds the fd
+            // and may close it on failure. Closing handle separately would produce
+            // a double-close. FileHandle's deinit closes the fd when it goes out
+            // of scope at end of this catch block.
             throw error
         }
         appFileHandle = handle

@@ -172,6 +172,7 @@ struct OutputSettingsView: View {
             SecureField("Optional API key", text: $settings.openAIAPIKey)
                 .frame(width: 200)
                 .accessibilityLabel("API Key")
+                .accessibilityHint("Leave empty if your server does not require authentication")
         }
         Text("Leave empty if your local server doesn't require authentication")
             .font(.caption)

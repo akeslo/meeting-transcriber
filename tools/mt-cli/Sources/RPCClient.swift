@@ -55,6 +55,10 @@ struct RPCClient {
 
     static func loadDefault() throws -> Self {
         let url = defaultTokenURL
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        if attrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+            throw RPCError.missingToken(url)
+        }
         guard let data = try? Data(contentsOf: url),
               let token = String(data: data, encoding: .utf8)?
               .trimmingCharacters(in: .whitespacesAndNewlines),
