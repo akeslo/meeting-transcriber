@@ -189,6 +189,9 @@ struct VoiceEnrollmentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enrollment failed").font(.headline).foregroundStyle(.red)
             Text(message).foregroundStyle(.secondary)
+            Text("Try a longer recording, check audio levels, or use a different file format.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             HStack {
                 Button("Try Again") { stage = .pickFile }
                 Spacer()

@@ -87,6 +87,7 @@ struct AdvancedSettingsView: View {
                     Button("Export Diagnostics…") { exportDiagnostics() }
                         .disabled(isExportingDiagnostics)
                         .accessibilityHint("Creates a shareable log file in your Downloads folder")
+                        .help(isExportingDiagnostics ? "Exporting…" : "")
                     if isExportingDiagnostics {
                         ProgressView()
                             .controlSize(.small)

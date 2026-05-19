@@ -42,6 +42,12 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         if endpoint.scheme?.lowercased() == "http",
            let host = endpoint.host {
             let lower = host.lowercased()
+            // NOTE: This guard uses string-prefix matching and catches the most
+            // common notations. Known limitation: exotic but valid forms such as
+            // mixed octal/decimal like `0177.0.0.1` with non-standard segment
+            // counts are not exhaustively covered. For a fully robust check,
+            // resolve the hostname via getaddrinfo and inspect the resulting
+            // sockaddr — that is intentionally out of scope here.
             let isPrivate = lower == "127.0.0.1"
                 || lower.hasPrefix("127.")
                 || lower == "0.0.0.0"
@@ -60,6 +66,12 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
                 }())
                 || lower.hasPrefix("fd")  // ULA IPv6 (fc00::/7, most common fd::/8)
                 || lower.hasPrefix("fc")  // ULA IPv6
+                // Octal loopback: 0177.0.0.1 → 127.0.0.1
+                || lower.hasPrefix("0177.")
+                // Hex loopback: 0x7f... → 127.x.x.x
+                || lower.hasPrefix("0x7f")
+                // Pure-decimal (dword) loopback: 2130706433 == 0x7F000001 == 127.0.0.1
+                || (UInt32(lower) == 2_130_706_433)
             if !isPrivate {
                 throw ProtocolError.connectionFailed(
                     "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."

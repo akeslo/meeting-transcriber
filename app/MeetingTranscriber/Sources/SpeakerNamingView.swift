@@ -247,6 +247,7 @@ struct SpeakerNamingView: View {
                             if loadingLabel == speaker.label {
                                 ProgressView()
                                     .controlSize(.small)
+                                    .accessibilityHint("Loading audio, please wait")
                             } else {
                                 Image(systemName: playingLabel == speaker.label
                                     ? "stop.circle.fill" : "play.circle.fill")
@@ -279,7 +280,7 @@ struct SpeakerNamingView: View {
                 } else {
                     Text("New speaker — no voice match found")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 if index < names.count {

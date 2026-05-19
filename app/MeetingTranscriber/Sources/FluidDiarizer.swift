@@ -80,10 +80,15 @@ final class FluidDiarizer: DiarizationProvider, @unchecked Sendable {
     private func runSortformer(audioPath: URL) async throws -> MeetingTranscriber.DiarizationResult {
         if sortformerDiarizer == nil {
             let diarizer = SortformerDiarizer()
-            let models = try await SortformerModels.loadFromHuggingFace(config: .default)
-            diarizer.initialize(models: models)
-            sortformerDiarizer = diarizer
-            logger.info("FluidAudio Sortformer models ready")
+            do {
+                let models = try await SortformerModels.loadFromHuggingFace(config: .default)
+                diarizer.initialize(models: models)
+                sortformerDiarizer = diarizer
+                logger.info("FluidAudio Sortformer models ready")
+            } catch {
+                sortformerDiarizer = nil
+                throw error
+            }
         }
 
         logger.info("Starting Sortformer diarization: \(audioPath.lastPathComponent)")

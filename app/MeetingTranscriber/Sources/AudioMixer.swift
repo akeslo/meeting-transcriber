@@ -359,6 +359,10 @@ enum AudioMixer {
         // Probe rate without loading all samples — O(1) for WAV/MP3/M4A
         if let audioFile = try? AVAudioFile(forReading: source),
            Int(audioFile.processingFormat.sampleRate) == targetRate {
+            try FileManager.default.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+            )
             try FileManager.default.copyItem(at: source, to: destination)
             return
         }

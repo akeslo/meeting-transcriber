@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Thin HTTP client for the running Meeting Transcriber app's debug RPC server.
@@ -55,14 +56,17 @@ struct RPCClient {
 
     static func loadDefault() throws -> Self {
         let url = defaultTokenURL
-        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
-        if attrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+        // Use open(2) with O_NOFOLLOW to atomically reject symlinks, avoiding
+        // the TOCTOU race between a symlink check and the subsequent read.
+        let fd = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard fd >= 0 else {
             throw RPCError.missingToken(url)
         }
-        guard let data = try? Data(contentsOf: url),
-              let token = String(data: data, encoding: .utf8)?
-              .trimmingCharacters(in: .whitespacesAndNewlines),
-              !token.isEmpty
+        let fileHandle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        let data = fileHandle.readDataToEndOfFile()
+        guard let token = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !token.isEmpty
         else {
             throw RPCError.missingToken(url)
         }

@@ -1057,6 +1057,15 @@ class PipelineQueue {
 
         if let transcriptPath {
             do {
+                // Guard against OOM from oversized or corrupt transcript files.
+                let maxTranscriptBytes = 50 * 1024 * 1024  // 50 MB
+                if let fileSize = (try? FileManager.default.attributesOfItem(
+                    atPath: transcriptPath.path
+                ))?[.size] as? Int, fileSize > maxTranscriptBytes {
+                    throw ProtocolError.connectionFailed(
+                        "Transcript file exceeds 50 MB size limit (\(fileSize) bytes) — refusing to load"
+                    )
+                }
                 var transcript = try String(contentsOf: transcriptPath, encoding: .utf8)
                 // Format from `TimestampedSegment.formattedLine`: `[MM:SS] Speaker: text`.
                 // Anchor the replace on `] ` + label + `:` so we hit the speaker
