@@ -57,6 +57,7 @@ final class DualSourceRecorderTests: XCTestCase {
             micPath: URL(fileURLWithPath: "/tmp/mic.wav"),
             micDelay: 0.15,
             recordingStart: 1000.0,
+            recordingStartDate: Date(),
         )
 
         XCTAssertEqual(result.mixPath.lastPathComponent, "mix.wav")
@@ -73,6 +74,7 @@ final class DualSourceRecorderTests: XCTestCase {
             micPath: nil,
             micDelay: 0,
             recordingStart: 0,
+            recordingStartDate: Date(),
         )
 
         XCTAssertNil(result.appPath)

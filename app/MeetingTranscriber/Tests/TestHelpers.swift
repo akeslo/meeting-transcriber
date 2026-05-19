@@ -276,6 +276,7 @@ class MockRecorder: RecordingProvider {
             micPath: micPath,
             micDelay: 0,
             recordingStart: ProcessInfo.processInfo.systemUptime,
+            recordingStartDate: Date(),
         )
     }
 }

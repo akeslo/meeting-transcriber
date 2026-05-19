@@ -38,8 +38,12 @@
             // Final symlink check at execution time: resolveClaudePath already called
             // resolvingSymlinksInPath(), but the file could be replaced with a symlink
             // in the window between resolution and execution.
-            let execAttrs = try? FileManager.default.attributesOfItem(atPath: resolvedBin)
-            if execAttrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+            // Use no-follow semantics (resourceValues with URLResourceKey.isSymbolicLinkKey)
+            // so `.typeSymbolicLink` is actually returned for symlinks — unlike
+            // FileManager.attributesOfItem(atPath:) which follows symlinks first.
+            let resolvedBinURL = URL(fileURLWithPath: resolvedBin)
+            if let resourceValues = try? resolvedBinURL.resourceValues(forKeys: [.isSymbolicLinkKey]),
+               resourceValues.isSymbolicLink == true {
                 throw ProtocolError.connectionFailed("Resolved Claude binary '\(resolvedBin)' is a symlink — refusing to execute")
             }
             process.executableURL = URL(fileURLWithPath: resolvedBin)

@@ -378,14 +378,16 @@ class SpeakerMatcher {
             return (nil, aCount + bCount)
 
         case let (a?, nil):
-            return (a, aCount + bCount)
+            return (a, aCount)
 
         case let (nil, b?):
-            return (b, aCount + bCount)
+            return (b, bCount)
 
         case let (a?, b?):
             guard a.count == b.count, !a.isEmpty else {
-                return aCount >= bCount ? (a, aCount + bCount) : (b, aCount + bCount)
+                // Dimension mismatch: retain only the side that will be kept,
+                // not the inflated combined count.
+                return aCount >= bCount ? (a, aCount) : (b, bCount)
             }
             let total = Float(max(aCount + bCount, 1))
             let aw = Float(aCount) / total

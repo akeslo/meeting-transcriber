@@ -100,7 +100,7 @@ struct AdvancedSettingsView: View {
                         )
                     }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.blue)
                     .buttonStyle(.link)
                 }
                 if let err = lastExportError {

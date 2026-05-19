@@ -48,6 +48,12 @@ struct AudioSettingsView: View {
                         .onSubmit {
                             settings.vadThreshold = min(0.9, max(0.3, settings.vadThreshold))
                         }
+                        .onChange(of: settings.vadThreshold) { _, newValue in
+                            let clamped = min(0.9, max(0.3, newValue))
+                            if clamped != newValue {
+                                settings.vadThreshold = clamped
+                            }
+                        }
                     }
                     if settings.vadThreshold < 0.3 || settings.vadThreshold > 0.9 {
                         Text("Must be 0.3–0.9")

@@ -98,6 +98,11 @@ struct VoiceEnrollmentView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
+            Text(FFmpegHelper.ffmpegPath != nil
+                ? "Supported: WAV, MP3, M4A, MP4, MOV, MKV, WebM, OGG and other AVFoundation-compatible formats."
+                : "Supported: WAV, MP3, M4A, MP4, MOV and other AVFoundation-compatible formats. Install ffmpeg for MKV/WebM/OGG.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -159,7 +164,6 @@ struct VoiceEnrollmentView: View {
                     ForEach(savedNames, id: \.self) { name in
                         Label(name, systemImage: "person.fill")
                             .font(.callout)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -301,6 +305,11 @@ enum VoiceEnrollmentLogic {
                 speakingTimes: payload.diarization.speakingTimes,
             )
             let saved = Set(mapping.values.filter { !$0.isEmpty }).sorted()
+            // If the user confirmed without entering any names, treat as skipped
+            // so the done view is clearly distinct from an intentional skip.
+            if saved.isEmpty {
+                return .stage(.skipped)
+            }
             return .stage(.done(savedNames: saved))
 
         case .skipped:

@@ -582,12 +582,13 @@
                 headers[key] = value
             }
 
-            let maxContentLength = 10 * 1024 * 1024 // 10 MB safety limit
+            let maxContentLength = 64 * 1024 // 64 KB per-request body limit
             let contentLength = headers["content-length"].flatMap(Int.init) ?? 0
             guard contentLength >= 0, contentLength <= maxContentLength else { return nil }
             let bodyStart = separatorRange.upperBound
-            let availableBody = data.count - bodyStart
-            guard availableBody >= contentLength else { return nil }
+            // Explicit bounds check: reject if claimed body exceeds actual data to
+            // prevent a crafted oversized Content-Length from causing a crash.
+            guard bodyStart + contentLength <= data.count else { return nil }
             let body = data.subdata(in: bodyStart ..< bodyStart + contentLength)
             return Self(method: method, path: path, headers: headers, body: body)
         }

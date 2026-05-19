@@ -36,47 +36,45 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         self.session = session ?? Self.secureSession
     }
 
+    /// Returns `true` when `host` is a loopback, link-local, or RFC-1918
+    /// private address. Used by both `generate()` and `testConnection()` to
+    /// allow plain HTTP only to local/private endpoints.
+    ///
+    /// NOTE: Uses string-prefix matching for the most common notations.
+    /// Exotic-but-valid forms (e.g. mixed octal/decimal `0177.0.0.1` with
+    /// non-standard segment counts) are not exhaustively covered. For a fully
+    /// robust check, resolve via `getaddrinfo` and inspect the sockaddr — that
+    /// is intentionally out of scope here.
+    static func isPrivateHost(_ host: String) -> Bool {
+        let lower = host.lowercased()
+        if lower == "127.0.0.1" || lower.hasPrefix("127.") { return true }
+        if lower == "0.0.0.0" || lower == "::1" || lower == "localhost" { return true }
+        if lower.hasPrefix("fe80:") { return true } // link-local IPv6
+        if lower.hasPrefix("169.254.") { return true } // link-local IPv4
+        if lower.hasPrefix("10.") { return true } // RFC-1918 class A
+        if lower.hasPrefix("192.168.") { return true } // RFC-1918 class C
+        if lower.hasPrefix("fd") || lower.hasPrefix("fc") { return true } // ULA IPv6
+        if lower.hasPrefix("0177.") { return true } // octal loopback: 0177.0.0.1 → 127.0.0.1
+        if lower.hasPrefix("0x7f") { return true } // hex loopback: 0x7f… → 127.x.x.x
+        if UInt32(lower) == 2_130_706_433 { return true } // dword: 2130706433 == 127.0.0.1
+        if lower.hasPrefix("172.") { // RFC-1918 class B (172.16–31.x.x)
+            let parts = lower.split(separator: ".")
+            if parts.count >= 2, let second = Int(parts[1]) {
+                return second >= 16 && second <= 31
+            }
+        }
+        return false
+    }
+
     func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
         // Refuse to send the API key over a cleartext connection to a
         // non-loopback host — the key would be visible on the network.
         if endpoint.scheme?.lowercased() == "http",
-           let host = endpoint.host {
-            let lower = host.lowercased()
-            // NOTE: This guard uses string-prefix matching and catches the most
-            // common notations. Known limitation: exotic but valid forms such as
-            // mixed octal/decimal like `0177.0.0.1` with non-standard segment
-            // counts are not exhaustively covered. For a fully robust check,
-            // resolve the hostname via getaddrinfo and inspect the resulting
-            // sockaddr — that is intentionally out of scope here.
-            let isPrivate = lower == "127.0.0.1"
-                || lower.hasPrefix("127.")
-                || lower == "0.0.0.0"
-                || lower == "::1"
-                || lower == "localhost"
-                || lower.hasPrefix("fe80:")  // link-local IPv6
-                || lower.hasPrefix("169.254.")  // link-local IPv4
-                || lower.hasPrefix("10.")  // RFC-1918 class A
-                || lower.hasPrefix("192.168.")  // RFC-1918 class C
-                || (lower.hasPrefix("172.") && {  // RFC-1918 class B (172.16–31.x.x)
-                    let parts = lower.split(separator: ".")
-                    if parts.count >= 2, let second = Int(parts[1]) {
-                        return second >= 16 && second <= 31
-                    }
-                    return false
-                }())
-                || lower.hasPrefix("fd")  // ULA IPv6 (fc00::/7, most common fd::/8)
-                || lower.hasPrefix("fc")  // ULA IPv6
-                // Octal loopback: 0177.0.0.1 → 127.0.0.1
-                || lower.hasPrefix("0177.")
-                // Hex loopback: 0x7f... → 127.x.x.x
-                || lower.hasPrefix("0x7f")
-                // Pure-decimal (dword) loopback: 2130706433 == 0x7F000001 == 127.0.0.1
-                || (UInt32(lower) == 2_130_706_433)
-            if !isPrivate {
-                throw ProtocolError.connectionFailed(
-                    "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
-                )
-            }
+           let host = endpoint.host,
+           !Self.isPrivateHost(host) {
+            throw ProtocolError.connectionFailed(
+                "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
+            )
         }
         let systemPrompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language)
 
@@ -184,23 +182,10 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         }
         // Apply the same cleartext + API-key guard used in generate(): refuse to
         // send credentials over plain HTTP to a non-loopback/non-private host.
-        if scheme == "http", let host = chatURL.host {
-            let lower = host.lowercased()
-            let isPrivate = lower == "127.0.0.1" || lower.hasPrefix("127.")
-                || lower == "0.0.0.0" || lower == "::1" || lower == "localhost"
-                || lower.hasPrefix("fe80:") || lower.hasPrefix("169.254.")
-                || lower.hasPrefix("10.") || lower.hasPrefix("192.168.")
-                || lower.hasPrefix("fd") || lower.hasPrefix("fc")
-                || (lower.hasPrefix("172.") && {
-                    let parts = lower.split(separator: ".")
-                    if parts.count >= 2, let second = Int(parts[1]) { return second >= 16 && second <= 31 }
-                    return false
-                }())
-            if !isPrivate {
-                return .failure(ProtocolError.connectionFailed(
-                    "Endpoint uses http:// — only private/loopback hosts are allowed over plain HTTP."
-                ))
-            }
+        if scheme == "http", let host = chatURL.host, !isPrivateHost(host) {
+            return .failure(ProtocolError.connectionFailed(
+                "Endpoint uses http:// — only private/loopback hosts are allowed over plain HTTP."
+            ))
         }
 
         // Navigate from .../v1/chat/completions to .../v1/models

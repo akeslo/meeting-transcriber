@@ -42,9 +42,11 @@ struct GeneralSettingsView: View {
                                 ? "Enter a window title pattern above to enable this entry." : "")
                         VStack(alignment: .leading, spacing: 2) {
                             TextField("Name", text: $entry.name)
+                                .accessibilityLabel("Website name")
                             TextField("Window title contains", text: $entry.titleContains)
                                 .foregroundStyle(.secondary)
                                 .font(.caption)
+                                .accessibilityLabel("Window title pattern")
                         }
                         Button(role: .destructive) {
                             settings.websiteWatchEntries.removeAll { $0.id == entry.id }
@@ -80,6 +82,7 @@ struct GeneralSettingsView: View {
                     Stepper("Poll interval in seconds", value: $settings.pollInterval, in: 1 ... 30, step: 0.5)
                         .labelsHidden()
                         .accessibilityLabel("Poll interval")
+                        .accessibilityValue("\(Int(settings.pollInterval)) seconds")
                     Text("seconds").foregroundStyle(.secondary)
                 }
 
@@ -93,6 +96,7 @@ struct GeneralSettingsView: View {
                     Stepper("Grace period in seconds", value: $settings.endGrace, in: 1 ... 120, step: 1)
                         .labelsHidden()
                         .accessibilityLabel("Grace period")
+                        .accessibilityValue("\(Int(settings.endGrace)) seconds")
                     Text("seconds").foregroundStyle(.secondary)
                 }
             }

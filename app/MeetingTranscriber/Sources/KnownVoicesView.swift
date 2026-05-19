@@ -283,6 +283,11 @@ struct KnownVoicesView: View {
                 Button("Merge", role: .destructive) { applyMerge() }
                     .disabled(mergeDestination.wrappedValue.isEmpty)
                     .keyboardShortcut(.defaultAction)
+                    .accessibilityLabel(
+                        mergeDestination.wrappedValue.isEmpty
+                            ? "Merge"
+                            : "Merge \(mergingFrom) into \(mergeDestination.wrappedValue)"
+                    )
             }
         }
         .padding(20)

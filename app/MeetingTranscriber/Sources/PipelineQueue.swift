@@ -350,6 +350,9 @@ class PipelineQueue {
         // MainActor.assumeIsolated is safe: PipelineQueue is always released
         // on the main actor since all call sites are @MainActor-isolated.
         MainActor.assumeIsolated {
+            // Write the final snapshot before cancelling removal tasks so
+            // completed-job state is not lost when self is replaced mid-flight.
+            saveSnapshot()
             removalTasks.values.forEach { $0.cancel() }
         }
     }
@@ -884,10 +887,18 @@ class PipelineQueue {
                                 autoNames: autoNames,
                                 embeddings: currentDiarization.embeddings,
                             )
-                            let segments: [TimestampedSegment] = if let cached = cachedSegments {
-                                cached
+                            // Prefer the cached segments (always set in single-source path).
+                            // Fallback re-transcribes from the original mix file to avoid
+                            // relying on the workDir-resident mix16k after defer cleanup.
+                            let segments: [TimestampedSegment]
+                            if let cached = cachedSegments {
+                                segments = cached
+                            } else if let safeMixPath = mixPath {
+                                let fallback16k = workDir.appendingPathComponent("mix_16k_fb.wav")
+                                try await AudioMixer.resampleFile(from: safeMixPath, to: fallback16k)
+                                segments = try await engine.transcribeSegments(audioPath: fallback16k)
                             } else {
-                                try await engine.transcribeSegments(audioPath: mix16k)
+                                segments = try await engine.transcribeSegments(audioPath: mix16k)
                             }
                             let labeled = DiarizationProcess.assignSpeakers(
                                 transcript: segments,
@@ -1287,6 +1298,12 @@ class PipelineQueue {
     func loadNamingData(slug: String) -> SpeakerNamingData? {
         guard let outputDir else { return nil }
         let path = outputDir.appendingPathComponent("recordings/\(slug)_naming.json")
+        let maxNamingDataBytes = 10 * 1024 * 1024 // 10 MB size cap
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path.path),
+           let size = attrs[.size] as? Int, size > maxNamingDataBytes {
+            logger.error("Naming data file exceeds 10 MB limit (\(size) bytes) — refusing to load: \(path.lastPathComponent)")
+            return nil
+        }
         guard let json = try? Data(contentsOf: path) else { return nil }
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(

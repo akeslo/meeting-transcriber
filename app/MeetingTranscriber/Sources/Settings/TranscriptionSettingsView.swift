@@ -61,6 +61,7 @@ struct TranscriptionSettingsView: View {
                                 settings.customVocabularyPath = url.path
                             }
                         }
+                        .accessibilityLabel("Choose custom vocabulary file")
                     }
                     .help("Text file with one term per line (e.g. company names, product names)")
                     if !settings.customVocabularyPath.isEmpty,

@@ -475,7 +475,9 @@ class WatchLoop {
         participants: [String],
     ) {
         let stoppedAt = Date()
-        let startedAt = wallClockDate(forUptime: recording.recordingStart, now: stoppedAt)
+        // Use the wall-clock date captured at recording start to avoid clock-skew
+        // from NTP steps, DST transitions, or sleep/wake cycles between start and now.
+        let startedAt = recording.recordingStartDate
 
         let mixName = recording.mixPath.lastPathComponent
         let basename = RecordingFileSuffix.stripSuffix(from: mixName)?.stem

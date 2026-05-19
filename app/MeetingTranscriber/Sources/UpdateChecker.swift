@@ -67,6 +67,15 @@ struct GitHubReleaseProvider: UpdateProviding {
         return releases.compactMap { mapRelease($0) }
     }
 
+    /// Dedicated ephemeral session with TLS 1.2 minimum for GitHub API requests.
+    /// Using a dedicated session rather than `URLSession.shared` ensures the
+    /// minimum TLS version is enforced regardless of process-wide defaults.
+    private static let secureSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        return URLSession(configuration: config)
+    }()
+
     private func fetchJSON<T: Decodable>(path: String) async throws -> T {
         // Force-unwrap is safe: the URL string is constructed from a hardcoded
         // "https://api.github.com/repos/" prefix plus owner/repo/path values that
@@ -74,7 +83,7 @@ struct GitHubReleaseProvider: UpdateProviding {
         // be nil unless the host constant itself is malformed, which is a programmer error.
         // swiftlint:disable:next force_unwrapping
         let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/\(path)")!
-        let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url))
+        let (data, response) = try await Self.secureSession.data(for: URLRequest(url: url))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw UpdateCheckerError.networkError(
                 "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)",

@@ -28,6 +28,7 @@ struct PermissionRow: View {
         HStack {
             Image(systemName: icon)
                 .foregroundStyle(iconColor)
+                .accessibilityLabel(granted ? "Granted" : (warning || optional ? "Warning" : "Denied"))
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                 Text(detail)

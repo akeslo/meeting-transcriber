@@ -243,6 +243,7 @@ struct MenuBarView: View {
         let latestJobTranscriptPath = latestDoneJob?.transcriptPath
         let latestJobProtocolPath = latestDoneJob?.protocolPath
         let hasTranscriptOnly = latestJobTranscriptPath != nil && latestJobProtocolPath == nil
+        let hasNoFile = latestJobProtocolPath == nil && latestJobTranscriptPath == nil
         if hasTranscriptOnly, let transcriptPath = latestJobTranscriptPath {
             Button {
                 onOpenProtocol(transcriptPath)
@@ -257,7 +258,19 @@ struct MenuBarView: View {
                 Label("Open Last Protocol", systemImage: "doc.text")
             }
             .keyboardShortcut("o")
-            .disabled(latestJobProtocolPath == nil && latestJobTranscriptPath == nil)
+            .disabled(hasNoFile)
+            .help(hasNoFile ? "No completed job yet — process a meeting first." : "")
+        } else {
+            // protocolProviderIsNone: show a disabled fallback so users can still open
+            // prior transcripts. Hidden only when there is an actual transcript to click.
+            Button {
+                if let path = latestJobTranscriptPath { onOpenProtocol(path) }
+            } label: {
+                Label("Open Last Transcript", systemImage: "doc.text")
+            }
+            .keyboardShortcut("o")
+            .disabled(hasNoFile)
+            .help(hasNoFile ? "No completed job yet — process a meeting first." : "")
         }
     }
 

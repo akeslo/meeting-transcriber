@@ -644,7 +644,13 @@ final class AppState { // swiftlint:disable:this type_body_length
             switch newState {
             case .done:
                 let title = job.protocolPath != nil ? "Protocol Ready" : "Transcript Saved"
-                notifier.notify(title: title, body: job.meetingTitle)
+                let body: String
+                if job.warnings.isEmpty {
+                    body = job.meetingTitle
+                } else {
+                    body = job.meetingTitle + " — " + job.warnings.joined(separator: "; ")
+                }
+                notifier.notify(title: title, body: body)
 
             case .error:
                 if let err = job.error {

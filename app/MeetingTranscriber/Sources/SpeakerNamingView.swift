@@ -149,7 +149,7 @@ struct SpeakerNamingView: View {
 
             Divider()
 
-            DisclosureGroup("Wrong count? Re-run diarization", isExpanded: $rerunDisclosureExpanded) {
+            DisclosureGroup(isExpanded: $rerunDisclosureExpanded) {
                 HStack(spacing: 8) {
                     Stepper("\(rerunCount) speakers", value: $rerunCount, in: 1 ... 10)
                         .font(.caption)
@@ -164,9 +164,16 @@ struct SpeakerNamingView: View {
                     .accessibilityIdentifier("rerun-button")
                 }
                 .padding(.top, 4)
+                if rerunCount == 1 {
+                    Text("1 speaker disables differentiation — all lines will share the same label.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            } label: {
+                Text("Wrong count? Re-run diarization")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
@@ -292,7 +299,6 @@ struct SpeakerNamingView: View {
                             : "Enter a name manually.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
                     }
                     suggestionChips(for: index)
                 }

@@ -140,11 +140,15 @@ final class FluidVAD: @unchecked Sendable {
     func detectSpeech(samples: [Float]) async throws -> VadSegmentMap {
         let mgr = try await ensureManager()
         let results = try await mgr.process(samples)
-        return buildSegmentMap(from: results)
+        let actualAudioDuration = Double(samples.count) / Double(VadManager.sampleRate)
+        return buildSegmentMap(from: results, actualAudioDuration: actualAudioDuration)
     }
 
     /// Convert per-chunk VAD results into merged, filtered speech regions.
-    private func buildSegmentMap(from results: [VadResult]) -> VadSegmentMap {
+    /// `actualAudioDuration` is the true duration of the input audio in seconds;
+    /// it is used to close the final open speech region accurately instead of
+    /// relying on the theoretical chunk count which may overestimate the end time.
+    private func buildSegmentMap(from results: [VadResult], actualAudioDuration: TimeInterval) -> VadSegmentMap {
         let chunkDuration = Double(VadManager.chunkSize) / Double(VadManager.sampleRate) // ~0.256s
         var regions: [SpeechRegion] = []
         var speechStart: TimeInterval?
@@ -160,9 +164,10 @@ final class FluidVAD: @unchecked Sendable {
                 speechStart = nil
             }
         }
-        // Close any open region
+        // Close any open region using the actual audio length to avoid over-estimating
+        // the end time when the last chunk is a partial chunk.
         if let start = speechStart {
-            let endTime = Double(results.count) * chunkDuration
+            let endTime = min(actualAudioDuration, Double(results.count) * chunkDuration)
             regions.append(SpeechRegion(start: start, end: endTime))
         }
 

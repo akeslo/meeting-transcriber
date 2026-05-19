@@ -15,6 +15,10 @@ struct RecordingResult {
     let micPath: URL?
     let micDelay: TimeInterval
     let recordingStart: TimeInterval // ProcessInfo.systemUptime
+    /// Wall-clock date captured at recording start (alongside the uptime).
+    /// Use this instead of reconstructing via `wallClockDate(forUptime:)` to
+    /// avoid clock-skew from NTP steps, DST transitions, or sleep/wake cycles.
+    let recordingStartDate: Date
 }
 
 /// Abstraction for recording, enabling mock injection in tests.
@@ -38,6 +42,7 @@ class DualSourceRecorder: RecordingProvider {
     private var _captureSession: AnyObject?
     private(set) var isRecording = false
     private(set) var recordingStartTime: TimeInterval = 0
+    private(set) var recordingStartDate: Date = Date()
     private var startTimestamp: String?
 
     private let recordRate = 48000
@@ -101,7 +106,9 @@ class DualSourceRecorder: RecordingProvider {
         // Capture the start time before calling session.start() so that
         // recordingStartTime reflects the moment recording was initiated, not
         // slightly after the OS-level capture session opens.
+        // Both timestamps are captured atomically so they correspond to the same instant.
         recordingStartTime = ProcessInfo.processInfo.systemUptime
+        recordingStartDate = Date()
         try session.start()
         captureSession = session
 
@@ -120,6 +127,7 @@ class DualSourceRecorder: RecordingProvider {
         }
 
         let recordingStart = recordingStartTime
+        let startDate = recordingStartDate
         isRecording = false
 
         // Stop capture session and get result
@@ -253,6 +261,7 @@ class DualSourceRecorder: RecordingProvider {
             micPath: micPath,
             micDelay: micDelay,
             recordingStart: recordingStart,
+            recordingStartDate: startDate,
         )
     }
 

@@ -103,6 +103,8 @@ struct AppPickerView: View {
                 if apps.isEmpty {
                     Text("No recordable apps are running.")
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("No recordable apps are running.")
+                        .accessibilityAddTraits(.isStaticText)
                 }
             }
 

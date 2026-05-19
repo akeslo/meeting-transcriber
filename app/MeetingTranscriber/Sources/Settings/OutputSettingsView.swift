@@ -62,6 +62,7 @@ struct OutputSettingsView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .help(outputDirDisplay)
                 }
 
                 HStack {
@@ -151,6 +152,15 @@ struct OutputSettingsView: View {
             TextField("http://localhost:11434/v1/chat/completions", text: $settings.openAIEndpoint)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("API Endpoint URL")
+        }
+
+        if let endpointURL = URL(string: settings.openAIEndpoint),
+           endpointURL.scheme?.lowercased() == "http",
+           let host = endpointURL.host,
+           !OpenAIProtocolGenerator.isPrivateHost(host) {
+            Label("Insecure endpoint: http:// over a non-private host will transmit your API key in cleartext. Use https:// for remote servers.", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
         }
 
         if !availableModels.isEmpty {
@@ -287,7 +297,7 @@ struct OutputSettingsView: View {
                 availableModels = models
                 if !models.isEmpty {
                     if !models.contains(settings.openAIModel) {
-                        connectionTestResult = .modelMismatch("Connected (\(models.count) models) — configured model not in list")
+                        connectionTestResult = .modelMismatch("Connected (\(models.count) models) — \"\(settings.openAIModel)\" not in list")
                     } else {
                         connectionTestResult = .success("Connected (\(models.count) models)")
                     }

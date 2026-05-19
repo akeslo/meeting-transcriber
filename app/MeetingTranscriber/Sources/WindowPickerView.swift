@@ -136,6 +136,8 @@ struct WindowPickerView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding()
+                        .accessibilityLabel("No windows found. Screen Recording permission may be required.")
+                        .accessibilityAddTraits(.isStaticText)
                 }
             }
             .onChange(of: selectedWindow) { _, newWindow in

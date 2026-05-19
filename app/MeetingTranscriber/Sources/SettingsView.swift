@@ -29,6 +29,7 @@ struct SettingsView: View {
             List(SettingsTab.allCases, selection: $selection) { tab in
                 Label(tab.label, systemImage: tab.systemImage)
                     .tag(tab)
+                    .accessibilityIdentifier(tab.rawValue)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
         } detail: {
