@@ -122,6 +122,14 @@
                let existing = String(data: data, encoding: .utf8)?
                .trimmingCharacters(in: .whitespacesAndNewlines),
                existing.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil {
+                // Rotate if the file is group- or world-readable (permissions
+                // may have been widened since the token was first created).
+                if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                   let perms = attrs[.posixPermissions] as? Int,
+                   (perms & 0o077) != 0 {
+                    logger.warning("DebugRPCServer: token file has overly-permissive mode \(String(perms, radix: 8)); rotating token")
+                    return rotateToken(at: url)
+                }
                 return existing
             }
             return rotateToken(at: url)
@@ -144,7 +152,10 @@
             }
             let token = bytes.map { String(format: "%02x", $0) }.joined()
             let dir = url.deletingLastPathComponent()
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(
+                at: dir, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700 as NSNumber],
+            )
             // Write to a temp file with 0600 then rename atomically so there
             // is no window where the token file is absent or world-readable.
             let tmpURL = dir.appendingPathComponent(".\(UUID().uuidString).rpc-token.tmp")
@@ -253,6 +264,7 @@
             }
             let provided = request.headers["authorization"] ?? ""
             guard Self.constantTimeEquals(provided, expectedAuth) else {
+                try? await Task.sleep(for: .milliseconds(100))
                 return HTTPResponse.unauthorized()
             }
 
@@ -294,7 +306,9 @@
                 let allowedRoots = [AppPaths.dataDir, AppPaths.recordingsDir]
                 guard allowedRoots.contains(where: {
                     let root = $0.standardized.resolvingSymlinksInPath()
-                    return url.path.hasPrefix(root.path + "/") || url.path == root.path
+                    let rootPath = root.path.lowercased()
+                    let urlPath = url.path.lowercased()
+                    return urlPath.hasPrefix(rootPath + "/") || urlPath == rootPath
                 }) else {
                     return HTTPResponse.badRequest()
                 }
@@ -316,7 +330,9 @@
                     let url = URL(fileURLWithPath: path).standardized.resolvingSymlinksInPath()
                     guard allowedRoots.contains(where: {
                         let root = $0.standardized.resolvingSymlinksInPath()
-                        return url.path.hasPrefix(root.path + "/") || url.path == root.path
+                        let rootPath = root.path.lowercased()
+                        let urlPath = url.path.lowercased()
+                        return urlPath.hasPrefix(rootPath + "/") || urlPath == rootPath
                     }) else {
                         return HTTPResponse.badRequest()
                     }

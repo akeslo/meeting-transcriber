@@ -85,7 +85,7 @@ struct WindowPickerView: View {
         self.windowsProvider = windowsProvider
         self.onStartRecording = onStartRecording
         self.onCancel = onCancel
-        _numSpeakers = State(initialValue: max(initialNumSpeakers, 1))
+        _numSpeakers = State(initialValue: max(initialNumSpeakers, 0))
     }
 
     var body: some View {
@@ -113,9 +113,11 @@ struct WindowPickerView: View {
                         Image(nsImage: icon)
                             .resizable()
                             .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
                     } else {
                         Image(systemName: "macwindow")
                             .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: 1) {
                         Text(window.title)
@@ -128,6 +130,14 @@ struct WindowPickerView: View {
                 .tag(window)
             }
             .frame(minHeight: 220)
+            .overlay {
+                if windows.isEmpty {
+                    Text("No windows found. Screen Recording permission may be required.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                }
+            }
             .onChange(of: selectedWindow) { _, newWindow in
                 if let w = newWindow {
                     recordingTitle = w.title
@@ -137,18 +147,19 @@ struct WindowPickerView: View {
             Divider()
 
             VStack(spacing: 12) {
-                TextField("Recording title (optional)", text: $recordingTitle)
+                TextField("Meeting title (optional)", text: $recordingTitle)
                     .textFieldStyle(.roundedBorder)
 
                 HStack(spacing: 16) {
                     Toggle("Include Mic", isOn: $includeMic)
                     Spacer()
                     Stepper(
-                        numSpeakers == 1 ? "1 speaker (no diarization)" : "\(numSpeakers) speakers",
-                        value: $numSpeakers, in: 1 ... 10,
+                        numSpeakers == 0 ? "Auto" : numSpeakers == 1 ? "1 speaker (no diarization)" : "\(numSpeakers) speakers",
+                        value: $numSpeakers, in: 0 ... 10,
                     )
                     .accessibilityLabel("Number of speakers")
-                    .accessibilityValue("\(numSpeakers)")
+                    .accessibilityValue(numSpeakers == 0 ? "Auto" : "\(numSpeakers)")
+                    .help(numSpeakers == 1 ? "Single speaker mode — diarization disabled." : "")
                 }
 
                 HStack {

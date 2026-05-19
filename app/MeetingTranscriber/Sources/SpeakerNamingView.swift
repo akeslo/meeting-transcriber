@@ -100,6 +100,7 @@ struct SpeakerNamingView: View {
     @State private var player: AVAudioPlayer?
     @State private var playingLabel: String?
     @State private var rerunCount: Int = 2
+    @State private var rerunDisclosureExpanded: Bool = false
     /// Indices of speaker rows where the user clicked "More…" to reveal the full
     /// known-names list instead of the top-N ranked subset.
     @State private var knownExpanded: Set<Int> = []
@@ -138,11 +139,11 @@ struct SpeakerNamingView: View {
                     }
                 }
             }
-            .frame(height: min(CGFloat(speakers.count) * 120, 500))
+            .frame(maxHeight: 500)
 
             Divider()
 
-            DisclosureGroup("Wrong count? Re-run diarization") {
+            DisclosureGroup("Wrong count? Re-run diarization", isExpanded: $rerunDisclosureExpanded) {
                 HStack(spacing: 8) {
                     Stepper("\(rerunCount) speakers", value: $rerunCount, in: 1 ... 10)
                         .font(.caption)
@@ -215,6 +216,9 @@ struct SpeakerNamingView: View {
         // Indices are speaker-position based; a different speaker count would
         // leave stale entries pointing at no-longer-rendered rows.
         knownExpanded.removeAll()
+        // rerunDisclosureExpanded is intentionally NOT reset here so the
+        // section stays open once the user has expanded it (e.g. after a
+        // late re-diarization replaces the presentation).
     }
 
     private func speakerRow(
@@ -254,7 +258,7 @@ struct SpeakerNamingView: View {
                 }
 
                 if let autoName = speaker.autoName {
-                    Text("Auto: \(autoName)")
+                    Text("Suggested: \(autoName)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

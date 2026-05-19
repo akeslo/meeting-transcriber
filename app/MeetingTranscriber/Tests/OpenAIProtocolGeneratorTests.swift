@@ -151,7 +151,7 @@ final class OpenAIProtocolGeneratorTests: XCTestCase { // swiftlint:disable:this
     // MARK: - generate() via MockURLProtocol
 
     // swiftlint:disable:next force_unwrapping
-    private static let testEndpoint = URL(string: "http://test.local/v1/chat/completions")!
+    private static let testEndpoint = URL(string: "http://localhost/v1/chat/completions")!
     private static let okSSE = "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\ndata: [DONE]\n"
 
     override func tearDown() {

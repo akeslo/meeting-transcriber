@@ -48,7 +48,12 @@ struct RecognitionStatsView: View {
 
             HStack {
                 Button("Open Log Folder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([RecognitionStatsLog.defaultPath])
+                    let logPath = RecognitionStatsLog.defaultPath
+                    if FileManager.default.fileExists(atPath: logPath.path) {
+                        NSWorkspace.shared.activateFileViewerSelecting([logPath])
+                    } else {
+                        NSWorkspace.shared.activateFileViewerSelecting([logPath.deletingLastPathComponent()])
+                    }
                 }
                 Spacer()
                 Button("Reload") {
@@ -89,6 +94,7 @@ struct RecognitionStatsView: View {
     private func progressBar(count: Int, total: Int) -> some View {
         ProgressView(value: Double(count), total: Double(total))
             .frame(width: 80)
+            .accessibilityHidden(true)
     }
 
     private func reload() async {

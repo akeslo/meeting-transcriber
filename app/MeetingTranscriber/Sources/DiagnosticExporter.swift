@@ -112,7 +112,23 @@ enum DiagnosticExporter {
     ) throws -> Int {
         let header = makeHeader(info)
 
-        let raw = (try? String(contentsOf: sourceFile, encoding: .utf8)) ?? ""
+        // Guard against reading very large log files into memory. When the
+        // file exceeds 50 MB, tail it and prepend a truncation notice.
+        let maxBytes = 50 * 1024 * 1024 // 50 MB
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: sourceFile.path)[.size] as? Int) ?? 0
+        let raw: String
+        if fileSize > maxBytes {
+            // Read only the last `maxBytes` of the file.
+            let handle = try FileHandle(forReadingFrom: sourceFile)
+            defer { try? handle.close() }
+            let offset = UInt64(fileSize - maxBytes)
+            try handle.seek(toOffset: offset)
+            let tailData = handle.readDataToEndOfFile()
+            raw = "// [Truncated: showing last 50 MB of log]\n"
+                + (String(data: tailData, encoding: .utf8) ?? "")
+        } else {
+            raw = (try? String(contentsOf: sourceFile, encoding: .utf8)) ?? ""
+        }
         let cutoff = Date().addingTimeInterval(-windowSeconds)
         // omittingEmptySubsequences: false so blank lines in the source are
         // preserved verbatim — they may be intentional separators in the

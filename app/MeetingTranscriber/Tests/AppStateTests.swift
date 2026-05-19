@@ -282,6 +282,9 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
         try await loop.startManualRecording(pid: 42, appName: "Chrome", title: "Meeting")
 
         state.stopManualRecording()
+        // The nil assignment is deferred one Task cycle to allow state observers
+        // to see the final WatchLoop state before it disappears.
+        await Task.yield()
 
         XCTAssertNil(state.watchLoop)
     }

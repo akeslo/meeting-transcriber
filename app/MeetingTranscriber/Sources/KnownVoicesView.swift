@@ -113,6 +113,19 @@ struct KnownVoicesView: View {
             TextField("Filter…", text: $filter)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Filter speakers by name")
+                .overlay(alignment: .trailing) {
+                    if !filter.isEmpty {
+                        Button {
+                            filter = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .padding(.trailing, 4)
+                        .accessibilityLabel("Clear filter")
+                    }
+                }
 
             speakerTable
                 .frame(minHeight: 280)
@@ -131,10 +144,7 @@ struct KnownVoicesView: View {
             Button("Cancel", role: .cancel) { modal = nil }
             Button("Save") { applyRename() }
         } message: {
-            Text(
-                "If a speaker with the new name already exists, the two will be merged. "
-                    + "Merging combines voice embeddings and cannot be undone."
-            )
+            Text(renameAlertMessage)
         }
         .alert("Delete speaker?", isPresented: isDelete) {
             Button("Cancel", role: .cancel) { modal = nil }
@@ -154,6 +164,16 @@ struct KnownVoicesView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Derived alert message
+
+    private var renameAlertMessage: String {
+        let newName = renameText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newName.isEmpty, speakers.map(\.name).contains(newName) {
+            return "A speaker named \"\(newName)\" already exists. Renaming will merge the two — this combines voice embeddings and cannot be undone."
+        }
+        return "If a speaker with the new name already exists, the two will be merged. Merging combines voice embeddings and cannot be undone."
     }
 
     // MARK: - Modal bindings
@@ -230,13 +250,13 @@ struct KnownVoicesView: View {
             HStack {
                 Spacer()
                 Button("Cancel") { modal = nil }
-                Button("Merge") { applyMerge() }
+                Button("Merge", role: .destructive) { applyMerge() }
                     .disabled(mergeDestination.wrappedValue.isEmpty)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(minWidth: 360)
+        .frame(minWidth: 360, minHeight: 160)
     }
 
     private var speakerTable: some View {
@@ -292,6 +312,11 @@ struct KnownVoicesView: View {
 
     private var actionButtonsRow: some View {
         HStack {
+            Button("Delete", role: .destructive) {
+                if let selection { modal = .delete(name: selection) }
+            }
+            .disabled(selection == nil)
+            Spacer()
             if diarizerFactory != nil {
                 Button("Add from Recording…") { showingEnrollment = true }
                     .disabled(namingDialogActive)
@@ -305,11 +330,6 @@ struct KnownVoicesView: View {
                 .disabled(selection == nil)
             Button("Merge into…") { startMerge() }
                 .disabled(selection == nil || speakers.count < 2)
-            Spacer()
-            Button("Delete", role: .destructive) {
-                if let selection { modal = .delete(name: selection) }
-            }
-            .disabled(selection == nil)
             Spacer()
             Button("Done") { dismiss() }
                 .keyboardShortcut(.defaultAction)

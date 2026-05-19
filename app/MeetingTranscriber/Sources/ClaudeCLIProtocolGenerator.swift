@@ -26,13 +26,12 @@
         // MARK: - ProtocolGenerating
 
         func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
-            // The meeting transcript is passed verbatim as untrusted user input to the
-            // LLM via stdin. This is intentional by design: the LLM's job is to
-            // summarise whatever was said, including meeting content that may contain
-            // instruction-like phrasing. No sanitisation is applied because doing so
-            // would corrupt the transcript. Callers should be aware that this means
-            // prompt injection from meeting content is an accepted risk.
-            let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language) + transcript
+            // The meeting transcript is wrapped in <transcript> tags so the LLM
+            // can treat its content as untrusted user input distinct from the
+            // system instructions. This reduces prompt-injection risk from
+            // instruction-like phrasing in meeting content.
+            let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language)
+                + "<transcript>\n" + transcript + "\n</transcript>"
 
             let process = Process()
             let resolvedBin = Self.resolveClaudePath(claudeBin)
@@ -158,9 +157,11 @@
                     let lineData = buffer[buffer.startIndex ..< newlineRange.lowerBound]
                     buffer.removeSubrange(buffer.startIndex ... newlineRange.lowerBound)
 
-                    guard let line = String(data: lineData, encoding: .utf8)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                        !line.isEmpty else { continue }
+                    guard var line = String(data: lineData, encoding: .utf8) else { continue }
+                    // Strip a leading \r so \r\n line endings don't corrupt JSON parsing.
+                    if line.hasPrefix("\r") { line = String(line.dropFirst()) }
+                    line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !line.isEmpty else { continue }
 
                     if let text = parseStreamJSONLine(line) {
                         parts.append(text)

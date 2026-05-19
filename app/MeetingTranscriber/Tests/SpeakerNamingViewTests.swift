@@ -53,13 +53,13 @@ final class SpeakerNamingViewTests: XCTestCase { // swiftlint:disable:this type_
     func testShowsAutoNameWhenPresent() throws {
         let sut = SpeakerNamingView(data: makeData(mapping: ["SPEAKER_00": "Speaker A"])) { _ in }
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Auto: Speaker A"))
+        XCTAssertNoThrow(try body.find(text: "Suggested: Speaker A"))
     }
 
     func testShowsUnknownWhenNoAutoName() throws {
         let sut = SpeakerNamingView(data: makeData(mapping: ["SPEAKER_00": "SPEAKER_00"])) { _ in }
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Unknown"))
+        XCTAssertNoThrow(try body.find(text: "New speaker"))
     }
 
     func testConfirmAndSkipButtonsExist() throws {

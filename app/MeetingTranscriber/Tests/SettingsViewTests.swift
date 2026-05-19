@@ -350,7 +350,7 @@ final class SettingsViewTests: XCTestCase { // swiftlint:disable:this type_body_
         let body = try makeOutput(settings: settings).inspect()
         XCTAssertNoThrow(try body.find(text: "Endpoint"))
         XCTAssertNoThrow(try body.find(text: "API Key"))
-        XCTAssertNoThrow(try body.find(text: "Fetch Models"))
+        XCTAssertNoThrow(try body.find(text: "Test Connection"))
     }
 
     func testOpenAIModelFieldShown() throws {

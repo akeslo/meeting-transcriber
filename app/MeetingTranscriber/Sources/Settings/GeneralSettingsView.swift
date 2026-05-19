@@ -28,6 +28,8 @@ struct GeneralSettingsView: View {
                         Toggle("", isOn: $entry.enabled).labelsHidden()
                             .accessibilityLabel("Enable \(entry.name)")
                             .disabled(entry.titleContains.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .help(entry.titleContains.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? "Enter a window title pattern above to enable this entry." : "")
                         VStack(alignment: .leading, spacing: 2) {
                             TextField("Name", text: $entry.name)
                             TextField("Window title contains", text: $entry.titleContains)
@@ -64,9 +66,7 @@ struct GeneralSettingsView: View {
                     TextField("", value: $settings.pollInterval, format: .number)
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                        .onChange(of: settings.pollInterval) { _, newValue in
-                            settings.pollInterval = min(max(newValue, 1), 30)
-                        }
+                        .disabled(true)
                     Stepper("Poll interval in seconds", value: $settings.pollInterval, in: 1 ... 30, step: 0.5)
                         .labelsHidden()
                     Text("seconds").foregroundStyle(.secondary)
@@ -78,9 +78,7 @@ struct GeneralSettingsView: View {
                     TextField("", value: $settings.endGrace, format: .number)
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                        .onChange(of: settings.endGrace) { _, newValue in
-                            settings.endGrace = min(max(newValue, 1), 120)
-                        }
+                        .disabled(true)
                     Stepper("Grace period in seconds", value: $settings.endGrace, in: 1 ... 120, step: 1)
                         .labelsHidden()
                     Text("seconds").foregroundStyle(.secondary)

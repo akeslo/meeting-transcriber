@@ -32,17 +32,27 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         // Refuse to send the API key over a cleartext connection to a
         // non-loopback host — the key would be visible on the network.
         if endpoint.scheme?.lowercased() == "http",
-           let host = endpoint.host,
-           host != "127.0.0.1", host != "::1", host != "localhost" {
-            throw ProtocolError.connectionFailed(
-                "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
-            )
+           let host = endpoint.host {
+            let isLoopback = host == "127.0.0.1"
+                || host == "::1"
+                || host == "localhost"
+                || host.lowercased().hasPrefix("fe80:")
+                || host.hasPrefix("169.254.")
+            if !isLoopback {
+                throw ProtocolError.connectionFailed(
+                    "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
+                )
+            }
         }
         let systemPrompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language)
 
+        // Wrap the transcript in <transcript> tags so the LLM can treat its
+        // content as untrusted user input distinct from the system instructions,
+        // reducing prompt-injection risk from instruction-like phrasing in meetings.
+        let wrappedTranscript = "<transcript>\n" + transcript + "\n</transcript>"
         let messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt],
-            ["role": "user", "content": transcript],
+            ["role": "user", "content": wrappedTranscript],
         ]
 
         let body: [String: Any] = [

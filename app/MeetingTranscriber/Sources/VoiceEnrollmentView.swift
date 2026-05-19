@@ -38,6 +38,7 @@ struct VoiceEnrollmentView: View {
         /// entry, NOT re-derived inside the view body on every render.
         case naming(NamingPayload)
         case done(savedNames: [String])
+        case skipped
         case error(String)
     }
 
@@ -65,6 +66,7 @@ struct VoiceEnrollmentView: View {
             case let .diarizing(url): diarizingBody(url: url)
             case let .naming(payload): namingBody(payload: payload)
             case let .done(names): doneBody(savedNames: names)
+            case .skipped: skippedBody
             case let .error(message): errorBody(message: message)
             }
         }
@@ -80,7 +82,7 @@ struct VoiceEnrollmentView: View {
 
     private var pickFileBody: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Pick an audio file with the speaker(s) you want to enroll.")
+            Text("Pick an audio or video file with the speaker(s) you want to enroll.")
                 .foregroundStyle(.secondary)
             HStack {
                 Button("Choose File…") { pickFile(initialDirectory: nil) }
@@ -108,6 +110,9 @@ struct VoiceEnrollmentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Text("This may take 1–2 minutes for long recordings.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
         }
     }
 
@@ -140,6 +145,20 @@ struct VoiceEnrollmentView: View {
                 Text(savedNames.joined(separator: ", "))
                     .foregroundStyle(.secondary)
             }
+            HStack {
+                Spacer()
+                Button("Done") { onClose() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private var skippedBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Enrollment skipped")
+                .font(.headline)
+            Text("No speakers were added to your voice database.")
+                .foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("Done") { onClose() }
@@ -260,7 +279,7 @@ enum VoiceEnrollmentLogic {
             return .stage(.done(savedNames: saved))
 
         case .skipped:
-            return .stage(.done(savedNames: []))
+            return .stage(.skipped)
 
         case let .rerun(count):
             return .rerun(url: payload.url, numSpeakers: count)

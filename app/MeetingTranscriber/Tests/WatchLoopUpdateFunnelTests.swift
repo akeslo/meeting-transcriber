@@ -73,9 +73,9 @@ final class WatchLoopUpdateFunnelTests: XCTestCase {
         )
     }
 
-    /// When `recorder.stop()` throws, the funnel still transitions to
-    /// `.idle` and surfaces the error message via `lastError` — both in
-    /// a single coherent snapshot, not a split mid-flight observation.
+    /// When `recorder.stop()` throws, the funnel transitions to `.error`
+    /// and surfaces the error message via `lastError` — both in a single
+    /// coherent snapshot, not a split mid-flight observation.
     func testStopManualRecordingSurfacesRecorderErrorThroughFunnel() async throws {
         let (loop, recorder) = makeTestWatchLoop()
         recorder.mixPath = nil // forces MockRecorder.stop() to throw .noAudioData
@@ -86,7 +86,7 @@ final class WatchLoopUpdateFunnelTests: XCTestCase {
         loop.stopManualRecording()
 
         let snap = loop.snapshot
-        XCTAssertEqual(snap.phase, .idle, "Phase still transitions to idle on stop failure")
+        XCTAssertEqual(snap.phase, .error, "Phase transitions to .error when stop throws")
         XCTAssertNil(snap.manualRecordingInfo, "Manual info cleared even when stop throws")
         XCTAssertEqual(snap.detail, "")
         XCTAssertNotNil(snap.lastError, "Recorder error must surface via funnel's lastError")

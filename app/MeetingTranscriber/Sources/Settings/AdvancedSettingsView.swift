@@ -191,7 +191,6 @@ struct AdvancedSettingsView: View {
             commit: Bundle.main.gitCommitHash,
             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
             settings: [
-                "audioDebugLogging": "\(settings.verboseDiagnostics)",
                 "diarize": "\(settings.diarize)",
                 "protocolProvider": settings.protocolProvider.rawValue,
                 "recordOnly": "\(settings.recordOnly)",

@@ -43,6 +43,7 @@ struct PermissionRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("More information about \(label)")
                 .popover(isPresented: $showingHelp) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(label)

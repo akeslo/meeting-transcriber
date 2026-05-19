@@ -151,20 +151,24 @@
             XCTAssertNil(env["CLAUDECODE"], "CLAUDECODE must be stripped so the nested CLI doesn't see itself as embedded")
         }
 
-        func testBuildEnvironmentPrependsSearchPathsToPATH() {
+        func testBuildEnvironmentUsesMinimalSystemPath() {
+            // searchPaths are no longer included in subprocess PATH — only the
+            // resolved binary's directory + system dirs to prevent PATH hijacking.
             let env = ClaudeCLIProtocolGenerator.buildEnvironment(
                 baseEnvironment: ["PATH": "/usr/bin:/bin"],
                 searchPaths: ["/opt/homebrew/bin", "/Users/x/.local/bin"],
             )
-            XCTAssertEqual(env["PATH"], "/opt/homebrew/bin:/Users/x/.local/bin:/usr/bin:/bin")
+            XCTAssertEqual(env["PATH"], "/usr/bin:/bin:/usr/sbin:/sbin")
         }
 
-        func testBuildEnvironmentFallsBackToSystemPathWhenNoPATHInBase() {
+        func testBuildEnvironmentPrependsResolvedBinDir() {
+            // When resolvedBin is provided, its parent dir is prepended to PATH.
             let env = ClaudeCLIProtocolGenerator.buildEnvironment(
                 baseEnvironment: [:],
-                searchPaths: ["/opt/homebrew/bin"],
+                searchPaths: [],
+                resolvedBin: "/opt/homebrew/bin/claude",
             )
-            XCTAssertEqual(env["PATH"], "/opt/homebrew/bin:/usr/bin:/bin")
+            XCTAssertEqual(env["PATH"], "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin")
         }
 
         func testBuildEnvironmentPreservesOtherKeys() {

@@ -203,14 +203,14 @@
         }
 
         @MainActor
-        func testRouteAcceptsNullOrigin() async {
-            // Some user agents send literal "null" for sandboxed/file:// contexts —
-            // treat as absent so curl/native tools always work.
+        func testRouteRejectsNullOrigin() async {
+            // Origin: null (sandboxed iframes, file:// pages) is now rejected like
+            // any other Origin header — legitimate non-browser callers never send it.
             let server = DebugRPCServer(port: 0, token: Self.testToken) { .empty }
             var headers = Self.authHeaders
             headers["origin"] = "null"
             let response = await server.route(HTTPRequest(method: "GET", path: "/healthz", headers: headers))
-            XCTAssertEqual(response.status, 200)
+            XCTAssertEqual(response.status, 403)
         }
 
         // MARK: - Enabled gate

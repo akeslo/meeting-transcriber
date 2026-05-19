@@ -134,9 +134,8 @@ struct OutputSettingsView: View {
 
     @ViewBuilder
     private var openAIConfigView: some View { // swiftlint:disable:this attributes
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Endpoint")
-            TextField("http://localhost:11434/v1", text: $settings.openAIEndpoint)
+        LabeledContent("Endpoint") {
+            TextField("http://localhost:11434/v1/chat/completions", text: $settings.openAIEndpoint)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("API Endpoint URL")
         }
@@ -199,11 +198,6 @@ struct OutputSettingsView: View {
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
-            }
-        }
-        .onAppear {
-            if availableModels.isEmpty && !didAttemptConnectionTest {
-                testConnection()
             }
         }
     }

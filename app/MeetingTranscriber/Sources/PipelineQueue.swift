@@ -36,6 +36,9 @@ class PipelineQueue {
     private var elapsedTimer: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
     private var cancelledJobIDs = Set<UUID>()
+    /// Tracks auto-removal tasks spawned in `updateJobState` for `.done` jobs
+    /// so they can be cancelled when a job is explicitly removed or cancelled.
+    private var removalTasks: [UUID: Task<Void, Never>] = [:]
     /// Tracks the ID of the job that `processTask` is currently running so
     /// `cancelJob` doesn't cancel a *different* active job when the cancelled
     /// job is still in `.waiting`.
@@ -221,7 +224,7 @@ class PipelineQueue {
 
     /// Called by the UI when the user confirms or skips speaker naming.
     func completeSpeakerNaming(result: SpeakerNamingResult) {
-        if let jobID = pendingSpeakerNamingJobs.first?.id ?? speakerNamingDataByJob.keys.first {
+        if let jobID = pendingSpeakerNamingJobs.first?.id {
             completeSpeakerNaming(jobID: jobID, result: result)
         }
     }
@@ -388,6 +391,7 @@ class PipelineQueue {
     }
 
     func removeJob(id: UUID) {
+        removalTasks.removeValue(forKey: id)?.cancel()
         if let index = jobs.firstIndex(where: { $0.id == id }) {
             markProcessed(mixPath: jobs[index].mixPath)
             jobs.remove(at: index)
@@ -423,7 +427,7 @@ class PipelineQueue {
             saveSnapshot()
 
         case .done, .error:
-            break
+            removalTasks.removeValue(forKey: id)?.cancel()
         }
     }
 
@@ -440,10 +444,12 @@ class PipelineQueue {
             markProcessed(mixPath: jobs[index].mixPath)
         }
         if newState == .done {
-            Task { [weak self] in
+            let task = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(self?.completedJobLifetime ?? 60))
+                self?.removalTasks.removeValue(forKey: id)
                 self?.removeJob(id: id)
             }
+            removalTasks[id] = task
         }
     }
 
@@ -1048,9 +1054,9 @@ class PipelineQueue {
                 // Anchor the replace on `] ` + label + `:` so we hit the speaker
                 // slot and not a substring inside the spoken text.
                 for (label, name) in mapping where !name.isEmpty {
-                    transcript = transcript.replacingOccurrences(of: "] \(label):", with: "] \(name):")
+                    transcript = Self.replaceLabel(label, with: name, in: transcript)
                     if let autoName = namingData.mapping[label], autoName != label, autoName != name {
-                        transcript = transcript.replacingOccurrences(of: "] \(autoName):", with: "] \(name):")
+                        transcript = Self.replaceLabel(autoName, with: name, in: transcript)
                     }
                 }
                 try transcript.write(to: transcriptPath, atomically: true, encoding: .utf8)
@@ -1073,6 +1079,32 @@ class PipelineQueue {
         if jobs.firstIndex(where: { $0.id == jobID }) != nil {
             updateJobState(id: jobID, to: .done)
         }
+    }
+
+    /// Replace speaker label occurrences anchored to the speaker slot of a
+    /// formatted transcript line (`[MM:SS] Label: text`). Uses an
+    /// `NSRegularExpression` with `anchorsMatchLines` so only actual speaker
+    /// slots at the start of each line are replaced — not substrings that
+    /// coincidentally match inside spoken text.
+    static func replaceLabel(_ label: String, with name: String, in transcript: String) -> String {
+        let escaped = NSRegularExpression.escapedPattern(for: label)
+        // Pattern: line-start, optional timestamp bracket group, space, label, colon.
+        // The timestamp group `(\[\d+:\d+\])` is captured so the replacement
+        // can restore it verbatim.
+        let pattern = "^(\\[\\d+:\\d+\\]) " + escaped + ":"
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: .anchorsMatchLines,
+        ) else {
+            return transcript
+        }
+        let range = NSRange(transcript.startIndex..., in: transcript)
+        return regex.stringByReplacingMatches(
+            in: transcript,
+            options: [],
+            range: range,
+            withTemplate: "$1 \(name):",
+        )
     }
 
     // MARK: - Late Re-diarization
@@ -1105,15 +1137,29 @@ class PipelineQueue {
             if namingData.isDualSource {
                 let app16k = recordingsDir.appendingPathComponent("\(slug)_app_16k.wav")
                 let mic16k = recordingsDir.appendingPathComponent("\(slug)_mic_16k.wav")
-                async let appDiar = diarizeProcess.run(
+                let appDiar = try await diarizeProcess.run(
                     audioPath: app16k, numSpeakers: speakerCount, meetingTitle: title,
                 )
-                async let micDiar = diarizeProcess.run(
-                    audioPath: mic16k, numSpeakers: nil, meetingTitle: title,
-                )
-                diarization = try await DiarizationProcess.mergeDualTrackDiarization(
-                    appDiarization: appDiar, micDiarization: micDiar,
-                )
+                let micDiarResult: DiarizationResult?
+                do {
+                    micDiarResult = try await diarizeProcess.run(
+                        audioPath: mic16k, numSpeakers: nil, meetingTitle: title,
+                    )
+                } catch {
+                    let shortID = PipelineJob.shortID(for: jobID)
+                    logger.warning(
+                        "[\(shortID, privacy: .public)] late_mic_diarization_failed error=\(error.localizedDescription, privacy: .public) — falling back to app-only diarization",
+                    )
+                    addWarning(id: jobID, "Mic track diarization failed — speaker labels reflect remote audio only")
+                    micDiarResult = nil
+                }
+                if let micDiar = micDiarResult {
+                    diarization = DiarizationProcess.mergeDualTrackDiarization(
+                        appDiarization: appDiar, micDiarization: micDiar,
+                    )
+                } else {
+                    diarization = appDiar
+                }
             } else {
                 let mix16k = recordingsDir.appendingPathComponent("\(slug)_16k.wav")
                 diarization = try await diarizeProcess.run(

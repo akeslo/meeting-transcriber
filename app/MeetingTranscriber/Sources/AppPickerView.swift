@@ -56,7 +56,7 @@ struct AppPickerView: View {
         self.appsProvider = appsProvider
         self.onStartRecording = onStartRecording
         self.onCancel = onCancel
-        _numSpeakers = State(initialValue: max(initialNumSpeakers, 1))
+        _numSpeakers = State(initialValue: max(initialNumSpeakers, 0))
     }
 
     var body: some View {
@@ -87,9 +87,11 @@ struct AppPickerView: View {
                         Image(nsImage: icon)
                             .resizable()
                             .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
                     } else {
                         Image(systemName: "app.fill")
                             .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
                     }
                     Text(app.name)
                     Spacer()
@@ -97,6 +99,12 @@ struct AppPickerView: View {
                 .tag(app)
             }
             .frame(minHeight: 200)
+            .overlay {
+                if apps.isEmpty {
+                    Text("No recordable apps are running.")
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Divider()
 
@@ -109,11 +117,12 @@ struct AppPickerView: View {
                     Toggle("Include Mic", isOn: $includeMic)
                     Spacer()
                     Stepper(
-                        numSpeakers == 1 ? "1 speaker (no diarization)" : "\(numSpeakers) speakers",
-                        value: $numSpeakers, in: 1 ... 10,
+                        numSpeakers == 0 ? "Auto" : numSpeakers == 1 ? "1 speaker (no diarization)" : "\(numSpeakers) speakers",
+                        value: $numSpeakers, in: 0 ... 10,
                     )
                     .accessibilityLabel("Number of speakers")
                     .accessibilityValue("\(numSpeakers)")
+                    .help(numSpeakers == 1 ? "Single speaker mode — diarization disabled." : "")
                 }
 
                 HStack {

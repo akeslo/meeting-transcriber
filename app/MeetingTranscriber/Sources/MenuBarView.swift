@@ -96,7 +96,7 @@ struct MenuBarView: View {
                 Label("Start Watching", systemImage: "play.fill")
             }
         }
-        .keyboardShortcut("s")
+        .keyboardShortcut("s", modifiers: .command)
 
         if let onStopManualRecording {
             Button {
@@ -135,7 +135,7 @@ struct MenuBarView: View {
             } label: {
                 Label("Name Speakers...", systemImage: "person.2.fill")
             }
-            .keyboardShortcut("n")
+            .keyboardShortcut("n", modifiers: .command)
         }
 
         Button {
@@ -163,8 +163,8 @@ struct MenuBarView: View {
         // shortcut is always visible in the menu; disabled when nothing to open.
         let latestDoneJob = pipelineQueue.jobs.last { $0.state == .done }
         let latestJobTranscriptPath = latestDoneJob?.transcriptPath
-        let hasProtocol = !(status?.protocolPath ?? "").isEmpty
-        let hasTranscriptOnly = latestJobTranscriptPath != nil && latestDoneJob?.protocolPath == nil
+        let latestJobProtocolPath = latestDoneJob?.protocolPath
+        let hasTranscriptOnly = latestJobTranscriptPath != nil && latestJobProtocolPath == nil
         if hasTranscriptOnly, let transcriptPath = latestJobTranscriptPath {
             Button {
                 onOpenProtocol(transcriptPath)
@@ -179,7 +179,7 @@ struct MenuBarView: View {
                 Label("Open Last Protocol", systemImage: "doc.text")
             }
             .keyboardShortcut("o")
-            .disabled(!hasProtocol)
+            .disabled(latestJobProtocolPath == nil)
         }
 
         Button {
@@ -257,7 +257,7 @@ struct MenuBarView: View {
             Circle()
                 .fill(jobColor(job))
                 .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
+                .accessibilityLabel("Status: \(job.state.label)")
             VStack(alignment: .leading) {
                 Text(job.meetingTitle)
                     .font(.caption)

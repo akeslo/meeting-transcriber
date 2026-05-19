@@ -226,11 +226,10 @@ final class VoiceEnrollmentViewTests: XCTestCase { // swiftlint:disable:this bal
             .skipped, payload: makeNamingPayload(), matcher: matcher,
         )
         XCTAssertTrue(matcher.allSpeakerNames().isEmpty)
-        guard case let .stage(.done(savedNames)) = outcome else {
-            XCTFail("Expected .stage(.done), got something else")
+        guard case .stage(.skipped) = outcome else {
+            XCTFail("Expected .stage(.skipped), got something else")
             return
         }
-        XCTAssertTrue(savedNames.isEmpty)
     }
 
     func testHandleNamingResultRerunForwardsURLAndSpeakerCount() {

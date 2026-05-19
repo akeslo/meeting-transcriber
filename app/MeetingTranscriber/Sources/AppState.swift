@@ -309,6 +309,8 @@ final class AppState { // swiftlint:disable:this type_body_length
         } else {
             // swiftlint:disable:next closure_body_length
             Task { @MainActor in
+                // Guard against rapid double-tap before the first await returns.
+                guard watchLoop == nil else { return }
                 _ = await Permissions.ensureMicrophoneAccess()
 
                 syncLanguageSettings()
@@ -441,7 +443,7 @@ final class AppState { // swiftlint:disable:this type_body_length
 
     func stopManualRecording() {
         watchLoop?.stopManualRecording()
-        watchLoop = nil
+        Task { @MainActor in self.watchLoop = nil }
     }
 
     /// Stop the current auto-detected recording and enqueue it, while keeping

@@ -140,10 +140,12 @@ final class MenuBarViewTests: XCTestCase {
         XCTAssertNoThrow(try body.find(text: "Open Last Protocol"))
     }
 
-    func testOpenLastProtocolHiddenWhenNoPath() throws {
+    func testOpenLastProtocolDisabledWhenNoPath() throws {
+        // Button is always rendered (so the "o" shortcut is always in the menu)
+        // but disabled when there is no protocol or transcript to open.
         let sut = makeView(status: makeStatus(state: .idle))
         let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(text: "Open Last Protocol"))
+        XCTAssertNoThrow(try body.find(text: "Open Last Protocol"))
     }
 
     // MARK: - Static buttons always present
@@ -282,10 +284,18 @@ final class MenuBarViewTests: XCTestCase {
 
     func testOpenLastProtocolButtonCallsCallback() throws {
         var called = false
+        let queue = PipelineQueue()
+        var job = PipelineJob(
+            meetingTitle: "Test", appName: "App",
+            mixPath: nil, appPath: nil, micPath: nil, micDelay: 0,
+        )
+        job.state = .done
+        job.protocolPath = URL(fileURLWithPath: "/tmp/p.md")
+        queue.insertJobForTesting(job)
         let sut = MenuBarView(
             status: makeStatus(state: .protocolReady, protocolPath: "/tmp/p.md"),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            pipelineQueue: queue,
             updateChecker: nil,
             currentMicUID: "",
             onSelectMic: { _ in },

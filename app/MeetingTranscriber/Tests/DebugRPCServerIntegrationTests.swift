@@ -159,9 +159,9 @@
         }
 
         func testEnqueueFileValidPathReturns200AndInvokesClosure() async throws {
-            // Temp file the closure can `fileExists`-check if it chooses to.
-            let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("rpc-enqueue-\(UUID().uuidString).wav")
+            // File must be inside AppPaths.dataDir to pass the allowedRoots check.
+            try? FileManager.default.createDirectory(at: AppPaths.dataDir, withIntermediateDirectories: true)
+            let tmp = AppPaths.dataDir.appendingPathComponent("rpc-enqueue-\(UUID().uuidString).wav")
             FileManager.default.createFile(atPath: tmp.path, contents: Data("RIFF".utf8))
             defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -215,10 +215,10 @@
         }
 
         func testEnqueueFilesValidPathsReturns200WithCount() async throws {
-            let tmpA = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("rpc-files-a-\(UUID().uuidString).wav")
-            let tmpB = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("rpc-files-b-\(UUID().uuidString).wav")
+            // Files must be inside AppPaths.dataDir to pass the allowedRoots check.
+            try? FileManager.default.createDirectory(at: AppPaths.dataDir, withIntermediateDirectories: true)
+            let tmpA = AppPaths.dataDir.appendingPathComponent("rpc-files-a-\(UUID().uuidString).wav")
+            let tmpB = AppPaths.dataDir.appendingPathComponent("rpc-files-b-\(UUID().uuidString).wav")
             FileManager.default.createFile(atPath: tmpA.path, contents: Data("RIFF".utf8))
             FileManager.default.createFile(atPath: tmpB.path, contents: Data("RIFF".utf8))
             defer {

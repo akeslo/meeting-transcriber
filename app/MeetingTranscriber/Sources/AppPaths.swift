@@ -58,7 +58,8 @@ enum AppPaths {
     /// normalises Unicode to NFC, and caps length at 200 characters.
     static func sanitizedPathComponent(_ title: String) -> String {
         let maxLength = 200
-        return title
+        let maxUTF8Bytes = 255
+        var result = title
             .replacingOccurrences(of: "\0", with: "")
             .precomposedStringWithCanonicalMapping
             .components(separatedBy: "/").joined(separator: "-")
@@ -67,6 +68,13 @@ enum AppPaths {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .prefix(maxLength)
             .description
+        // Enforce 255-byte HFS+ path component limit: drop trailing characters
+        // until the UTF-8 encoded result fits. Grapheme clusters can exceed 1
+        // byte so the character cap alone is insufficient.
+        while result.utf8.count > maxUTF8Bytes {
+            result = String(result.dropLast())
+        }
+        return result
     }
 
     /// Migrate IPC files from `~/.meeting-transcriber/` to `dataDir/ipc/`.
