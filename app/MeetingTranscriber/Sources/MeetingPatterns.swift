@@ -27,28 +27,6 @@ struct AppMeetingPattern: Equatable {
 }
 
 extension AppMeetingPattern {
-    static let teams = AppMeetingPattern(
-        appName: "Microsoft Teams",
-        ownerNames: ["Microsoft Teams", "Microsoft Teams (work or school)"],
-        meetingPatterns: [
-            #".+\s+\|\s+Microsoft Teams"#,
-        ],
-        idlePatterns: [
-            #"^Microsoft Teams$"#,
-            #"^Microsoft Teams \(work or school\)$"#,
-            #"^Chat \|"#,
-            #"^Activity \|"#,
-            #"^Calendar \|"#,
-            #"^Teams \|"#,
-            #"^Files \|"#,
-            #"^Assignments \|"#,
-            #"^Settings \|"#,
-            #"^Calls \|"#,
-            #"^People \|"#,
-            #"^Notifications \|"#,
-        ],
-    )
-
     static let zoom = AppMeetingPattern(
         appName: "Zoom",
         ownerNames: ["zoom.us"],
@@ -64,20 +42,6 @@ extension AppMeetingPattern {
         ],
     )
 
-    static let webex = AppMeetingPattern(
-        appName: "Webex",
-        ownerNames: ["Webex", "Cisco Webex Meetings"],
-        meetingPatterns: [
-            #".+\s*-\s*Webex$"#,
-            #"^Meeting \|"#,
-            #".+'s Personal Room"#,
-        ],
-        idlePatterns: [
-            #"^Webex$"#,
-            #"^Cisco Webex Meetings$"#,
-        ],
-    )
-
     /// Debug simulator for testing the full pipeline without a real meeting app.
     /// Run: cd tools/meeting-simulator && swift run
     static let simulator = AppMeetingPattern(
@@ -90,7 +54,7 @@ extension AppMeetingPattern {
         minWindowHeight: 100,
     )
 
-    static let all: [AppMeetingPattern] = [teams, zoom, webex, simulator]
+    static let all: [AppMeetingPattern] = [zoom, simulator]
 
     static let byName: [String: AppMeetingPattern] = {
         var dict: [String: AppMeetingPattern] = [:]
