@@ -286,7 +286,10 @@ struct SpeakerNamingView: View {
                 if index < names.count {
                     nameField(for: index, label: speaker.label)
                     if speaker.autoName == nil {
-                        Text("Enter a name manually or pick from suggestions below.")
+                        let hasSuggestions = !data.participants.isEmpty || !knownNamesNotInParticipants.isEmpty
+                        Text(hasSuggestions
+                            ? "Enter a name manually or pick from suggestions below."
+                            : "Enter a name manually.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
@@ -417,6 +420,11 @@ struct SpeakerNamingView: View {
         guard let audioPath = data.audioPath else { return }
 
         guard let longest = Self.longestSegment(forSpeaker: label, in: data.segments) else { return }
+
+        guard FileManager.default.fileExists(atPath: audioPath.path) else {
+            playbackErrorLabel = label
+            return
+        }
 
         // Show loading indicator while file I/O is in-flight
         loadingLabel = label

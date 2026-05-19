@@ -266,7 +266,8 @@ struct MenuBarView: View {
             Circle()
                 .fill(jobColor(job))
                 .frame(width: 8, height: 8)
-                .accessibilityLabel("Status: \(job.state.label)")
+                .accessibilityLabel("Status")
+                .accessibilityValue(job.state.label)
             VStack(alignment: .leading) {
                 Text(job.meetingTitle)
                     .font(.caption)

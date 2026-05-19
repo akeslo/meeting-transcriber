@@ -34,7 +34,7 @@ final class NotificationContentTests: XCTestCase {
         let content = NotificationManager.notificationContent(for: .recording, status: status)
 
         XCTAssertNotNil(content)
-        XCTAssertEqual(content?.body, "Recording: Unknown ()")
+        XCTAssertEqual(content?.body, "Recording: Unknown")
     }
 
     // MARK: - Protocol Ready
@@ -137,7 +137,7 @@ final class NotificationContentTests: XCTestCase {
         let meeting = MeetingInfo(app: "", title: "Sprint", pid: 1)
         let status = makeStatus(state: .recording, meeting: meeting)
         let content = NotificationManager.notificationContent(for: .recording, status: status)
-        XCTAssertEqual(content?.body, "Recording: Sprint ()")
+        XCTAssertEqual(content?.body, "Recording: Sprint")
     }
 
     // MARK: - Protocol ready with nil meeting fallback

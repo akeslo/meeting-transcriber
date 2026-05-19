@@ -184,7 +184,7 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         }
         // Apply the same cleartext + API-key guard used in generate(): refuse to
         // send credentials over plain HTTP to a non-loopback/non-private host.
-        if scheme == "http", let host = chatURL.host, let apiKey, !apiKey.isEmpty {
+        if scheme == "http", let host = chatURL.host {
             let lower = host.lowercased()
             let isPrivate = lower == "127.0.0.1" || lower.hasPrefix("127.")
                 || lower == "0.0.0.0" || lower == "::1" || lower == "localhost"
@@ -198,7 +198,7 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
                 }())
             if !isPrivate {
                 return .failure(ProtocolError.connectionFailed(
-                    "Endpoint uses http:// — API key would be transmitted in cleartext. Use https:// for remote endpoints."
+                    "Endpoint uses http:// — only private/loopback hosts are allowed over plain HTTP."
                 ))
             }
         }

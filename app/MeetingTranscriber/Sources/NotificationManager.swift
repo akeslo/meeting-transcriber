@@ -70,7 +70,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, App
         case .recording:
             let meetingTitle = status.meeting?.title ?? "Unknown"
             let app = status.meeting?.app ?? ""
-            return ("Meeting Detected", "Recording: \(meetingTitle) (\(app))")
+            let body = app.isEmpty ? "Recording: \(meetingTitle)" : "Recording: \(meetingTitle) (\(app))"
+            return ("Meeting Detected", body)
 
         case .protocolReady:
             let meetingTitle = status.meeting?.title ?? "Meeting"

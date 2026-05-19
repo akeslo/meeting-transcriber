@@ -274,7 +274,7 @@ final class OpenAIProtocolGeneratorTests: XCTestCase { // swiftlint:disable:this
         }
 
         let result = await OpenAIProtocolGenerator.testConnection(
-            endpoint: "http://test.local/v1/chat/completions",
+            endpoint: "http://localhost/v1/chat/completions",
             model: "test",
             apiKey: nil,
             session: makeMockSession(),
@@ -292,7 +292,7 @@ final class OpenAIProtocolGeneratorTests: XCTestCase { // swiftlint:disable:this
         }
 
         let result = await OpenAIProtocolGenerator.testConnection(
-            endpoint: "http://test.local/v1/chat/completions",
+            endpoint: "http://localhost/v1/chat/completions",
             model: "test",
             apiKey: nil,
             session: makeMockSession(),
