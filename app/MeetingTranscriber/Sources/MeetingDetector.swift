@@ -160,6 +160,7 @@ class MeetingDetector: MeetingDetecting {
 
         let rawTitle = window["kCGWindowName"] as? String ?? ""
         let title: String
+        let usedAXFallback: Bool
         if rawTitle.isEmpty {
             // Some browsers (e.g. Dia) don't expose kCGWindowName — fall back to AX focused window title.
             if let pid = window["kCGWindowOwnerPID"] as? Int32,
@@ -167,16 +168,19 @@ class MeetingDetector: MeetingDetecting {
                !axTitle.isEmpty {
                 logger.debug("[detect] ax-title-fallback: owner=\(owner, privacy: .public) title=\(axTitle, privacy: .public)")
                 title = axTitle
+                usedAXFallback = true
             } else {
                 logger.debug("[detect] empty-title: owner=\(owner, privacy: .public) pattern=\(pattern.appName, privacy: .public)")
                 return nil
             }
         } else {
             title = rawTitle
+            usedAXFallback = false
         }
 
-        // Check minimum size
-        if let bounds = window["kCGWindowBounds"] as? [String: Any] {
+        // Check minimum size — skip when AX fallback was used: the iterated window is a chrome
+        // element (toolbar, overlay), not the focused window whose title we read via AX.
+        if !usedAXFallback, let bounds = window["kCGWindowBounds"] as? [String: Any] {
             let width = bounds["Width"] as? CGFloat ?? 0
             let height = bounds["Height"] as? CGFloat ?? 0
             if width < pattern.minWindowWidth || height < pattern.minWindowHeight {
