@@ -28,7 +28,7 @@ class PowerAssertionDetector: MeetingDetecting {
         AssertionPattern(
             appName: "Zoom",
             processNames: ["zoom.us", "CptHost"],
-            keywords: ["zoom"],
+            keywords: [],
         ),
         AssertionPattern(
             appName: "Webex",
@@ -170,6 +170,7 @@ class PowerAssertionDetector: MeetingDetecting {
 
     private func matchAssertion(processName: String, assertName: String, pattern: AssertionPattern) -> Bool {
         guard pattern.processNames.contains(processName) else { return false }
+        if pattern.keywords.isEmpty { return true }
         let lowerAssert = assertName.lowercased()
         return pattern.keywords.contains { lowerAssert.contains($0.lowercased()) }
     }
