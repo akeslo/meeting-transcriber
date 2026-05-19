@@ -34,13 +34,16 @@
         nonisolated static func constantTimeEquals(_ provided: String, _ expected: String) -> Bool {
             let a = Array(provided.utf8)
             let b = Array(expected.utf8)
-            let len = max(a.count, b.count)
-            var diff: UInt8 = a.count == b.count ? 0 : 1
-            for i in 0 ..< len {
+            // Always iterate `b.count` steps so timing doesn't leak whether `a`
+            // is shorter or longer than `b`. Length mismatch is folded into `diff`
+            // without an early return — no oracle on length is exposed.
+            var diff: UInt8 = 0
+            for i in 0 ..< b.count {
                 let av: UInt8 = i < a.count ? a[i] : 0
-                let bv: UInt8 = i < b.count ? b[i] : 0
-                diff |= (av ^ bv)
+                diff |= (av ^ b[i])
             }
+            // Also detect when `a` is longer than `b` (extra bytes in provided token).
+            if a.count != b.count { diff |= 1 }
             return diff == 0
         }
 
@@ -118,6 +121,13 @@
         /// empty string as a signal not to start the server.
         nonisolated static func loadOrCreateToken() -> String {
             let url = tokenFileURL
+            // Refuse to follow symlinks — a symlink at the token path could
+            // redirect reads to an attacker-controlled file.
+            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            if attrs?[.type] as? FileAttributeType == .typeSymbolicLink {
+                logger.warning("DebugRPCServer: token file is a symlink — rotating token for safety")
+                return rotateToken(at: url)
+            }
             if let data = try? Data(contentsOf: url),
                let existing = String(data: data, encoding: .utf8)?
                .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -306,8 +316,8 @@
                 let allowedRoots = [AppPaths.dataDir, AppPaths.recordingsDir]
                 guard allowedRoots.contains(where: {
                     let root = $0.standardized.resolvingSymlinksInPath()
-                    let rootPath = root.path.lowercased()
-                    let urlPath = url.path.lowercased()
+                    let rootPath = root.path
+                    let urlPath = url.path
                     return urlPath.hasPrefix(rootPath + "/") || urlPath == rootPath
                 }) else {
                     return HTTPResponse.badRequest()
@@ -330,8 +340,8 @@
                     let url = URL(fileURLWithPath: path).standardized.resolvingSymlinksInPath()
                     guard allowedRoots.contains(where: {
                         let root = $0.standardized.resolvingSymlinksInPath()
-                        let rootPath = root.path.lowercased()
-                        let urlPath = url.path.lowercased()
+                        let rootPath = root.path
+                        let urlPath = url.path
                         return urlPath.hasPrefix(rootPath + "/") || urlPath == rootPath
                     }) else {
                         return HTTPResponse.badRequest()

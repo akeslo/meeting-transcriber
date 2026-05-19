@@ -34,6 +34,8 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         if endpoint.scheme?.lowercased() == "http",
            let host = endpoint.host {
             let isLoopback = host == "127.0.0.1"
+                || host.hasPrefix("127.")
+                || host == "0.0.0.0"
                 || host == "::1"
                 || host == "localhost"
                 || host.lowercased().hasPrefix("fe80:")

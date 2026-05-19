@@ -82,7 +82,16 @@ enum ProtocolGenerator {
     /// `AppPaths.customPromptFile`) when present and non-empty; falls back
     /// to the built-in `protocolPrompt`. The `url` parameter exists so tests
     /// can use unique per-test paths instead of racing on the shared one.
+    /// Maximum allowed size (bytes) for a custom prompt file.
+    static let maxPromptFileBytes = 1 * 1024 * 1024 // 1 MB
+
     static func loadPrompt(from url: URL = AppPaths.customPromptFile) -> String {
+        // Cap file size before loading into memory to prevent OOM on crafted inputs.
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        guard fileSize <= maxPromptFileBytes else {
+            logger.warning("Custom prompt file exceeds 1 MB (\(fileSize) bytes) — falling back to built-in default")
+            return protocolPrompt
+        }
         if let custom = try? String(contentsOf: url, encoding: .utf8),
            !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             logger.info("Using custom protocol prompt from \(url.path)")

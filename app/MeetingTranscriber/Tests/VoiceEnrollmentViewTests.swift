@@ -107,7 +107,8 @@ final class VoiceEnrollmentViewTests: XCTestCase { // swiftlint:disable:this bal
     func testRendersDoneBodyWithMultipleSpeakers() throws {
         let body = try makeView(initialStage: .done(savedNames: ["Alice", "Bob"])).inspect()
         XCTAssertNoThrow(try body.find(text: "Enrolled 2 speakers"))
-        XCTAssertNoThrow(try body.find(text: "Alice, Bob"))
+        XCTAssertNoThrow(try body.find(text: "Alice"))
+        XCTAssertNoThrow(try body.find(text: "Bob"))
         XCTAssertNoThrow(try body.find(button: "Done"))
     }
 
@@ -168,7 +169,7 @@ final class VoiceEnrollmentViewTests: XCTestCase { // swiftlint:disable:this bal
         // render context.
         let view = makeView(initialStage: .naming(makeNamingPayload()))
         let body = try view.inspect()
-        XCTAssertNoThrow(try body.find(button: "Skip").tap())
+        XCTAssertNoThrow(try body.find(button: "Skip for Now").tap())
     }
 
     func testNamingStageRerunButtonRunsInlinedClosure() throws {

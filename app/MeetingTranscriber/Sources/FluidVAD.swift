@@ -170,7 +170,7 @@ final class FluidVAD: @unchecked Sendable {
         regions = regions.filter { $0.duration >= Self.minRegionSeconds }
 
         let totalDuration = Double(results.count) * chunkDuration
-        let speechDuration = regions.reduce(0.0) { $0 + $1.duration }
+        let speechDuration = regions.reduce(0.0) { $0 + $1.duration } // post-filter
         let speechStr = String(format: "%.1f", speechDuration)
         let totalStr = String(format: "%.1f", totalDuration)
         let trimRatio = totalDuration > 0 ? (1.0 - speechDuration / totalDuration) : 0

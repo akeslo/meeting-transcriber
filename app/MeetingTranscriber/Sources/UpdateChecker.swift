@@ -181,7 +181,7 @@ final class UpdateChecker {
     }
 
     func startPeriodicChecks(settings: AppSettings) {
-        periodicTask?.cancel()
+        guard periodicTask == nil else { return }
 
         periodicTask = Task {
             // Initial delay

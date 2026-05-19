@@ -60,6 +60,7 @@ struct PermissionRow: View {
                         }
                     }
                     .padding()
+                    .frame(minWidth: 220)
                 }
             }
         }

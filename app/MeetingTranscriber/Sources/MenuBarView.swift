@@ -8,6 +8,7 @@ struct MenuBarView: View {
     var updateChecker: UpdateChecker?
     let currentMicUID: String
     var isRPCActive: Bool = false
+    var protocolProviderIsNone: Bool = false
     let onSelectMic: (String) -> Void
     let onStartStop: () -> Void
     let onRecordApp: () -> Void
@@ -50,6 +51,7 @@ struct MenuBarView: View {
                 Label("RPC Active", systemImage: "network")
                     .font(.caption2)
                     .foregroundStyle(.orange)
+                    .help("Debug RPC server is running on localhost:9876")
             }
         }
         .padding(.horizontal, 4)
@@ -159,28 +161,7 @@ struct MenuBarView: View {
 
         Divider()
 
-        // Open last protocol / transcript — always rendered so the "o"
-        // shortcut is always visible in the menu; disabled when nothing to open.
-        let latestDoneJob = pipelineQueue.jobs.last { $0.state == .done }
-        let latestJobTranscriptPath = latestDoneJob?.transcriptPath
-        let latestJobProtocolPath = latestDoneJob?.protocolPath
-        let hasTranscriptOnly = latestJobTranscriptPath != nil && latestJobProtocolPath == nil
-        if hasTranscriptOnly, let transcriptPath = latestJobTranscriptPath {
-            Button {
-                onOpenProtocol(transcriptPath)
-            } label: {
-                Label("Open Last Transcript", systemImage: "doc.text")
-            }
-            .keyboardShortcut("o")
-        } else {
-            Button {
-                onOpenLastProtocol()
-            } label: {
-                Label("Open Last Protocol", systemImage: "doc.text")
-            }
-            .keyboardShortcut("o")
-            .disabled(latestJobProtocolPath == nil)
-        }
+        openLastItem
 
         Button {
             onOpenProtocolsFolder()
@@ -251,6 +232,30 @@ struct MenuBarView: View {
     }
 
     // MARK: - Helpers
+
+    @ViewBuilder
+    private var openLastItem: some View {
+        let latestDoneJob = pipelineQueue.jobs.last { $0.state == .done }
+        let latestJobTranscriptPath = latestDoneJob?.transcriptPath
+        let latestJobProtocolPath = latestDoneJob?.protocolPath
+        let hasTranscriptOnly = latestJobTranscriptPath != nil && latestJobProtocolPath == nil
+        if hasTranscriptOnly, let transcriptPath = latestJobTranscriptPath {
+            Button {
+                onOpenProtocol(transcriptPath)
+            } label: {
+                Label("Open Last Transcript", systemImage: "doc.text")
+            }
+            .keyboardShortcut("o")
+        } else if !protocolProviderIsNone {
+            Button {
+                onOpenLastProtocol()
+            } label: {
+                Label("Open Last Protocol", systemImage: "doc.text")
+            }
+            .keyboardShortcut("o")
+            .disabled(latestJobProtocolPath == nil)
+        }
+    }
 
     private func jobRow(_ job: PipelineJob) -> some View {
         HStack {

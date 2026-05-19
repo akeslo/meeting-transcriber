@@ -346,6 +346,14 @@ class PipelineQueue {
         self.completedJobLifetime = completedJobLifetime
     }
 
+    deinit {
+        // MainActor.assumeIsolated is safe: PipelineQueue is always released
+        // on the main actor since all call sites are @MainActor-isolated.
+        MainActor.assumeIsolated {
+            removalTasks.values.forEach { $0.cancel() }
+        }
+    }
+
     var activeJobs: [PipelineJob] {
         jobs.filter { [.transcribing, .diarizing, .generatingProtocol].contains($0.state) }
     }
@@ -1590,8 +1598,8 @@ class PipelineQueue {
     }
 
     /// Load the set of mix paths that completed successfully.
-    private func loadProcessedPaths() -> Set<String> {
-        guard let data = try? Data(contentsOf: processedRecordingsPath),
+    private nonisolated static func loadProcessedPaths(from url: URL) -> Set<String> {
+        guard let data = try? Data(contentsOf: url),
               let paths = try? JSONDecoder().decode([String].self, from: data) else {
             return []
         }
@@ -1600,17 +1608,22 @@ class PipelineQueue {
 
     /// Record that a job's mix file was successfully processed. Nil mixPath
     /// (paired imports without a `_mix.wav` source) is a no-op — there's no
-    /// path to track for orphan recovery.
+    /// path to track for orphan recovery. The disk write runs on a detached
+    /// task so synchronous I/O doesn't block the main actor.
     func markProcessed(mixPath: URL?) {
         guard let mixPath else { return }
-        var paths = loadProcessedPaths()
-        paths.insert(mixPath.standardizedFileURL.path)
-        do {
-            ensureLogDir()
-            let data = try JSONEncoder().encode(Array(paths))
-            try data.write(to: processedRecordingsPath, options: .atomic)
-        } catch {
-            logger.error("Failed to write processed recordings: \(error)")
+        let stdPath = mixPath.standardizedFileURL.path
+        let processedRecordingsPath = self.processedRecordingsPath
+        ensureLogDir()
+        Task.detached(priority: .utility) {
+            var paths = PipelineQueue.loadProcessedPaths(from: processedRecordingsPath)
+            paths.insert(stdPath)
+            do {
+                let data = try JSONEncoder().encode(Array(paths))
+                try data.write(to: processedRecordingsPath, options: .atomic)
+            } catch {
+                logger.error("Failed to write processed recordings: \(error)")
+            }
         }
     }
 

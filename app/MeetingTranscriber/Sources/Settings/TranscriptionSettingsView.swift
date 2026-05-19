@@ -62,6 +62,12 @@ struct TranscriptionSettingsView: View {
                         }
                     }
                     .help("Text file with one term per line (e.g. company names, product names)")
+                    if !settings.customVocabularyPath.isEmpty,
+                       !FileManager.default.isReadableFile(atPath: settings.customVocabularyPath) {
+                        Label("File not found or not readable", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
 
                 if settings.transcriptionEngine == .qwen3 {

@@ -7,6 +7,7 @@ import SwiftUI
 struct RecognitionStatsView: View {
     @State private var aggregate: RecognitionStats.Aggregate?
     @State private var windowDays: WindowChoice = .thirty
+    @State private var isReloading = false
 
     private let log: RecognitionStatsLog
 
@@ -56,9 +57,21 @@ struct RecognitionStatsView: View {
                     }
                 }
                 Spacer()
-                Button("Reload") {
-                    Task { await reload() }
+                Button {
+                    Task {
+                        isReloading = true
+                        await reload()
+                        isReloading = false
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if isReloading {
+                            ProgressView().controlSize(.small)
+                        }
+                        Text("Reload")
+                    }
                 }
+                .disabled(isReloading)
             }
         }
         .task(id: windowDays) { await reload() }

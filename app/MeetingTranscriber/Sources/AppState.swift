@@ -443,7 +443,7 @@ final class AppState { // swiftlint:disable:this type_body_length
 
     func stopManualRecording() {
         watchLoop?.stopManualRecording()
-        Task { @MainActor in self.watchLoop = nil }
+        watchLoop = nil
     }
 
     /// Stop the current auto-detected recording and enqueue it, while keeping

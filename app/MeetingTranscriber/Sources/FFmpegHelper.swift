@@ -22,12 +22,13 @@ enum FFmpegHelper {
         //    malicious binary injected via the environment.
         let allowedEnvPrefixes = ["/usr/", "/opt/homebrew/", "/usr/local/"]
         if let envPath = ProcessInfo.processInfo.environment["FFMPEG_BINARY"] {
-            let isTrusted = allowedEnvPrefixes.contains(where: { envPath.hasPrefix($0) })
-            if isTrusted, FileManager.default.isExecutableFile(atPath: envPath) {
-                logger.info("ffmpeg found via FFMPEG_BINARY: \(envPath)")
-                return envPath
+            let canonicalPath = (envPath as NSString).resolvingSymlinksInPath
+            let isTrusted = allowedEnvPrefixes.contains(where: { canonicalPath.hasPrefix($0) })
+            if isTrusted, FileManager.default.isExecutableFile(atPath: canonicalPath) {
+                logger.info("ffmpeg found via FFMPEG_BINARY: \(canonicalPath)")
+                return canonicalPath
             } else if !isTrusted {
-                logger.warning("FFMPEG_BINARY ignored — path '\(envPath)' is not under a trusted prefix (/usr/, /opt/homebrew/, /usr/local/)")
+                logger.warning("FFMPEG_BINARY ignored — path '\(canonicalPath)' is not under a trusted prefix (/usr/, /opt/homebrew/, /usr/local/)")
             }
         }
 

@@ -23,6 +23,11 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                if settings.websiteWatchEntries.isEmpty {
+                    Text("No websites added.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
                 ForEach($settings.websiteWatchEntries) { $entry in
                     HStack(spacing: 10) {
                         Toggle("", isOn: $entry.enabled).labelsHidden()
@@ -63,10 +68,10 @@ struct GeneralSettingsView: View {
                 HStack {
                     Text("Poll Interval")
                     Spacer()
-                    TextField("", value: $settings.pollInterval, format: .number)
+                    Text(String(format: "%.1f", settings.pollInterval))
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                        .disabled(true)
+                        .foregroundStyle(.secondary)
                     Stepper("Poll interval in seconds", value: $settings.pollInterval, in: 1 ... 30, step: 0.5)
                         .labelsHidden()
                     Text("seconds").foregroundStyle(.secondary)
@@ -75,10 +80,10 @@ struct GeneralSettingsView: View {
                 HStack {
                     Text("Grace Period")
                     Spacer()
-                    TextField("", value: $settings.endGrace, format: .number)
+                    Text(String(format: "%.1f", settings.endGrace))
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                        .disabled(true)
+                        .foregroundStyle(.secondary)
                     Stepper("Grace period in seconds", value: $settings.endGrace, in: 1 ... 120, step: 1)
                         .labelsHidden()
                     Text("seconds").foregroundStyle(.secondary)

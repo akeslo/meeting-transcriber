@@ -21,6 +21,7 @@ struct AdvancedSettingsView: View {
 
     @State private var micPermission: AVAuthorizationStatus = .notDetermined
     @State private var screenRecordingOK = false
+    @State private var screenRecordingStatus: PermissionStatus = .notDetermined
     @State private var accessibilityOK = false
     @State private var lastExportFile: String?
     @State private var lastExportError: String?
@@ -35,7 +36,11 @@ struct AdvancedSettingsView: View {
             Section("Permissions") {
                 PermissionRow(
                     label: "Screen Recording",
-                    detail: Self.screenRecordingDetail,
+                    detail: screenRecordingStatus == .broken
+                        ? "Broken — toggle off and on in System Settings to repair"
+                        : screenRecordingStatus == .denied
+                            ? "Denied — click to open Settings"
+                            : Self.screenRecordingDetail,
                     granted: screenRecordingOK,
                     help: "System Settings → Privacy & Security → Screen Recording → enable Meeting Transcriber",
                     settingsURL: PrivacyPane.screenCapture.url,
@@ -94,7 +99,7 @@ struct AdvancedSettingsView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .buttonStyle(.plain)
+                    .buttonStyle(.link)
                 }
                 if let err = lastExportError {
                     Text("Export failed: \(err)")
@@ -177,6 +182,7 @@ struct AdvancedSettingsView: View {
             let result = await PermissionHealthCheck.runLive()
             micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
             screenRecordingOK = result.screenRecording == .healthy
+            screenRecordingStatus = result.screenRecording
             accessibilityOK = result.accessibility == .healthy
         }
     }

@@ -66,7 +66,7 @@ final class SpeakerNamingViewTests: XCTestCase { // swiftlint:disable:this type_
         let sut = SpeakerNamingView(data: makeData()) { _ in }
         let body = try sut.inspect()
         XCTAssertNoThrow(try body.find(button: "Confirm"))
-        XCTAssertNoThrow(try body.find(button: "Skip"))
+        XCTAssertNoThrow(try body.find(button: "Skip for Now"))
     }
 
     // MARK: - Button taps
@@ -75,7 +75,7 @@ final class SpeakerNamingViewTests: XCTestCase { // swiftlint:disable:this type_
         var result: PipelineQueue.SpeakerNamingResult?
         let sut = SpeakerNamingView(data: makeData()) { result = $0 }
         let body = try sut.inspect()
-        try body.find(button: "Skip").tap()
+        try body.find(button: "Skip for Now").tap()
         if case .skipped = result {
             // expected
         } else {
@@ -131,13 +131,13 @@ final class SpeakerNamingViewTests: XCTestCase { // swiftlint:disable:this type_
         let viewA = SpeakerNamingView(data: dataA) { result in
             if case .skipped = result { jobIDsSkipped.append(dataA.jobID) }
         }
-        try viewA.inspect().find(button: "Skip").tap()
+        try viewA.inspect().find(button: "Skip for Now").tap()
 
         let dataB = makeData(title: "Meeting B")
         let viewB = SpeakerNamingView(data: dataB) { result in
             if case .skipped = result { jobIDsSkipped.append(dataB.jobID) }
         }
-        try viewB.inspect().find(button: "Skip").tap()
+        try viewB.inspect().find(button: "Skip for Now").tap()
 
         XCTAssertEqual(
             jobIDsSkipped,

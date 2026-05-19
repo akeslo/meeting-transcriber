@@ -41,6 +41,7 @@ struct OutputSettingsView: View {
     @State private var didAttemptConnectionTest = false
     @State private var showResetPromptConfirmation = false
     @State private var hasCustomPrompt = false
+    @State private var importPromptError: String?
 
     enum ConnectionTestResult {
         case success(String)
@@ -75,6 +76,9 @@ struct OutputSettingsView: View {
 
                     Spacer()
                 }
+                Text("Changes apply to future recordings only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .accessibilityIdentifier("outputFolderSection")
 
@@ -120,6 +124,12 @@ struct OutputSettingsView: View {
                 Text("Binary used for protocol generation")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                let resolvedBin = ClaudeCLIProtocolGenerator.resolveClaudePath(settings.claudeBin)
+                if !FileManager.default.isExecutableFile(atPath: resolvedBin) {
+                    Label("Binary not found — install Claude CLI: npm install -g @anthropic-ai/claude-code", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
         #endif
 
         case .openAICompatible:
@@ -161,6 +171,7 @@ struct OutputSettingsView: View {
             Spacer()
             SecureField("Optional API key", text: $settings.openAIAPIKey)
                 .frame(width: 200)
+                .accessibilityLabel("API Key")
         }
         Text("Leave empty if your local server doesn't require authentication")
             .font(.caption)
@@ -204,41 +215,47 @@ struct OutputSettingsView: View {
 
     private var promptControls: some View {
         // swiftlint:disable:next closure_body_length
-        HStack {
-            Button("Edit Prompt") {
-                openCustomPrompt()
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Button("Edit Prompt") {
+                    openCustomPrompt()
+                }
 
-            Button("Import Prompt") {
-                importCustomPrompt()
-                refreshCustomPromptState()
-            }
+                Button("Import Prompt") {
+                    importCustomPrompt()
+                }
 
-            Button("Reset to Default") {
-                showResetPromptConfirmation = true
-            }
-            .disabled(!hasCustomPrompt)
-            .confirmationDialog(
-                "Reset protocol prompt to the built-in default?",
-                isPresented: $showResetPromptConfirmation,
-                titleVisibility: .visible,
-            ) {
-                Button("Reset", role: .destructive) {
-                    try? FileManager.default.removeItem(at: AppPaths.customPromptFile)
-                    refreshCustomPromptState()
+                Button("Reset to Default") {
+                    showResetPromptConfirmation = true
+                }
+                .disabled(!hasCustomPrompt)
+                .confirmationDialog(
+                    "Reset protocol prompt to the built-in default?",
+                    isPresented: $showResetPromptConfirmation,
+                    titleVisibility: .visible,
+                ) {
+                    Button("Reset", role: .destructive) {
+                        try? FileManager.default.removeItem(at: AppPaths.customPromptFile)
+                        refreshCustomPromptState()
+                    }
+                }
+
+                Spacer()
+
+                if hasCustomPrompt {
+                    Label("Custom prompt active", systemImage: "doc.text.fill")
+                        .foregroundStyle(.blue)
+                        .font(.caption)
+                } else {
+                    Label("Using default prompt", systemImage: "doc.text")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
                 }
             }
-
-            Spacer()
-
-            if hasCustomPrompt {
-                Label("Custom prompt active", systemImage: "doc.text.fill")
-                    .foregroundStyle(.blue)
+            if let importErr = importPromptError {
+                Label(importErr, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-            } else {
-                Label("Using default prompt", systemImage: "doc.text")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -308,12 +325,19 @@ struct OutputSettingsView: View {
         panel.canChooseDirectories = false
         panel.message = "Select a prompt file to import"
         guard panel.runModal() == .OK, let source = panel.url else { return }
-        ensurePromptDirectory()
-        let dest = AppPaths.customPromptFile
-        if FileManager.default.fileExists(atPath: dest.path) {
-            _ = try? FileManager.default.replaceItemAt(dest, withItemAt: source)
-        } else {
-            try? FileManager.default.copyItem(at: source, to: dest)
+        importPromptError = nil
+        do {
+            ensurePromptDirectory()
+            let dest = AppPaths.customPromptFile
+            if FileManager.default.fileExists(atPath: dest.path) {
+                _ = try FileManager.default.replaceItemAt(dest, withItemAt: source)
+            } else {
+                try FileManager.default.copyItem(at: source, to: dest)
+            }
+            refreshCustomPromptState()
+        } catch {
+            importPromptError = "Import failed: \(error.localizedDescription)"
+            refreshCustomPromptState()
         }
     }
 

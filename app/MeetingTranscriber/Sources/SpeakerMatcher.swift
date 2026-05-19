@@ -397,8 +397,15 @@ class SpeakerMatcher {
     }
 
     func loadDB() -> [StoredSpeaker] {
-        guard let data = try? Data(contentsOf: dbPath) else { return [] }
-        return (try? JSONDecoder().decode([StoredSpeaker].self, from: data)) ?? []
+        guard let data = try? Data(contentsOf: dbPath) else {
+            // File missing or unreadable — expected on first launch.
+            return []
+        }
+        guard let decoded = try? JSONDecoder().decode([StoredSpeaker].self, from: data) else {
+            logger.warning("speakers.json exists but could not be decoded — file may be malformed or from an incompatible version")
+            return []
+        }
+        return decoded
     }
 
     /// Names of all stored speakers, ordered for picker display: most recently
@@ -469,9 +476,12 @@ class SpeakerMatcher {
         participants: [String],
         excludeLabels: Set<String> = [],
     ) -> [String: String] {
-        // Find unmatched labels: name equals raw label (not yet named) and not excluded
+        // Find unmatched labels: name equals raw label (not yet named), not excluded.
+        // Excluded labels are fully omitted from both the unmatched count and the
+        // assignment loop so that mic-speaker labels don't inflate the unmatched
+        // count and break the exact-match guard.
         let unmatchedLabels = mapping.keys.filter { label in
-            mapping[label] == label && !excludeLabels.contains(label)
+            !excludeLabels.contains(label) && mapping[label] == label
         }
 
         // Find unused participants: not already assigned as a value in mapping

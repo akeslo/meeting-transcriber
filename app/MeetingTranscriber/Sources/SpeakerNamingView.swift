@@ -169,12 +169,13 @@ struct SpeakerNamingView: View {
             )
 
             HStack(spacing: 12) {
-                Button("Skip") {
+                Button("Skip for Now") {
                     guard completedJobID != data.jobID else { return }
                     completedJobID = data.jobID
                     onComplete(.skipped)
                 }
                 .keyboardShortcut(.escape)
+                .help("Skip naming — speakers will use default labels")
                 .accessibilityIdentifier("skip-button")
 
                 Button("Confirm") {
@@ -431,7 +432,12 @@ struct SpeakerNamingView: View {
                     }
                 }
             } catch {
-                // Silently fail — playback is best-effort
+                // Silently fail — playback is best-effort; reset icon so it doesn't stay stuck
+                await MainActor.run {
+                    if playingLabel == label {
+                        playingLabel = nil
+                    }
+                }
             }
         }
     }

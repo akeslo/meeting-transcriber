@@ -384,7 +384,7 @@ final class AppSettings {
         }
         whisperKitModel = defaults.object(forKey: "whisperKitModel") as? String
             ?? "openai_whisper-large-v3-v20240930_turbo"
-        whisperLanguage = defaults.object(forKey: "whisperLanguage") as? String ?? "en"
+        whisperLanguage = defaults.object(forKey: "whisperLanguage") as? String ?? ""
         qwen3Language = defaults.object(forKey: "qwen3Language") as? String ?? ""
         parakeetLanguage = defaults.object(forKey: "parakeetLanguage") as? String ?? ""
         customVocabularyPath = defaults.string(forKey: "customVocabularyPath") ?? ""

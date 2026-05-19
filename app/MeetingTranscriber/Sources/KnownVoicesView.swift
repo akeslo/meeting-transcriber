@@ -48,6 +48,8 @@ struct KnownVoicesView: View {
     @State private var filter = ""
     @State private var modal: ActiveModal?
     @State private var showingEnrollment = false
+    @State private var pendingMergeOnRename: (from: String, to: String)?
+    @State private var showingMergeOnRenameConfirmation = false
 
     private let matcher: SpeakerMatcher
     private let diarizerFactory: (() -> any DiarizationProvider)?
@@ -153,6 +155,26 @@ struct KnownVoicesView: View {
             Text("\(deletingName) will be removed. This cannot be undone.")
         }
         .sheet(isPresented: isMerge) { mergeSheet }
+        .confirmationDialog(
+            "Merge speakers?",
+            isPresented: $showingMergeOnRenameConfirmation,
+            titleVisibility: .visible,
+        ) {
+            Button("Merge", role: .destructive) {
+                if let pending = pendingMergeOnRename {
+                    performRename(from: pending.from, to: pending.to)
+                    selection = pending.to
+                }
+                pendingMergeOnRename = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingMergeOnRename = nil
+            }
+        } message: {
+            if let pending = pendingMergeOnRename {
+                Text("A speaker named \"\(pending.to)\" already exists. Renaming will merge \"\(pending.from)\" into \"\(pending.to)\" — this combines voice embeddings and cannot be undone.")
+            }
+        }
         .sheet(isPresented: $showingEnrollment) {
             if let diarizerFactory {
                 VoiceEnrollmentView(
@@ -256,7 +278,7 @@ struct KnownVoicesView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 360, minHeight: 160)
+        .frame(minWidth: 360, minHeight: 200)
     }
 
     private var speakerTable: some View {
@@ -296,6 +318,7 @@ struct KnownVoicesView: View {
                 "Seeded via debug RPC with a random embedding."
                     + " Excluded from auto-naming. Delete to remove.",
             )
+            .accessibilityLabel("Synthetic voice — not from a real recording")
     }
 
     // MARK: - Derived
@@ -316,6 +339,7 @@ struct KnownVoicesView: View {
                 if let selection { modal = .delete(name: selection) }
             }
             .disabled(selection == nil)
+            .help("Delete this speaker from the voice database")
             Spacer()
             if diarizerFactory != nil {
                 Button("Add from Recording…") { showingEnrollment = true }
@@ -332,7 +356,6 @@ struct KnownVoicesView: View {
                 .disabled(selection == nil || speakers.count < 2)
             Spacer()
             Button("Done") { dismiss() }
-                .keyboardShortcut(.defaultAction)
         }
     }
 
@@ -349,6 +372,12 @@ struct KnownVoicesView: View {
         guard case let .rename(from, value) = modal else { return }
         modal = nil
         guard let trimmed = KnownVoicesFormatting.trimmedRenameValue(value) else { return }
+        // If a speaker with the new name already exists, require confirmation before merging.
+        if speakers.map(\.name).contains(trimmed), trimmed != from {
+            pendingMergeOnRename = (from: from, to: trimmed)
+            showingMergeOnRenameConfirmation = true
+            return
+        }
         performRename(from: from, to: trimmed)
         selection = trimmed
     }

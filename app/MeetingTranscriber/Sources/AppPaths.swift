@@ -68,6 +68,10 @@ enum AppPaths {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .prefix(maxLength)
             .description
+        // Strip leading dots to prevent hidden-file creation (e.g. ".malicious").
+        while result.hasPrefix(".") {
+            result = String(result.dropFirst())
+        }
         // Enforce 255-byte HFS+ path component limit: drop trailing characters
         // until the UTF-8 encoded result fits. Grapheme clusters can exceed 1
         // byte so the character cap alone is insufficient.

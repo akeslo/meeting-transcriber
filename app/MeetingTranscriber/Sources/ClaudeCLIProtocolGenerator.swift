@@ -224,11 +224,33 @@
             return names.sorted()
         }
 
+        /// Trusted prefixes for absolute-path resolution.
+        /// Accepting arbitrary absolute paths verbatim would let a user
+        /// (or a compromised settings store) point at any executable on disk.
+        private static let trustedAbsolutePrefixes: [String] = [
+            "/usr/local/bin/",
+            "/opt/homebrew/bin/",
+            "\(NSHomeDirectory())/.local/bin/",
+            "\(NSHomeDirectory())/.npm-global/bin/",
+            "/usr/bin/",
+        ]
+
         /// Resolve the claude CLI binary path.
         /// App bundles have a restricted PATH, so check common install locations.
         static func resolveClaudePath(_ bin: String) -> String {
-            // If already an absolute path, use it
-            if bin.hasPrefix("/") { return bin }
+            // If already an absolute path, validate it against trusted prefixes.
+            if bin.hasPrefix("/") {
+                let canonical = (bin as NSString).standardizingPath
+                let isTrusted = trustedAbsolutePrefixes.contains(where: { canonical.hasPrefix($0) })
+                guard isTrusted else {
+                    logger.warning("Absolute claudeBin path '\(bin, privacy: .public)' is not under a trusted prefix — falling back to search paths")
+                    // Fall through to search paths below
+                    return searchPaths.map({ "\($0)/claude" })
+                        .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+                        ?? "/usr/bin/env"
+                }
+                return canonical
+            }
 
             for path in searchPaths.map({ "\($0)/\(bin)" })
                 where FileManager.default.isExecutableFile(atPath: path) {

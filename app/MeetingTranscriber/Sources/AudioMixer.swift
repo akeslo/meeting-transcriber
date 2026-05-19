@@ -67,6 +67,13 @@ enum AudioMixer {
             if delaySamples > 0 && delaySamples < appSamples.count {
                 // App started later: prepend zeros to app
                 appSamples = [Float](repeating: 0, count: delaySamples) + appSamples
+            } else if delaySamples >= appSamples.count {
+                // Negative delay exceeds entire app track — app contributes nothing.
+                // Symmetric handling with the positive-delay path above.
+                let appStr = String(format: "%.2f", Double(appSamples.count) / Double(sampleRate))
+                let delayStr = String(format: "%.2f", -clampedDelay)
+                logger.warning("neg_mic_delay_exceeds_app_track delay=\(delayStr)s app_duration=\(appStr)s — app track treated as non-contributory")
+                appSamples = []
             }
         }
 

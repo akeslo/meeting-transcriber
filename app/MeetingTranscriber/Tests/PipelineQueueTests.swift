@@ -495,28 +495,39 @@ final class PipelineQueueTests: XCTestCase {
         queue.enqueue(job)
         queue.updateJobState(id: job.id, to: .error, error: "Empty transcript")
 
+        // markProcessed writes on a detached task; yield to let it run before
+        // creating a fresh queue that reads the processed-recordings list.
+        let processedPath = tmpDir.appendingPathComponent("processed_recordings.json")
+        let deadline = Date().addingTimeInterval(2)
+        while !FileManager.default.fileExists(atPath: processedPath.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
         // A fresh queue (simulates pressing Start Watching) must not recover the failed recording
         let freshQueue = PipelineQueue(logDir: tmpDir)
         await freshQueue.recoverOrphanedRecordings(recordingsDir: recDir)
         XCTAssertTrue(freshQueue.jobs.isEmpty, "Failed recording should not be re-queued")
     }
 
-    func testMarkProcessedPersists() throws {
+    func testMarkProcessedPersists() async throws {
         let mixPath = tmpDir.appendingPathComponent("test_mix.wav")
 
         let q1 = PipelineQueue(logDir: tmpDir)
         q1.markProcessed(mixPath: mixPath)
 
+        // markProcessed writes on a detached task; yield to let it run.
+        let processedPath = tmpDir.appendingPathComponent("processed_recordings.json")
+        let deadline = Date().addingTimeInterval(2)
+        while !FileManager.default.fileExists(atPath: processedPath.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
         // New queue instance should see the processed path
         _ = PipelineQueue(logDir: tmpDir)
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
-        // Create a file with the same standardized name
         try Data(repeating: 0xFF, count: 100).write(to: mixPath)
 
-        // Won't find it if the path is in processed list — but the file is in tmpDir not recDir
-        // So test directly via the processed set behavior
-        let processedPath = tmpDir.appendingPathComponent("processed_recordings.json")
         XCTAssertTrue(FileManager.default.fileExists(atPath: processedPath.path))
         let data = try Data(contentsOf: processedPath)
         let paths = try JSONDecoder().decode([String].self, from: data)

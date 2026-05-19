@@ -73,6 +73,7 @@ struct MeetingTranscriberApp: App {
                         return false
                     #endif
                 }(),
+                protocolProviderIsNone: appState.settings.protocolProvider == .none,
                 onSelectMic: { uid in appState.settings.micDeviceUID = uid },
                 onStartStop: appState.toggleWatching,
                 onRecordApp: { bringWindowToFront(id: "record-app") },

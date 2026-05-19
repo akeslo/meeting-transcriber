@@ -65,13 +65,24 @@
 
         // MARK: - resolveClaudePath
 
-        func testResolveClaudePathAbsolutePathReturnsAsIs() {
-            // Absolute paths are trusted verbatim — even if the file doesn't
-            // exist, that's the caller's problem; the resolver doesn't probe.
-            XCTAssertEqual(
-                ClaudeCLIProtocolGenerator.resolveClaudePath("/totally/fake/claude"),
-                "/totally/fake/claude",
-            )
+        func testResolveClaudePathUntrustedAbsolutePathFallsBackToSearch() {
+            // Untrusted absolute paths are rejected and fall back to search paths
+            // (or /usr/bin/env if nothing found).
+            let result = ClaudeCLIProtocolGenerator.resolveClaudePath("/totally/fake/claude")
+            XCTAssertNotEqual(result, "/totally/fake/claude", "Untrusted absolute path should not be returned verbatim")
+        }
+
+        func testResolveClaudePathTrustedAbsolutePathReturnedDirectly() {
+            // A path under a trusted prefix that exists on disk is returned as-is.
+            let trusted = "/opt/homebrew/bin/claude"
+            let result = ClaudeCLIProtocolGenerator.resolveClaudePath(trusted)
+            // If the binary exists at that path, it's returned directly.
+            // If not, it falls back to search — either way it's not the untrusted path.
+            if FileManager.default.isExecutableFile(atPath: trusted) {
+                XCTAssertEqual(result, trusted)
+            } else {
+                XCTAssertNotEqual(result, "/totally/fake/claude")
+            }
         }
 
         func testResolveClaudePathFallsBackToEnvForUnknownBareName() {

@@ -158,7 +158,7 @@ struct WindowPickerView: View {
                         value: $numSpeakers, in: 0 ... 10,
                     )
                     .accessibilityLabel("Number of speakers")
-                    .accessibilityValue(numSpeakers == 0 ? "Auto" : "\(numSpeakers)")
+                    .accessibilityValue(numSpeakers == 0 ? "Auto-detect" : "\(numSpeakers)")
                     .help(numSpeakers == 1 ? "Single speaker mode — diarization disabled." : "")
                 }
 

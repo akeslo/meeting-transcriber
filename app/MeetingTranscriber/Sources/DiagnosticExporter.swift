@@ -35,10 +35,14 @@ enum DiagnosticExporter {
         return fmt
     }()
 
+    /// Keys (lowercased) whose values must be redacted from the export header.
+    private static let sensitiveKeySubstrings = ["key", "secret", "token", "password"]
+
     /// Build the header that prefixes every exported diagnostic file.
-    /// Pure function — settings dict is stringified verbatim into `key=value`
-    /// pairs, sorted alphabetically for deterministic output. No PII is
-    /// expected in `settings` (UI flags only).
+    /// Pure function — settings dict is stringified into `key=value` pairs,
+    /// sorted alphabetically for deterministic output. Values whose key name
+    /// contains a sensitive substring (key, secret, token, password) are
+    /// redacted to prevent API keys or passwords from leaking into exported logs.
     ///
     /// When `settings["audioDebugLogging"]` is `"true"`, an extra note is
     /// added to remind readers that verbose audio logs are included.
@@ -49,7 +53,11 @@ enum DiagnosticExporter {
         settings: [String: String],
     ) -> String {
         let pairs = settings.sorted { $0.key < $1.key }
-            .map { "\($0.key)=\($0.value)" }
+            .map { key, value -> String in
+                let lowerKey = key.lowercased()
+                let isRedacted = sensitiveKeySubstrings.contains(where: { lowerKey.contains($0) })
+                return "\(key)=\(isRedacted ? "<redacted>" : value)"
+            }
             .joined(separator: " ")
         let timestamp = formatter.string(from: Date())
         let verboseNote = settings["audioDebugLogging"] == "true"

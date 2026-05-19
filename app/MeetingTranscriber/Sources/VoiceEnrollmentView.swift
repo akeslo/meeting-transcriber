@@ -89,6 +89,7 @@ struct VoiceEnrollmentView: View {
                 Button("Browse Past Recordings…") {
                     pickFile(initialDirectory: AppPaths.recordingsDir)
                 }
+                .help("Browse recordings in \(AppPaths.recordingsDir.path)")
             }
             Text(
                 "The file is diarized to find speakers, then you name them. "
@@ -142,8 +143,13 @@ struct VoiceEnrollmentView: View {
             Text("Enrolled \(savedNames.count) speaker\(savedNames.count == 1 ? "" : "s")")
                 .font(.headline)
             if !savedNames.isEmpty {
-                Text(savedNames.joined(separator: ", "))
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(savedNames, id: \.self) { name in
+                        Label(name, systemImage: "person.fill")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             HStack {
                 Spacer()
@@ -183,7 +189,11 @@ struct VoiceEnrollmentView: View {
 
     private func pickFile(initialDirectory: URL?) {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.audio, .mpeg4Audio, .mp3, .wav, .mpeg4Movie, .quickTimeMovie]
+        var allowedTypes: [UTType] = [.audio, .mpeg4Audio, .mp3, .wav, .mpeg4Movie, .quickTimeMovie]
+        if FFmpegHelper.ffmpegPath != nil {
+            allowedTypes += FFmpegHelper.ffmpegOnlyTypes
+        }
+        panel.allowedContentTypes = allowedTypes
         panel.allowsMultipleSelection = false
         if let initialDirectory {
             try? FileManager.default.createDirectory(
