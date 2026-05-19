@@ -2,20 +2,47 @@
 # Launch the Meeting Transcriber menu bar app.
 # Builds an .app bundle so macOS APIs (notifications, etc.) work correctly.
 #
-# --build-only: Build the bundle but skip `open -W`. Used by the Pattern-C
+# --build-only:  Build the bundle but skip `open -W`. Used by the Pattern-C
 #   E2E driver (scripts/e2e-app.sh) which deploys the bundle to a stable
 #   path and launches it itself; opening the in-tree bundle there would
 #   confuse macOS LaunchServices about which one to use for TCC.
+# --reinstall:   Kill running instance, reset all TCC permissions for the
+#   dev bundle ID, then rebuild and relaunch. Prompts for permission grants
+#   on next launch. Combine with --reset-data to also wipe app data.
+# --reset-data:  Remove ~/Library/Application Support/MeetingTranscriber
+#   (settings, speakers.json, logs). Only takes effect with --reinstall.
 
 set -euo pipefail
 
 BUILD_ONLY=false
+REINSTALL=false
+RESET_DATA=false
 for arg in "$@"; do
     case "$arg" in
-        --build-only) BUILD_ONLY=true ;;
+        --build-only)   BUILD_ONLY=true ;;
+        --reinstall)    REINSTALL=true ;;
+        --reset-data)   RESET_DATA=true ;;
         *) echo "Unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
+
+DEV_BUNDLE_ID="com.meetingtranscriber.dev"
+
+if [ "$REINSTALL" = true ]; then
+    echo "Reinstalling Meeting Transcriber (dev)..."
+
+    # Kill any running instance
+    pkill -f "MeetingTranscriber-Dev.app" 2>/dev/null && echo "  Killed running instance" || true
+    sleep 0.5
+
+    # Reset all TCC permissions for the dev bundle
+    tccutil reset All "$DEV_BUNDLE_ID" 2>/dev/null && echo "  TCC permissions reset" || echo "  (tccutil reset skipped — may need sudo)"
+
+    if [ "$RESET_DATA" = true ]; then
+        rm -rf "$HOME/Library/Application Support/MeetingTranscriber"
+        echo "  App data cleared"
+    fi
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TRANSCRIBER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
