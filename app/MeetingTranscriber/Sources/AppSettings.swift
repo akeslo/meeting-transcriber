@@ -386,7 +386,7 @@ final class AppSettings {
             .flatMap(TranscriptionEngineSetting.init(rawValue:))) ?? .whisperKit
         whisperKitModel = defaults.object(forKey: "whisperKitModel") as? String
             ?? "openai_whisper-large-v3-v20240930_turbo"
-        whisperLanguage = defaults.object(forKey: "whisperLanguage") as? String ?? "de"
+        whisperLanguage = defaults.object(forKey: "whisperLanguage") as? String ?? ""
         qwen3Language = defaults.object(forKey: "qwen3Language") as? String ?? ""
         parakeetLanguage = defaults.object(forKey: "parakeetLanguage") as? String ?? ""
         customVocabularyPath = defaults.string(forKey: "customVocabularyPath") ?? ""
@@ -405,7 +405,7 @@ final class AppSettings {
             protocolProvider = storedProvider ?? .claudeCLI
             claudeBin = defaults.object(forKey: "claudeBin") as? String ?? "claude"
         #endif
-        protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "German"
+        protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "English"
 
         openAIEndpoint = defaults.object(forKey: "openAIEndpoint") as? String
             ?? "http://localhost:11434/v1/chat/completions"
