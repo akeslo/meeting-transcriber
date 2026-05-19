@@ -116,6 +116,16 @@ struct VoiceEnrollmentView: View {
             Text("This may take 1–2 minutes for long recordings.")
                 .foregroundStyle(.secondary)
                 .font(.caption)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) {
+                    diarizationTask?.cancel()
+                    diarizationTask = nil
+                    stopElapsedTimer()
+                    stage = .pickFile
+                }
+                .keyboardShortcut(.cancelAction)
+            }
         }
     }
 

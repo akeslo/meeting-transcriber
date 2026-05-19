@@ -122,13 +122,17 @@ struct MenuBarView: View {
                 Label("Record Window...", systemImage: "macwindow.badge.plus")
             }
             .keyboardShortcut("r")
-            .help(isWatching ? "Stops auto-watching and starts manual recording" : "")
+            .help(isWatching
+                ? "Stops auto-watching and starts manual recording"
+                : "Start manual recording of a specific window")
             Button {
                 onRecordApp()
             } label: {
                 Label("Record App...", systemImage: "record.circle")
             }
-            .help(isWatching ? "Stops auto-watching and starts manual recording" : "")
+            .help(isWatching
+                ? "Stops auto-watching and starts manual recording"
+                : "Start manual recording of a specific app")
         }
 
         if let onNameSpeakers {

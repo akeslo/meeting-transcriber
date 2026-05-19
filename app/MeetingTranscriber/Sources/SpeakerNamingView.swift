@@ -99,6 +99,12 @@ struct SpeakerNamingView: View {
     @State private var completedJobID: UUID?
     @State private var player: AVAudioPlayer?
     @State private var playingLabel: String?
+    /// Label of the speaker whose snippet is currently being loaded from disk.
+    /// Shown as a spinner on the play button until playback begins.
+    @State private var loadingLabel: String?
+    /// Label of the speaker whose last playback attempt failed; drives an
+    /// error hint next to the play button. Cleared automatically after a delay.
+    @State private var playbackErrorLabel: String?
     @State private var rerunCount: Int = 2
     @State private var rerunDisclosureExpanded: Bool = false
     /// Indices of speaker rows where the user clicked "More…" to reveal the full
@@ -238,17 +244,26 @@ struct SpeakerNamingView: View {
                         Button {
                             playSpeakerSnippet(label: speaker.label)
                         } label: {
-                            Image(systemName: playingLabel == speaker.label
-                                ? "stop.circle.fill" : "play.circle.fill")
-                                .foregroundStyle(.blue)
+                            if loadingLabel == speaker.label {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: playingLabel == speaker.label
+                                    ? "stop.circle.fill" : "play.circle.fill")
+                                    .foregroundStyle(.blue)
+                            }
                         }
                         .buttonStyle(.plain)
+                        .disabled(loadingLabel == speaker.label)
                         .accessibilityIdentifier("play-\(speaker.label)")
                         .accessibilityLabel(
-                            playingLabel == speaker.label
-                                ? "Stop playback for \(speaker.label)"
-                                : "Play audio sample for \(speaker.label)"
+                            loadingLabel == speaker.label
+                                ? "Loading audio for \(speaker.label)"
+                                : playingLabel == speaker.label
+                                    ? "Stop playback for \(speaker.label)"
+                                    : "Play audio sample for \(speaker.label)"
                         )
+                        .help(playbackErrorLabel == speaker.label ? "Playback failed" : "")
                     }
 
                     Spacer()
@@ -402,6 +417,9 @@ struct SpeakerNamingView: View {
 
         guard let longest = Self.longestSegment(forSpeaker: label, in: data.segments) else { return }
 
+        // Show loading indicator while file I/O is in-flight
+        loadingLabel = label
+
         // Perform file I/O off the main thread
         Task.detached { [audioPath, longest] in
             do {
@@ -411,7 +429,10 @@ struct SpeakerNamingView: View {
                     end: longest.end,
                     sampleRate: sampleRate,
                     totalSamples: samples.count,
-                ) else { return }
+                ) else {
+                    await MainActor.run { loadingLabel = nil }
+                    return
+                }
 
                 let snippet = Array(samples[range])
                 let tmpPath = FileManager.default.temporaryDirectory
@@ -422,6 +443,7 @@ struct SpeakerNamingView: View {
                 let duration = newPlayer.duration
 
                 await MainActor.run {
+                    loadingLabel = nil
                     player?.stop()
                     player = newPlayer
                     player?.play()
@@ -436,10 +458,18 @@ struct SpeakerNamingView: View {
                     }
                 }
             } catch {
-                // Silently fail — playback is best-effort; reset icon so it doesn't stay stuck
+                // Playback is best-effort; reset icon and surface a brief tooltip-style hint
                 await MainActor.run {
+                    loadingLabel = nil
                     if playingLabel == label {
                         playingLabel = nil
+                    }
+                    playbackErrorLabel = label
+                }
+                try? await Task.sleep(for: .seconds(3))
+                await MainActor.run {
+                    if playbackErrorLabel == label {
+                        playbackErrorLabel = nil
                     }
                 }
             }

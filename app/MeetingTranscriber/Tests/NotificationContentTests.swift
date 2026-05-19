@@ -51,12 +51,15 @@ final class NotificationContentTests: XCTestCase {
     }
 
     func testProtocolReadyNoMeeting() {
+        // When protocolPath is nil only a transcript was produced — notification
+        // should say "Transcript Saved" rather than "Protocol Ready".
         let status = makeStatus(state: .protocolReady)
 
         let content = NotificationManager.notificationContent(for: .protocolReady, status: status)
 
         XCTAssertNotNil(content)
-        XCTAssertEqual(content?.body, "Protocol for \"Meeting\" is ready.")
+        XCTAssertEqual(content?.title, "Transcript Saved")
+        XCTAssertEqual(content?.body, "Transcript for \"Meeting\" has been saved.")
     }
 
     // MARK: - Speaker Names
@@ -140,8 +143,11 @@ final class NotificationContentTests: XCTestCase {
     // MARK: - Protocol ready with nil meeting fallback
 
     func testProtocolReadyFallbackTitle() {
+        // With no protocolPath the fallback title is "Meeting" and notification
+        // indicates a transcript was saved (not a full protocol).
         let status = makeStatus(state: .protocolReady)
         let content = NotificationManager.notificationContent(for: .protocolReady, status: status)
-        XCTAssertEqual(content?.body, "Protocol for \"Meeting\" is ready.")
+        XCTAssertEqual(content?.title, "Transcript Saved")
+        XCTAssertEqual(content?.body, "Transcript for \"Meeting\" has been saved.")
     }
 }

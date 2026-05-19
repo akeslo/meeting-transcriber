@@ -129,8 +129,16 @@ struct KnownVoicesView: View {
                     }
                 }
 
-            speakerTable
-                .frame(minHeight: 280)
+            if !filter.isEmpty, filteredSpeakers.isEmpty {
+                Text("No speakers match \"\(filter)\"")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(minHeight: 280)
+            } else {
+                speakerTable
+                    .frame(minHeight: 280)
+            }
 
             actionButtonsRow
             if pipelineBusy, diarizerFactory != nil {

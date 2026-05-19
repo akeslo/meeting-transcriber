@@ -1107,12 +1107,24 @@ class PipelineQueue {
             return transcript
         }
         let range = NSRange(transcript.startIndex..., in: transcript)
-        return regex.stringByReplacingMatches(
-            in: transcript,
-            options: [],
-            range: range,
-            withTemplate: "$1 \(name):",
-        )
+        // Use the block-based API so `name` is substituted as a literal string,
+        // preventing backslash sequences (e.g. `\1`) in speaker names from being
+        // misinterpreted as template back-references. Collect matches into
+        // (matchRange, replacement) pairs then apply in reverse order so that
+        // each edit does not shift the byte offsets of earlier (lower) ranges.
+        var replacements: [(Range<String.Index>, String)] = []
+        for match in regex.matches(in: transcript, options: [], range: range) {
+            guard let timestampRange = Range(match.range(at: 1), in: transcript),
+                  let matchRange = Range(match.range, in: transcript)
+            else { continue }
+            let timestamp = String(transcript[timestampRange])
+            replacements.append((matchRange, "\(timestamp) \(name):"))
+        }
+        var result = transcript
+        for (matchRange, replacement) in replacements.reversed() {
+            result.replaceSubrange(matchRange, with: replacement)
+        }
+        return result
     }
 
     // MARK: - Late Re-diarization
@@ -1718,8 +1730,7 @@ class PipelineQueue {
             ensureLogDir()
             let data = try JSONEncoder().encode(entry)
             let logPath = logDir.appendingPathComponent("pipeline_log.jsonl")
-            // swiftlint:disable:next force_unwrapping
-            let line = String(data: data, encoding: .utf8)! + "\n"
+            let line = (String(data: data, encoding: .utf8) ?? "") + "\n"
             if FileManager.default.fileExists(atPath: logPath.path) {
                 let handle = try FileHandle(forWritingTo: logPath)
                 defer { handle.closeFile() }

@@ -49,6 +49,11 @@ struct AudioSettingsView: View {
                             settings.vadThreshold = min(0.9, max(0.3, settings.vadThreshold))
                         }
                     }
+                    if settings.vadThreshold < 0.3 || settings.vadThreshold > 0.9 {
+                        Text("Must be 0.3–0.9")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .accessibilityIdentifier("vadSection")

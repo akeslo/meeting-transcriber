@@ -40,6 +40,8 @@ struct SpeakersSettingsView: View {
                         )
                         .foregroundStyle(.orange)
                         .font(.caption)
+                        .accessibilityLabel("Warning")
+                        .accessibilityHint("Sortformer does not identify recurring speakers")
                     }
 
                     HStack {

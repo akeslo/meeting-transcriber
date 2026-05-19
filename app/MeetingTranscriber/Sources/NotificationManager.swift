@@ -74,7 +74,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, App
 
         case .protocolReady:
             let meetingTitle = status.meeting?.title ?? "Meeting"
-            return ("Protocol Ready", "Protocol for \"\(meetingTitle)\" is ready.")
+            if status.protocolPath != nil {
+                return ("Protocol Ready", "Protocol for \"\(meetingTitle)\" is ready.")
+            } else {
+                return ("Transcript Saved", "Transcript for \"\(meetingTitle)\" has been saved.")
+            }
 
         case .waitingForSpeakerNames:
             return ("Name Speakers", "Speakers detected — open the app to assign names")

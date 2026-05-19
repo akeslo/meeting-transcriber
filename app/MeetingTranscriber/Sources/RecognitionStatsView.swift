@@ -8,6 +8,7 @@ struct RecognitionStatsView: View {
     @State private var aggregate: RecognitionStats.Aggregate?
     @State private var windowDays: WindowChoice = .thirty
     @State private var isReloading = false
+    @State private var loadError: String?
 
     private let log: RecognitionStatsLog
 
@@ -37,7 +38,11 @@ struct RecognitionStatsView: View {
             }
             .pickerStyle(.segmented)
 
-            if let aggregate {
+            if let loadError {
+                Text("Failed to load stats: \(loadError)")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if let aggregate {
                 if aggregate.total > 0 {
                     statsBody(aggregate)
                 } else {
@@ -46,7 +51,9 @@ struct RecognitionStatsView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                ProgressView("Loading stats...").frame(maxWidth: .infinity, alignment: .center)
+                ProgressView("Loading stats...")
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .accessibilityLabel("Loading recognition statistics")
             }
 
             HStack {
@@ -110,12 +117,16 @@ struct RecognitionStatsView: View {
         return ProgressView(value: Double(count), total: Double(total))
             .frame(width: 80)
             .accessibilityLabel("\(count) of \(total)")
+            .accessibilityHint("Proportion of total speaker recognitions for this outcome")
     }
 
     private func reload() async {
+        loadError = nil
         let now = Date()
         let interval = TimeInterval(windowDays.rawValue * 86400)
         let events = await log.loadRecent(within: interval, now: now)
+        // Set aggregate unconditionally so the spinner never hangs if the
+        // task body completes (aggregate == nil only while the first load is in-flight).
         aggregate = RecognitionStats.aggregate(
             events: events,
             from: now.addingTimeInterval(-interval),

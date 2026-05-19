@@ -87,8 +87,10 @@ final class FluidDiarizer: DiarizationProvider, @unchecked Sendable {
         }
 
         logger.info("Starting Sortformer diarization: \(audioPath.lastPathComponent)")
-        // swiftlint:disable:next force_unwrapping
-        let timeline = try sortformerDiarizer!.processComplete(audioFileURL: audioPath)
+        guard let diarizer = sortformerDiarizer else {
+            throw DiarizationError.notPrepared
+        }
+        let timeline = try diarizer.processComplete(audioFileURL: audioPath)
 
         let segments = timeline.speakers.flatMap { index, speaker in
             let label = Self.normalizeSpeakerId(speaker.name ?? "Speaker \(index)")

@@ -365,8 +365,8 @@
                     validURLs.append(url)
                 }
                 let count = enqueueFiles(validURLs)
-                let body = Data(#"{"enqueued":\#(count)}"#.utf8)
-                return HTTPResponse.ok(body: body, contentType: "application/json")
+                let bodyData = (try? JSONSerialization.data(withJSONObject: ["enqueued": count])) ?? Data()
+                return HTTPResponse.ok(body: bodyData, contentType: "application/json")
 
             case ("POST", "/action/renameSpeaker"),
                  ("POST", "/action/deleteSpeaker"),
@@ -461,8 +461,8 @@
                 return HTTPResponse.badRequest()
 
             case .ok, .noop, .merged:
-                let body = Data(#"{"outcome":"\#(outcome.rawValue)"}"#.utf8)
-                return HTTPResponse.ok(body: body, contentType: "application/json")
+                let bodyData = (try? JSONSerialization.data(withJSONObject: ["outcome": outcome.rawValue])) ?? Data()
+                return HTTPResponse.ok(body: bodyData, contentType: "application/json")
             }
         }
 

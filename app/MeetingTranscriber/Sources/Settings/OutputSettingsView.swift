@@ -76,6 +76,9 @@ struct OutputSettingsView: View {
 
                     Spacer()
                 }
+                Text("Default: \(OutputSettingsLogic.displayPath(for: AppPaths.downloadsProtocolsDir, home: FileManager.default.homeDirectoryForCurrentUser))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("Changes apply to future recordings only.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
