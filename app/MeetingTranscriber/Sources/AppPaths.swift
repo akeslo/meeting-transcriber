@@ -40,6 +40,20 @@ enum AppPaths {
         return downloads.appendingPathComponent("MeetingTranscriber")
     }()
 
+    /// New default output root: `~/Documents/Transcriber/`
+    static let transcriberRoot: URL = {
+        guard let docs = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask).first
+        else { return downloadsProtocolsDir }
+        return docs.appendingPathComponent("Transcriber")
+    }()
+
+    /// Per-session recordings directory under the new root.
+    static let defaultRecordingsDir: URL = transcriberRoot.appendingPathComponent("recordings")
+
+    /// SwiftData library store location.
+    static let libraryStore: URL = transcriberRoot.appendingPathComponent("library.sqlite")
+
     /// Speaker voice profiles DB.
     static let speakersDB = dataDir.appendingPathComponent("speakers.json")
 
