@@ -75,16 +75,8 @@ final class AppSettings {
 
     // MARK: - Apps to Watch
 
-    var watchTeams: Bool {
-        didSet { defaults.set(watchTeams, forKey: "watchTeams") }
-    }
-
     var watchZoom: Bool {
         didSet { defaults.set(watchZoom, forKey: "watchZoom") }
-    }
-
-    var watchWebex: Bool {
-        didSet { defaults.set(watchWebex, forKey: "watchWebex") }
     }
 
     /// Auto-start watching on app launch.
@@ -353,11 +345,7 @@ final class AppSettings {
     // MARK: - Computed
 
     var watchApps: [String] {
-        var apps: [String] = []
-        if watchTeams { apps.append("Microsoft Teams") }
-        if watchZoom { apps.append("Zoom") }
-        if watchWebex { apps.append("Webex") }
-        return apps
+        watchZoom ? ["Zoom"] : []
     }
 
     // MARK: - Init
@@ -365,9 +353,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        watchTeams = defaults.object(forKey: "watchTeams") as? Bool ?? true
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
-        watchWebex = defaults.object(forKey: "watchWebex") as? Bool ?? true
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
