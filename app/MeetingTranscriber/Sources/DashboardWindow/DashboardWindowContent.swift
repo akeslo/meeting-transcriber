@@ -1,0 +1,122 @@
+import SwiftData
+import SwiftUI
+
+struct DashboardWindowContent: View {
+    var pipelineQueue: PipelineQueue
+    var settings: AppSettings
+
+    @State private var selectedNav: NavItem = .library
+    @State private var selectedSessionID: UUID?
+
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allSessions: [RecordingSession]
+
+    private var selectedSession: RecordingSession? {
+        guard let id = selectedSessionID else { return nil }
+        return allSessions.first(where: { $0.id == id })
+    }
+
+    private var engineLabel: String {
+        switch settings.transcriptionEngine {
+        case .whisperKit: return "WhisperKit"
+        case .parakeet:   return "Parakeet TDT"
+        case .qwen3:      return "Qwen3-ASR"
+        }
+    }
+
+    private var storageLabel: String {
+        formattedBytes(storageBytesUsed())
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            SidebarView(
+                selectedNav: $selectedNav,
+                engineLabel: engineLabel,
+                storageLabel: storageLabel
+            )
+
+            Divider()
+
+            contentPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            DetailPaneView(session: selectedSession)
+                .frame(width: 360)
+        }
+        .frame(minWidth: 900, minHeight: 600)
+    }
+
+    // MARK: - Content pane
+
+    @ViewBuilder
+    private var contentPane: some View {
+        switch selectedNav {
+        case .library:
+            LibraryView(
+                pipelineQueue: pipelineQueue,
+                selectedSessionID: $selectedSessionID
+            )
+        case .dashboard:
+            placeholderPane(
+                icon: "square.grid.2x2",
+                title: "Dashboard",
+                subtitle: "Summary and analytics — coming in a future release."
+            )
+        case .settings:
+            placeholderPane(
+                icon: "gearshape",
+                title: "Settings",
+                subtitle: "Open the Settings window via the menu bar for now."
+            )
+        }
+    }
+
+    // MARK: - Placeholder
+
+    private func placeholderPane(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: icon)
+                .font(.system(size: 44))
+                .foregroundStyle(.tertiary)
+            Text(title)
+                .font(.system(size: 17, weight: .semibold))
+            Text(subtitle)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Storage helpers
+
+    private func storageBytesUsed() -> Int64 {
+        let root = AppPaths.transcriberRoot
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                total += Int64(size)
+            }
+        }
+        return total
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useGB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes) + " used"
+    }
+}

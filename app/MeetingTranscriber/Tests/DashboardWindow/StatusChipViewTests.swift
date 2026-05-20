@@ -1,6 +1,7 @@
 import XCTest
 @testable import MeetingTranscriber
 
+@MainActor
 final class StatusChipViewTests: XCTestCase {
 
     func test_chipColor_done_isGreen() {

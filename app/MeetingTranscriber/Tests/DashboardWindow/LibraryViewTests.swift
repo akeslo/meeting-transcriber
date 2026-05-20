@@ -1,6 +1,7 @@
 import XCTest
 @testable import MeetingTranscriber
 
+@MainActor
 final class LibraryViewTests: XCTestCase {
 
     // MARK: - Search filter
