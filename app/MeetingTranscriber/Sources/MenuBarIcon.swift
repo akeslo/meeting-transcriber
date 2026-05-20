@@ -105,7 +105,7 @@ enum MenuBarIcon {
                 appSilentOverlay: appSilentOverlay,
             )
         }
-        guard let frames = cache[badge] else { return renderImage(badge: badge, frame: animationFrame) }
+        guard let frames = cache[badge] else { return renderImage(badge: badge, frame: animationFrame % frameCount) }
         return frames[animationFrame % frames.count]
     }
 
@@ -163,8 +163,8 @@ enum MenuBarIcon {
     /// Dispatches to the per-badge overlay draw function.
     private static func drawBadgeOverlay(badge: BadgeKind, in rect: NSRect, frame: Int) {
         switch badge {
-        case .inactive, .done:
-            break // heartbeat only, no overlay
+        case .inactive, .done, .error:
+            break // heartbeat only; .error ring is drawn by renderImage unconditionally
         case .recording:
             drawRecordingPulse(in: rect, frame: frame)
         case .transcribing:
@@ -180,8 +180,6 @@ enum MenuBarIcon {
             drawUserActionBadge(in: rect)
         case .updateAvailable:
             drawUpdateArrowBadge(in: rect)
-        case .error:
-            drawErrorRing(in: rect) // also drawn from renderImage; harmless double-draw path
         }
     }
 
@@ -242,7 +240,7 @@ enum MenuBarIcon {
         case .top: NSRect(x: 0, y: centerY - 0.5, width: rect.width, height: rect.height - centerY + 0.5)
         case .bottom: NSRect(x: 0, y: 0, width: rect.width, height: centerY + 0.5)
         }
-        NSBezierPath(rect: clip).setClip()
+        NSBezierPath(rect: clip).addClip()
         body()
     }
 
@@ -370,7 +368,7 @@ enum MenuBarIcon {
 
         // "!" dot (below stem)
         let dotSize: CGFloat = 1.3
-        let dotY = cy - stemH - 0.5
+        let dotY = cy - stemH - 1.5
         NSBezierPath(
             ovalIn: NSRect(x: cx - dotSize / 2, y: dotY, width: dotSize, height: dotSize)
         ).fill()
