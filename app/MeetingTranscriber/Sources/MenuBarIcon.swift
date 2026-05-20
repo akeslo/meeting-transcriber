@@ -16,67 +16,52 @@ enum BadgeKind: CaseIterable {
     var isAnimated: Bool {
         switch self {
         case .recording, .transcribing, .diarizing, .processing: true
-
         default: false
         }
     }
 }
 
-/// Composites a menu bar icon (waveform + optional badge overlay).
+/// Composites a menu bar icon (heartbeat/ECG line + optional badge overlay).
 ///
-/// The base icon is a waveform (5 vertical bars). Depending on the badge kind,
-/// the waveform animates differently:
-/// - `.recording`: bars bounce like a live audio signal
-/// - `.transcribing`: bars morph into horizontal text lines (audio → text)
-/// - `.diarizing`: bars split into two groups (speaker separation)
-/// - `.processing`: text lines appear sequentially (protocol being written)
+/// The base icon is a heartbeat/ECG waveform drawn in Space Indigo. Depending on the
+/// badge kind, an animated Peach Glow overlay is composited on top:
+/// - `.recording`: Peach Glow filled circle top-right, pulsing opacity
+/// - `.transcribing`: Peach Glow arc spinner top-right (60° per frame)
+/// - `.diarizing`: same arc spinner, 40° per frame (slower cadence)
+/// - `.processing`: arc spinner, 50° per frame
+/// - `.userAction`: Peach Glow stroke circle + white "!" glyph, bottom-right
+/// - `.updateAvailable`: Peach Glow upward arrow, top-right
+/// - `.error`: full red stroke ring + red "!" centered, heartbeat at 30% alpha
 ///
-/// Rendered as template image — macOS handles light/dark mode automatically.
+/// All images are non-template (`isTemplate = false`) — Space Indigo and Peach Glow
+/// survive macOS dark mode without template tinting.
+///
 /// `@MainActor` because cache initialisation, NSApp / NSAppearance reads, and
-/// `image(badge:…)` all need to run on the main actor. All known call sites
-/// (menu bar UI, `BadgeKind.compute(...)` consumers in AppState) are
-/// MainActor-bound already, so the annotation tightens the contract without
-/// breaking anyone.
+/// `image(badge:…)` all need to run on the main actor.
 @MainActor
 enum MenuBarIcon {
     /// Number of distinct animation frames. Pure constant.
     nonisolated static let frameCount = 6
 
     /// Returns the next animation frame for `badge`, or `current` if `badge`
-    /// is non-animated. Static badges (idle, error, …) ignore the timer tick
-    /// so the App scene's body does not re-evaluate every 0.4 s. Pure math —
-    /// `nonisolated` so it can be called from any context (tests, off-main).
+    /// is non-animated. Pure math — `nonisolated` so it can be called from
+    /// any context (tests, off-main).
     nonisolated static func nextFrame(_ current: Int, badge: BadgeKind) -> Int {
         guard badge.isAnimated else { return current }
         return (current + 1) % frameCount
     }
 
-    // MARK: - Shared Layout Constants
+    // MARK: - Color Constants
 
-    // All `nonisolated` because they're pure constants consumed from the
-    // rendering closure (which can be invoked off-main during composition).
+    /// Space Indigo — heartbeat base color (#2A324B).
+    nonisolated static let spaceIndigo = NSColor(
+        calibratedRed: 0.165, green: 0.196, blue: 0.294, alpha: 1
+    )
 
-    nonisolated private static let barWidth: CGFloat = 2.2
-    nonisolated private static let barSpacing: CGFloat = 3.6
-    nonisolated private static let barCount = 5
-    nonisolated private static let defaultBarHeights: [CGFloat] = [0.25, 0.50, 0.75, 0.45, 0.30]
-
-    nonisolated private static let lineHeight: CGFloat = 1.4
-    nonisolated private static let lineSpacing: CGFloat = 2.8
-    nonisolated private static let lineWidths: [CGFloat] = [0.70, 0.55, 0.65, 0.50, 0.40]
-    nonisolated private static let lineLeftInset: CGFloat = 0.12 // multiplied by rect width
-
-    /// Pure layout math used from the rendering closure (off-main during
-    /// composition). `nonisolated` so the closure isn't forced onto MainActor.
-    nonisolated static func barsLayout(in rect: NSRect) -> (left: CGFloat, centerY: CGFloat) {
-        let barsWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * (barSpacing - barWidth)
-        return (left: (rect.width - barsWidth) / 2, centerY: rect.height / 2)
-    }
-
-    nonisolated static func textLayout(in rect: NSRect) -> (top: CGFloat, left: CGFloat) {
-        let linesHeight = CGFloat(barCount) * lineHeight + CGFloat(barCount - 1) * (lineSpacing - lineHeight)
-        return (top: rect.height / 2 + linesHeight / 2, left: rect.width * lineLeftInset)
-    }
+    /// Peach Glow — badge overlay color (#F7C59F).
+    nonisolated static let peachGlow = NSColor(
+        calibratedRed: 0.969, green: 0.773, blue: 0.624, alpha: 1
+    )
 
     // MARK: - Cache
 
@@ -94,15 +79,14 @@ enum MenuBarIcon {
 
     // MARK: - Public
 
-    /// Returns a pre-rendered 18x18pt template `NSImage` for the given badge and animation frame.
+    /// Returns a pre-rendered 18×18pt colored `NSImage` (`isTemplate = false`) for the
+    /// given badge and animation frame.
     ///
-    /// If `permissionOverlay` or `recordOnlyOverlay` is true, a red badge is composited over
-    /// the base icon. If `micSilentOverlay` is true, the **top half** of the waveform bars is
-    /// filled in red — signalling the mic channel went silent. If `appSilentOverlay` is true,
-    /// the **bottom half** is red — signalling the app-audio channel went silent. The two are
-    /// independent; if both are true, both halves are red (effectively all-red bars).
-    /// Any of these bypass the pre-rendered cache and force a non-template image, because red
-    /// would not survive template rendering.
+    /// If `permissionOverlay` or `recordOnlyOverlay` is true, the corresponding overlay
+    /// is composited over the base icon. If `micSilentOverlay` is true, the **top half**
+    /// of the heartbeat is tinted red — signalling the mic channel went silent. If
+    /// `appSilentOverlay` is true, the **bottom half** is red. All of these bypass the
+    /// pre-rendered cache and force a fresh render.
     static func image(
         badge: BadgeKind,
         animationFrame: Int = 0,
@@ -112,9 +96,6 @@ enum MenuBarIcon {
         appSilentOverlay: Bool = false,
     ) -> NSImage {
         if permissionOverlay || recordOnlyOverlay || micSilentOverlay || appSilentOverlay {
-            // Honour the cache's frame discipline: animated badges advance, static ones
-            // stay on frame 0. Without this, the live animationFrame leaks through and
-            // makes `.inactive` (idle waveform) bounce as if recording.
             let frame = badge.isAnimated ? animationFrame : 0
             return renderImage(
                 badge: badge, frame: frame,
@@ -139,88 +120,119 @@ enum MenuBarIcon {
         appSilentOverlay: Bool = false,
     ) -> NSImage {
         let size = NSSize(width: 18, height: 18)
-        // The `.error` badge and any red overlay all need an explicit foreground color
-        // (matching the menu bar appearance), because the image is non-template (red marks
-        // must stay red in both light and dark mode).
-        let needsExplicitForeground = badge == .error
-            || permissionOverlay
-            || recordOnlyOverlay
-            || micSilentOverlay
-            || appSilentOverlay
-        // Snapshot the dark-mode appearance on the calling thread (the cache
-        // builder runs at type init on the main thread; ad-hoc overlay
-        // renders also originate from `image(badge:…)` on MainActor). The
-        // NSImage closure can be invoked off-main during composition, so
-        // we cannot read NSApp from inside it under Swift 6.
-        let isDark = NSApp?.effectiveAppearance
-            .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let image = NSImage(size: size, flipped: false) { rect in
-            if needsExplicitForeground {
-                (isDark ? NSColor.white : NSColor.black).setFill()
-            } else {
-                NSColor.black.setFill()
-            }
+            // Draw heartbeat base in Space Indigo.
+            // For .error and permissionOverlay, draw at reduced alpha so the red ring
+            // reads clearly against the base path.
+            let baseAlpha: CGFloat = (badge == .error || permissionOverlay) ? 0.30 : 1.0
+            spaceIndigo.withAlphaComponent(baseAlpha).setStroke()
+            drawHeartbeat(in: rect)
 
-            drawBadgeBody(badge: badge, in: rect, frame: frame)
-
-            // Tint halves AFTER the base body is drawn. Clipping to the upper /
-            // lower half + repainting the same body with red fill overlays the
-            // tint without altering bar geometry — clean per-channel signal.
+            // Tint halves AFTER the base body is drawn.
             if micSilentOverlay {
                 drawTintedHalf(in: rect, half: .top) {
-                    drawBadgeBody(badge: badge, in: rect, frame: frame)
+                    NSColor.systemRed.setStroke()
+                    drawHeartbeat(in: rect)
                 }
             }
             if appSilentOverlay {
                 drawTintedHalf(in: rect, half: .bottom) {
-                    drawBadgeBody(badge: badge, in: rect, frame: frame)
+                    NSColor.systemRed.setStroke()
+                    drawHeartbeat(in: rect)
                 }
             }
 
-            // Overlay precedence: permission errors win over record-only because a permission
-            // problem actually breaks recording, so the user must see it first.
+            // Badge overlay — drawn on top of the heartbeat.
+            drawBadgeOverlay(badge: badge, in: rect, frame: frame)
+
+            // Permission / record-only overlays take precedence.
             if permissionOverlay || badge == .error {
-                drawExclamationBadge(in: rect)
+                drawErrorRing(in: rect)
             } else if recordOnlyOverlay {
-                drawRecordOnlyBadge(in: rect)
+                drawRecordOnlyDot(in: rect)
             }
 
             return true
         }
-        image.isTemplate = !needsExplicitForeground
+        // ALL images are non-template — Space Indigo and Peach Glow must stay
+        // colored in both light and dark mode.
+        image.isTemplate = false
         return image
     }
 
-    /// Single dispatch for the badge's main body shape. Extracted so the
-    /// per-half tint pass can re-draw the same body under a clip rect.
-    private static func drawBadgeBody(badge: BadgeKind, in rect: NSRect, frame: Int) {
+    /// Dispatches to the per-badge overlay draw function.
+    private static func drawBadgeOverlay(badge: BadgeKind, in rect: NSRect, frame: Int) {
         switch badge {
+        case .inactive, .done:
+            break // heartbeat only, no overlay
+        case .recording:
+            drawRecordingPulse(in: rect, frame: frame)
         case .transcribing:
-            drawTranscribingAnimation(in: rect, frame: frame)
-
+            peachGlow.setStroke()
+            drawArcSpinner(in: rect, startDeg: spinnerAngles[frame % spinnerAngles.count])
         case .diarizing:
-            drawDiarizingAnimation(in: rect, frame: frame)
-
+            peachGlow.setStroke()
+            drawArcSpinner(in: rect, startDeg: spinnerAnglesDiarizing[frame % spinnerAnglesDiarizing.count])
         case .processing:
-            drawProtocolAnimation(in: rect, frame: frame)
-
-        case .error:
-            drawRecordingAnimation(in: rect, frame: 0)
-
+            peachGlow.setStroke()
+            drawArcSpinner(in: rect, startDeg: spinnerAnglesProcessing[frame % spinnerAnglesProcessing.count])
+        case .userAction:
+            drawUserActionBadge(in: rect)
         case .updateAvailable:
-            drawRecordingAnimation(in: rect, frame: 0)
-            drawUpdateArrow(in: rect)
-
-        default:
-            drawRecordingAnimation(in: rect, frame: frame)
+            drawUpdateArrowBadge(in: rect)
+        case .error:
+            drawErrorRing(in: rect) // also drawn from renderImage; harmless double-draw path
         }
     }
 
+    // MARK: - Heartbeat Path
+
+    /// Draws the ECG heartbeat line in the current stroke color.
+    /// Points normalized to 18×18 rect.
+    private static func drawHeartbeat(in rect: NSRect) {
+        let w = rect.width
+        let h = rect.height
+        let cy = rect.midY
+
+        let path = NSBezierPath()
+        path.lineWidth = 1.4
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        // Flat baseline left
+        path.move(to: NSPoint(x: w * 0.02, y: cy))
+        path.line(to: NSPoint(x: w * 0.20, y: cy))
+        // P-wave: small upward bump
+        path.curve(
+            to: NSPoint(x: w * 0.30, y: cy),
+            controlPoint1: NSPoint(x: w * 0.23, y: cy - h * 0.10),
+            controlPoint2: NSPoint(x: w * 0.27, y: cy - h * 0.10)
+        )
+        // Q: short dip
+        path.line(to: NSPoint(x: w * 0.36, y: cy + h * 0.06))
+        // R: tall spike up
+        path.line(to: NSPoint(x: w * 0.42, y: cy - h * 0.38))
+        // S: spike down below baseline
+        path.line(to: NSPoint(x: w * 0.50, y: cy + h * 0.18))
+        // Return to baseline
+        path.line(to: NSPoint(x: w * 0.56, y: cy))
+        // T-wave: smooth recovery bump
+        path.curve(
+            to: NSPoint(x: w * 0.72, y: cy),
+            controlPoint1: NSPoint(x: w * 0.60, y: cy - h * 0.18),
+            controlPoint2: NSPoint(x: w * 0.68, y: cy - h * 0.18)
+        )
+        // Flat baseline right
+        path.line(to: NSPoint(x: w * 0.98, y: cy))
+
+        path.stroke()
+    }
+
+    // MARK: - Tinted Half (per-channel silence overlay)
+
     private enum Half { case top, bottom }
 
-    /// Save graphics state, clip to the top or bottom half of `rect`, set red
-    /// fill, run `body`, restore. The +0.5 fudge factor closes the antialiasing
-    /// seam at the exact center line.
+    /// Save graphics state, clip to the top or bottom half of `rect`, run `body`, restore.
     private static func drawTintedHalf(in rect: NSRect, half: Half, body: () -> Void) {
         guard let ctx = NSGraphicsContext.current else { return }
         ctx.saveGraphicsState()
@@ -231,185 +243,149 @@ enum MenuBarIcon {
         case .bottom: NSRect(x: 0, y: 0, width: rect.width, height: centerY + 0.5)
         }
         NSBezierPath(rect: clip).setClip()
-        NSColor.systemRed.setFill()
         body()
     }
 
-    // MARK: - Recording Animation (bouncing waveform)
+    // MARK: - Badge Overlays
 
-    private static let recordingFrames: [[CGFloat]] = [
-        [0.25, 0.50, 0.75, 0.45, 0.30],
-        [0.40, 0.30, 0.65, 0.70, 0.25],
-        [0.20, 0.60, 0.40, 0.55, 0.50],
-        [0.50, 0.45, 0.70, 0.25, 0.40],
-        [0.30, 0.65, 0.50, 0.60, 0.20],
-        [0.45, 0.35, 0.55, 0.40, 0.65],
-    ]
+    private static let spinnerAngles: [CGFloat] = [0, 60, 120, 180, 240, 300]
+    private static let spinnerAnglesDiarizing: [CGFloat] = [0, 40, 80, 120, 160, 200]
+    private static let spinnerAnglesProcessing: [CGFloat] = [0, 50, 100, 150, 200, 250]
 
-    private static func drawRecordingAnimation(in rect: NSRect, frame: Int) {
-        let heights = recordingFrames[frame % recordingFrames.count]
-        let layout = barsLayout(in: rect)
+    private static let recordingPulseAlphas: [CGFloat] = [0.6, 0.7, 0.85, 1.0, 0.85, 0.7]
 
-        for i in 0 ..< barCount {
-            let x = layout.left + CGFloat(i) * barSpacing
-            let barH = rect.height * heights[i]
-            let barRect = NSRect(
-                x: x,
-                y: layout.centerY - barH / 2,
-                width: barWidth,
-                height: barH,
-            )
-            NSBezierPath(roundedRect: barRect, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
-        }
-    }
-
-    // MARK: - Transcribing Animation (waveform → text lines)
-
-    private static let transcribeMorphSteps: [CGFloat] = [0.0, 0.15, 0.35, 0.6, 0.85, 1.0]
-
-    private static func drawTranscribingAnimation(in rect: NSRect, frame: Int) {
-        let h = rect.height
-        let t = transcribeMorphSteps[frame % transcribeMorphSteps.count]
-        let bars = barsLayout(in: rect)
-        let text = textLayout(in: rect)
-
-        for i in 0 ..< barCount {
-            // Source: vertical bar
-            let srcX = bars.left + CGFloat(i) * barSpacing
-            let srcH = h * defaultBarHeights[i]
-            let srcY = bars.centerY - srcH / 2
-
-            // Target: horizontal text line
-            let tgtX = text.left
-            let tgtW = rect.width * lineWidths[i]
-            let tgtY = text.top - CGFloat(i) * lineSpacing - lineHeight
-
-            // Interpolate
-            let x = srcX + (tgtX - srcX) * t
-            let y = srcY + (tgtY - srcY) * t
-            let rw = barWidth + (tgtW - barWidth) * t
-            let rh = srcH + (lineHeight - srcH) * t
-            let radius = min(rw, rh) / 2
-
-            NSBezierPath(
-                roundedRect: NSRect(x: x, y: y, width: rw, height: rh),
-                xRadius: radius,
-                yRadius: radius,
-            ).fill()
-        }
-    }
-
-    // MARK: - Diarizing Animation (bars split into two speaker groups)
-
-    private static let diarizeSplitSteps: [CGFloat] = [0.0, 0.2, 0.5, 0.8, 1.0, 0.8]
-
-    private static func drawDiarizingAnimation(in rect: NSRect, frame: Int) {
-        let h = rect.height
-        let t = diarizeSplitSteps[frame % diarizeSplitSteps.count]
-        let layout = barsLayout(in: rect)
-
-        let maxShift: CGFloat = 2.5
-        let verticalSep: CGFloat = 1.5
-
-        for i in 0 ..< barCount {
-            let isGroupA = i.isMultiple(of: 2)
-            let barH = h * defaultBarHeights[i]
-
-            let x = layout.left + CGFloat(i) * barSpacing + (isGroupA ? -maxShift : maxShift) * t
-            let y = layout.centerY - barH / 2 + (isGroupA ? verticalSep : -verticalSep) * t
-
-            NSBezierPath(
-                roundedRect: NSRect(x: x, y: y, width: barWidth, height: barH),
-                xRadius: barWidth / 2,
-                yRadius: barWidth / 2,
-            ).fill()
-        }
-    }
-
-    // MARK: - Error Badge (exclamation mark in bottom-right)
-
-    private static func drawExclamationBadge(in rect: NSRect) {
-        let size: CGFloat = 7.0
+    private static func drawRecordingPulse(in rect: NSRect, frame: Int) {
+        let alpha = recordingPulseAlphas[frame % recordingPulseAlphas.count]
+        let size: CGFloat = 6.0
         let margin: CGFloat = 0.5
         let cx = rect.maxX - size / 2 - margin
-        let cy = rect.minY + size / 2 + margin
-
-        // Red circle
-        NSColor.systemRed.setFill()
+        let cy = rect.maxY - size / 2 - margin
+        peachGlow.withAlphaComponent(alpha).setFill()
         NSBezierPath(
-            ovalIn: NSRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size),
+            ovalIn: NSRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size)
         ).fill()
-
-        // White "!" on top
-        NSColor.white.setFill()
-
-        // Stem
-        let stemW: CGFloat = 1.3
-        let stemH: CGFloat = 2.8
-        let stemY = cy + size / 2 - 1.8 - stemH
-        NSBezierPath(
-            roundedRect: NSRect(x: cx - stemW / 2, y: stemY, width: stemW, height: stemH),
-            xRadius: stemW / 2, yRadius: stemW / 2,
-        ).fill()
-
-        // Dot
-        let dotSize: CGFloat = 1.3
-        let dotY = cy - size / 2 + 1.0
-        NSBezierPath(ovalIn: NSRect(x: cx - dotSize / 2, y: dotY, width: dotSize, height: dotSize)).fill()
     }
 
-    // MARK: - Record-Only Badge (solid red dot in bottom-right)
-
-    private static func drawRecordOnlyBadge(in rect: NSRect) {
-        let size: CGFloat = 5.0
+    private static func drawArcSpinner(in rect: NSRect, startDeg: CGFloat) {
+        let size: CGFloat = 6.0
         let margin: CGFloat = 0.5
         let cx = rect.maxX - size / 2 - margin
-        let cy = rect.minY + size / 2 + margin
-
-        NSColor.systemRed.setFill()
-        NSBezierPath(
-            ovalIn: NSRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size),
-        ).fill()
+        let cy = rect.maxY - size / 2 - margin
+        let r = size / 2 - 0.5
+        let path = NSBezierPath()
+        path.lineWidth = 1.2
+        path.lineCapStyle = .round
+        path.appendArc(
+            withCenter: NSPoint(x: cx, y: cy),
+            radius: r,
+            startAngle: startDeg,
+            endAngle: startDeg + 216,
+            clockwise: false
+        )
+        path.stroke()
     }
 
-    // MARK: - Update Available (small upward arrow badge in bottom-right)
-
-    private static func drawUpdateArrow(in rect: NSRect) {
+    private static func drawUserActionBadge(in rect: NSRect) {
+        // Bottom-right corner: Peach Glow stroke circle + white "!" glyph.
         let size: CGFloat = 6.0
         let margin: CGFloat = 0.5
         let cx = rect.maxX - size / 2 - margin
         let cy = rect.minY + size / 2 + margin
 
-        // Arrow pointing up: triangle + stem
+        // Peach Glow stroke ring
+        peachGlow.setStroke()
+        let ring = NSBezierPath(
+            ovalIn: NSRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size)
+        )
+        ring.lineWidth = 1.2
+        ring.stroke()
+
+        // White "!" — stem
+        NSColor.white.setFill()
+        let stemW: CGFloat = 1.2
+        let stemH: CGFloat = 2.4
+        let stemY = cy - size / 2 + 1.8
+        NSBezierPath(
+            roundedRect: NSRect(x: cx - stemW / 2, y: stemY, width: stemW, height: stemH),
+            xRadius: stemW / 2, yRadius: stemW / 2
+        ).fill()
+
+        // White "!" — dot
+        let dotSize: CGFloat = 1.2
+        NSBezierPath(
+            ovalIn: NSRect(x: cx - dotSize / 2, y: cy - size / 2 + 0.6, width: dotSize, height: dotSize)
+        ).fill()
+    }
+
+    private static func drawUpdateArrowBadge(in rect: NSRect) {
+        // Top-right corner: Peach Glow upward arrow (triangle head + dot-stem).
+        let size: CGFloat = 6.0
+        let margin: CGFloat = 0.5
+        let cx = rect.maxX - size / 2 - margin
+        let cy = rect.maxY - size / 2 - margin
+
+        peachGlow.setFill()
+
+        // Triangle head pointing up
         let arrow = NSBezierPath()
-        // Triangle head
-        arrow.move(to: NSPoint(x: cx, y: cy + size / 2)) // top
-        arrow.line(to: NSPoint(x: cx - size / 3, y: cy + 0.5)) // bottom-left
-        arrow.line(to: NSPoint(x: cx + size / 3, y: cy + 0.5)) // bottom-right
+        arrow.move(to: NSPoint(x: cx, y: cy + size / 2))
+        arrow.line(to: NSPoint(x: cx - size / 3, y: cy + 0.5))
+        arrow.line(to: NSPoint(x: cx + size / 3, y: cy + 0.5))
         arrow.close()
         arrow.fill()
 
-        // Stem
-        let stemWidth: CGFloat = 1.4
-        let stem = NSRect(x: cx - stemWidth / 2, y: cy - size / 3, width: stemWidth, height: size / 2)
-        NSBezierPath(roundedRect: stem, xRadius: stemWidth / 2, yRadius: stemWidth / 2).fill()
+        // Dot stem below arrow head
+        let stemW: CGFloat = 1.4
+        let stem = NSRect(x: cx - stemW / 2, y: cy - size / 3, width: stemW, height: size / 2)
+        NSBezierPath(roundedRect: stem, xRadius: stemW / 2, yRadius: stemW / 2).fill()
     }
 
-    // MARK: - Protocol Generation Animation (text lines appearing sequentially)
+    private static func drawErrorRing(in rect: NSRect) {
+        // Full red stroke ring around icon perimeter + red "!" centered.
+        let inset: CGFloat = 1.0
+        NSColor.systemRed.setStroke()
+        let ring = NSBezierPath(
+            ovalIn: NSRect(
+                x: rect.minX + inset,
+                y: rect.minY + inset,
+                width: rect.width - 2 * inset,
+                height: rect.height - 2 * inset
+            )
+        )
+        ring.lineWidth = 1.4
+        ring.stroke()
 
-    private static func drawProtocolAnimation(in rect: NSRect, frame: Int) {
-        let text = textLayout(in: rect)
-        let visibleLines = (frame % frameCount) + 1
+        NSColor.systemRed.setFill()
+        let cx = rect.midX
+        let cy = rect.midY
 
-        for i in 0 ..< min(visibleLines, barCount) {
-            let lineW = rect.width * lineWidths[i]
-            let lineY = text.top - CGFloat(i) * lineSpacing - lineHeight
-            NSBezierPath(
-                roundedRect: NSRect(x: text.left, y: lineY, width: lineW, height: lineHeight),
-                xRadius: lineHeight / 2,
-                yRadius: lineHeight / 2,
-            ).fill()
-        }
+        // "!" stem (above center)
+        let stemW: CGFloat = 1.3
+        let stemH: CGFloat = 4.0
+        let stemY = cy - 0.5
+        NSBezierPath(
+            roundedRect: NSRect(x: cx - stemW / 2, y: stemY, width: stemW, height: stemH),
+            xRadius: stemW / 2, yRadius: stemW / 2
+        ).fill()
+
+        // "!" dot (below stem)
+        let dotSize: CGFloat = 1.3
+        let dotY = cy - stemH - 0.5
+        NSBezierPath(
+            ovalIn: NSRect(x: cx - dotSize / 2, y: dotY, width: dotSize, height: dotSize)
+        ).fill()
+    }
+
+    private static func drawRecordOnlyDot(in rect: NSRect) {
+        // Bottom-LEFT corner: Peach Glow small filled circle (record-only mode indicator).
+        let size: CGFloat = 5.0
+        let margin: CGFloat = 0.5
+        let cx = rect.minX + size / 2 + margin
+        let cy = rect.minY + size / 2 + margin
+        peachGlow.setFill()
+        NSBezierPath(
+            ovalIn: NSRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size)
+        ).fill()
     }
 }
 
