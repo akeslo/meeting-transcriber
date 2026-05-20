@@ -49,15 +49,26 @@ class BrowserTabDetector: MeetingDetecting {
     }
 
     func checkOnce() -> DetectedMeeting? {
-        let sites = websitesProvider().filter { $0.enabled }
-        guard !sites.isEmpty else { return nil }
+        let allSites = websitesProvider()
+        let sites = allSites.filter { $0.enabled }
+        let disabled = allSites.filter { !$0.enabled }.map { $0.name }
+
+        if sites.isEmpty {
+            if !disabled.isEmpty {
+                logger.info("browser_poll skipped — all sites disabled: \(disabled.joined(separator: ", "))")
+            }
+            return nil
+        }
 
         let tabs = tabURLProvider()
+        logger.info("browser_poll sites=\(sites.map { $0.name }.joined(separator: ",")) tabs=\(tabs.count)")
+
         var hitsThisRound: Set<UUID> = []
 
         for site in sites {
             for tab in tabs {
                 if tab.url.lowercased().contains(site.urlPattern.lowercased()) {
+                    logger.info("browser_match site=\(site.name) url=\(tab.url) browser=\(tab.processName) hits=\(self.consecutiveHits[site.id, default: 0] + 1)/\(self.confirmationCount)")
                     hitsThisRound.insert(site.id)
                     lastMatch[site.id] = (tab.processName, tab.pid)
                     consecutiveHits[site.id, default: 0] += 1
@@ -66,11 +77,16 @@ class BrowserTabDetector: MeetingDetecting {
             }
         }
 
+        if hitsThisRound.isEmpty {
+            logger.info("browser_poll no_match — patterns: \(sites.map { "\($0.name)=\($0.urlPattern)" }.joined(separator: ","))")
+        }
+
         for (id, hits) in consecutiveHits {
             if hits >= confirmationCount,
                hitsThisRound.contains(id),
                let site = sites.first(where: { $0.id == id }),
                let match = lastMatch[id] {
+                logger.info("browser_detected site=\(site.name) browser=\(match.processName)")
                 let pattern = AppMeetingPattern(
                     appName: site.name,
                     ownerNames: [match.processName],
@@ -127,9 +143,7 @@ class BrowserTabDetector: MeetingDetecting {
                 ? chromiumScript(for: browser.scriptAppName)
                 : safariScript(for: browser.scriptAppName)
             let urls = runAppleScript(script)
-            if !urls.isEmpty {
-                logger.debug("browser=\(browser.processName) tabs=\(urls.count)")
-            }
+            logger.info("browser_fetch browser=\(browser.processName) tabs=\(urls.count)")
             results.append(contentsOf: urls.map { TabInfo(processName: browser.processName, pid: pid, url: $0) })
         }
         return results
@@ -178,7 +192,7 @@ class BrowserTabDetector: MeetingDetecting {
         guard let script = NSAppleScript(source: source) else { return [] }
         let result = script.executeAndReturnError(&errorDict)
         if let err = errorDict {
-            logger.debug("AppleScript failed: \(err)")
+            logger.info("applescript_failed: \(err)")
             return []
         }
         return extractStrings(from: result)
