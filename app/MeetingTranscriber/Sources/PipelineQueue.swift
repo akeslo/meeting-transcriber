@@ -1,6 +1,7 @@
 // swiftlint:disable file_length
 import Foundation
 import os.log
+import SwiftData
 
 private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "PipelineQueue")
 
@@ -24,6 +25,10 @@ class PipelineQueue {
     /// nil disables JSONL logging. AppState injects a real instance for production;
     /// tests leave it nil unless they explicitly want to assert on the log.
     let recognitionStatsLog: RecognitionStatsLog?
+
+    /// Injected SwiftData context for persisting `RecordingSession` entries.
+    /// nil in tests and environments that don't yet wire up SwiftData.
+    var modelContext: ModelContext? = nil
 
     let completedJobLifetime: TimeInterval
 
@@ -200,14 +205,15 @@ class PipelineQueue {
     private func generateProtocolForExistingJob(jobID: UUID) async {
         guard let jobIndex = jobs.firstIndex(where: { $0.id == jobID }),
               let transcriptPath = jobs[jobIndex].transcriptPath,
-              let outputDir,
               let transcript = try? String(contentsOf: transcriptPath, encoding: .utf8)
         else { return }
+        // Derive session dir from the saved transcript path
+        let sessionDirForJob = transcriptPath.deletingLastPathComponent()
         await generateProtocol(
             jobID: jobID,
             transcript: transcript,
             title: jobs[jobIndex].meetingTitle,
-            protocolsDir: outputDir.appendingPathComponent("protocols"),
+            sessionDir: sessionDirForJob,
         )
         if let idx = jobs.firstIndex(where: { $0.id == jobID }),
            jobs[idx].state == .generatingProtocol {
@@ -879,44 +885,83 @@ class PipelineQueue {
                 }
             }
 
-            // --- Save Transcript & Audio (always) ---
-            let protocolsDir = outputDir.appendingPathComponent("protocols")
-            let txtPath = try ProtocolGenerator.saveTranscript(finalTranscript, title: title, dir: protocolsDir)
-            logger.info("[\(shortID, privacy: .public)] transcript_saved file=\(txtPath.lastPathComponent, privacy: .public)")
+            // --- Create per-session folder ---
+            let sessionStart = jobs.first(where: { $0.id == jobID })?.startedAt ?? Date()
+            let sessionDir = SessionFolder.sessionURL(root: outputDir, date: sessionStart, title: title)
+            let accessing = outputDir.startAccessingSecurityScopedResource()
+            defer { if accessing { outputDir.stopAccessingSecurityScopedResource() } }
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
 
+            // --- Save Transcript ---
+            let txtURL = sessionDir.appendingPathComponent(RecordingFileSuffix.transcript)
+            try finalTranscript.write(to: txtURL, atomically: true, encoding: .utf8)
+            logger.info("[\(shortID, privacy: .public)] transcript_saved path=\(txtURL.lastPathComponent, privacy: .public)")
             if let idx = jobs.firstIndex(where: { $0.id == jobID }) {
-                jobs[idx].transcriptPath = txtPath
+                jobs[idx].transcriptPath = txtURL
                 jobs[idx].namingSlug = slug
             }
 
-            let recordingsDir = outputDir.appendingPathComponent("recordings")
-            Self.copyAudioToOutput(
-                mixPath: mixPath, appPath: appPath, micPath: micPath,
-                title: title, outputDir: recordingsDir,
-            )
-
-            // --- Persist 16kHz audio for re-diarization (move instead of copy to avoid double I/O) ---
-            try? FileManager.default.moveItem(
-                at: workDir.appendingPathComponent("mix_16k.wav"),
-                to: recordingsDir.appendingPathComponent("\(slug)_16k.wav"),
-            )
-
-            if isDualSource {
-                for (name, suffix) in [("app_16k.wav", "_app_16k.wav"), ("mic_16k.wav", "_mic_16k.wav")] {
-                    try? FileManager.default.moveItem(
-                        at: workDir.appendingPathComponent(name),
-                        to: recordingsDir.appendingPathComponent("\(slug)\(suffix)"),
-                    )
+            // --- Move audio to session folder ---
+            var audioFiles: [String] = []
+            let fm = FileManager.default
+            for (srcPath, destName) in [
+                (mixPath, RecordingFileSuffix.mix),
+                (appPath, RecordingFileSuffix.app),
+                (micPath, RecordingFileSuffix.mic),
+            ].compactMap({ pair -> (URL, String)? in
+                guard let src = pair.0 else { return nil }
+                return (src, pair.1)
+            }) {
+                let dest = sessionDir.appendingPathComponent(destName)
+                do {
+                    if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
+                    try fm.moveItem(at: srcPath, to: dest)
+                    audioFiles.append(destName)
+                    logger.info("[\(shortID, privacy: .public)] audio_moved dest=\(destName, privacy: .public)")
+                } catch {
+                    logger.warning("[\(shortID, privacy: .public)] audio_move_failed dest=\(destName, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 }
+            }
+
+            // --- Move 16kHz audio for potential re-diarization ---
+            for (srcName, destName) in [
+                ("mix_16k.wav", "audio_mix_16k.wav"),
+                ("app_16k.wav", "audio_app_16k.wav"),
+                ("mic_16k.wav", "audio_mic_16k.wav"),
+            ] {
+                try? fm.moveItem(
+                    at: workDir.appendingPathComponent(srcName),
+                    to: sessionDir.appendingPathComponent(destName),
+                )
             }
 
             // --- Persist transcript segments for late re-assignment ---
             if let cachedSegments {
-                let segPath = recordingsDir.appendingPathComponent("\(slug)_segments.json")
+                let segPath = sessionDir.appendingPathComponent("segments.json")
                 if let data = try? JSONEncoder().encode(cachedSegments) {
                     try? data.write(to: segPath, options: .atomic)
                 }
             }
+
+            // --- Write meta.json ---
+            let sessionMeta = SessionMeta(
+                title: title,
+                appName: jobs.first(where: { $0.id == jobID })?.appName ?? "",
+                startedAt: sessionStart,
+                stoppedAt: Date(),
+                participants: jobs.first(where: { $0.id == jobID })?.participants ?? [],
+                micDelaySeconds: 0,
+                engine: "unknown",
+                diarizerMode: "unknown",
+                files: SessionMeta.FileRefs(
+                    app: audioFiles.contains(RecordingFileSuffix.app) ? RecordingFileSuffix.app : nil,
+                    mic: audioFiles.contains(RecordingFileSuffix.mic) ? RecordingFileSuffix.mic : nil,
+                    mix: audioFiles.contains(RecordingFileSuffix.mix) ? RecordingFileSuffix.mix : nil,
+                    transcript: RecordingFileSuffix.transcript,
+                    protocol_: nil
+                )
+            )
+            try? sessionMeta.write(to: sessionDir)
 
             // --- Protocol Generation (optional) ---
             // Skip when naming is pending — protocol will be generated on
@@ -926,7 +971,7 @@ class PipelineQueue {
             if speakerNamingDataByJob[jobID] == nil {
                 await generateProtocol(
                     jobID: jobID, transcript: finalTranscript, title: title,
-                    protocolsDir: protocolsDir,
+                    sessionDir: sessionDir,
                 )
             }
 
@@ -940,6 +985,14 @@ class PipelineQueue {
                 NotificationCenter.default.post(name: .showSpeakerNaming, object: nil)
             } else {
                 updateJobState(id: jobID, to: .done)
+                persistRecordingSession(
+                    jobID: jobID,
+                    sessionDir: sessionDir,
+                    outputDir: outputDir,
+                    audioFiles: audioFiles,
+                    status: SessionStatus.done,
+                    engine: "unknown"
+                )
             }
         } catch is CancellationError {
             stopElapsedTimer()
@@ -966,7 +1019,7 @@ class PipelineQueue {
     /// Used by: main pipeline (if no naming pending), reapplySpeakerNames
     /// (after confirm), skipped/stale paths (with current auto-names).
     private func generateProtocol(
-        jobID: UUID, transcript: String, title: String, protocolsDir: URL,
+        jobID: UUID, transcript: String, title: String, sessionDir: URL,
     ) async {
         guard let protocolGeneratorFactory, let generator = protocolGeneratorFactory() else {
             return
@@ -982,9 +1035,8 @@ class PipelineQueue {
                 transcript: transcript, title: title, diarized: diarized,
             )
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
-            let mdPath = try ProtocolGenerator.saveProtocol(
-                fullMD, title: title, dir: protocolsDir,
-            )
+            let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
+            try fullMD.write(to: mdPath, atomically: true, encoding: .utf8)
             logger.info("[\(shortID, privacy: .public)] protocol_saved file=\(mdPath.lastPathComponent, privacy: .public)")
             if let idx = jobs.firstIndex(where: { $0.id == jobID }) {
                 jobs[idx].protocolPath = mdPath
@@ -995,6 +1047,45 @@ class PipelineQueue {
             addWarning(id: jobID, "Protocol generation failed — transcript saved")
             stopElapsedTimer()
         }
+    }
+
+    // MARK: - SwiftData persistence
+
+    /// Insert a `RecordingSession` into the injected SwiftData context.
+    /// No-op when `modelContext` is nil (tests, environments without SwiftData).
+    private func persistRecordingSession(
+        jobID: UUID,
+        sessionDir: URL,
+        outputDir: URL,
+        audioFiles: [String],
+        status: String,
+        engine: String
+    ) {
+        guard let ctx = modelContext else { return }
+        guard let job = jobs.first(where: { $0.id == jobID }) else { return }
+        let relPath: String
+        if sessionDir.path.hasPrefix(outputDir.path + "/") {
+            relPath = String(sessionDir.path.dropFirst(outputDir.path.count + 1))
+        } else {
+            relPath = sessionDir.lastPathComponent
+        }
+        let duration = job.startedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let session = RecordingSession(
+            title: job.meetingTitle,
+            appName: job.appName,
+            folderPath: relPath,
+            duration: duration,
+            participantNames: job.participants,
+            hasTranscript: job.transcriptPath != nil,
+            hasProtocol: job.protocolPath != nil,
+            audioFiles: audioFiles,
+            engine: engine,
+            status: status,
+            errorMessage: job.error,
+            warnings: job.warnings
+        )
+        ctx.insert(session)
+        try? ctx.save()
     }
 
     // MARK: - Late re-apply speaker names
@@ -1034,12 +1125,14 @@ class PipelineQueue {
                 }
                 try transcript.write(to: transcriptPath, atomically: true, encoding: .utf8)
 
-                if let outputDir {
+                // Derive session dir from the saved transcript path
+                let sessionDirForJob = jobs[jobIndex].transcriptPath?.deletingLastPathComponent()
+                if let sessionDirForJob {
                     await generateProtocol(
                         jobID: jobID,
                         transcript: transcript,
                         title: jobs[jobIndex].meetingTitle,
-                        protocolsDir: outputDir.appendingPathComponent("protocols"),
+                        sessionDir: sessionDirForJob,
                     )
                 }
             } catch {
@@ -1057,14 +1150,18 @@ class PipelineQueue {
     private func lateDiarization(jobID: UUID, speakerCount: Int) async {
         guard let namingData = speakerNamingDataByJob[jobID],
               let jobIndex = jobs.firstIndex(where: { $0.id == jobID }),
-              let diarizationFactory,
-              let slug = jobs[jobIndex].namingSlug,
-              let outputDir else {
+              let diarizationFactory else {
             logger.warning("Cannot re-diarize: missing data or configuration")
             return
         }
+        let slug = jobs[jobIndex].namingSlug
 
-        let recordingsDir = outputDir.appendingPathComponent("recordings")
+        // Derive session dir from the persisted transcript path
+        guard let sessionDirForLate = jobs[jobIndex].transcriptPath?.deletingLastPathComponent() else {
+            logger.warning("Cannot re-diarize: no transcript path to derive session dir")
+            return
+        }
+
         let diarizeProcess = diarizationFactory()
         guard diarizeProcess.isAvailable else {
             logger.warning("Diarization not available for late re-run")
@@ -1079,8 +1176,8 @@ class PipelineQueue {
             let diarization: DiarizationResult
 
             if namingData.isDualSource {
-                let app16k = recordingsDir.appendingPathComponent("\(slug)_app_16k.wav")
-                let mic16k = recordingsDir.appendingPathComponent("\(slug)_mic_16k.wav")
+                let app16k = sessionDirForLate.appendingPathComponent("audio_app_16k.wav")
+                let mic16k = sessionDirForLate.appendingPathComponent("audio_mic_16k.wav")
                 async let appDiar = diarizeProcess.run(
                     audioPath: app16k, numSpeakers: speakerCount, meetingTitle: title,
                 )
@@ -1091,7 +1188,7 @@ class PipelineQueue {
                     appDiarization: appDiar, micDiarization: micDiar,
                 )
             } else {
-                let mix16k = recordingsDir.appendingPathComponent("\(slug)_16k.wav")
+                let mix16k = sessionDirForLate.appendingPathComponent("audio_mix_16k.wav")
                 diarization = try await diarizeProcess.run(
                     audioPath: mix16k, numSpeakers: speakerCount, meetingTitle: title,
                 )
@@ -1110,7 +1207,7 @@ class PipelineQueue {
 
             // Update disk + RAM
             speakerNamingDataByJob[jobID] = newNamingData
-            saveNamingData(newNamingData, slug: slug)
+            if let slug { saveNamingData(newNamingData, slug: slug) }
 
             // Show naming dialog again
             updateJobState(id: jobID, to: .speakerNamingPending)
@@ -1160,9 +1257,15 @@ class PipelineQueue {
 
     func saveNamingData(_ data: SpeakerNamingData, slug: String) {
         guard let outputDir else { return }
-        let recordingsDir = outputDir.appendingPathComponent("recordings")
-        try? FileManager.default.createDirectory(at: recordingsDir, withIntermediateDirectories: true)
-        let path = recordingsDir.appendingPathComponent("\(slug)_naming.json")
+        // Prefer writing inside the job's session folder; fall back to flat recordings/ for orphan jobs.
+        let namingDir: URL
+        if let sessionDir = jobs.first(where: { $0.id == data.jobID })?.transcriptPath?.deletingLastPathComponent() {
+            namingDir = sessionDir
+        } else {
+            namingDir = outputDir.appendingPathComponent("recordings")
+        }
+        try? FileManager.default.createDirectory(at: namingDir, withIntermediateDirectories: true)
+        let path = namingDir.appendingPathComponent("\(slug)_naming.json")
         do {
             // FluidAudio embeddings can contain NaN/Inf for short or silent
             // segments. Default JSON encoder rejects them — use the string
@@ -1185,21 +1288,38 @@ class PipelineQueue {
 
     func loadNamingData(slug: String) -> SpeakerNamingData? {
         guard let outputDir else { return nil }
-        let path = outputDir.appendingPathComponent("recordings/\(slug)_naming.json")
-        guard let json = try? Data(contentsOf: path) else { return nil }
+        // Try session folder first (new layout), then flat recordings/ (legacy / orphan recovery).
+        let candidatePaths: [URL] = [
+            // Session folder: derive from a matching job's transcript path
+            jobs.first(where: { $0.namingSlug == slug })?.transcriptPath?
+                .deletingLastPathComponent()
+                .appendingPathComponent("\(slug)_naming.json"),
+            // Legacy flat path
+            outputDir.appendingPathComponent("recordings/\(slug)_naming.json"),
+        ].compactMap(\.self)
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(
             positiveInfinity: "Infinity",
             negativeInfinity: "-Infinity",
             nan: "NaN",
         )
-        return try? decoder.decode(SpeakerNamingData.self, from: json)
+        for path in candidatePaths {
+            if let json = try? Data(contentsOf: path) {
+                return try? decoder.decode(SpeakerNamingData.self, from: json)
+            }
+        }
+        return nil
     }
 
     func deleteNamingData(slug: String?) {
         guard let slug, let outputDir else { return }
-        let path = outputDir.appendingPathComponent("recordings/\(slug)_naming.json")
-        try? FileManager.default.removeItem(at: path)
+        // Remove from session folder if found, then also try legacy flat path.
+        let sessionPath = jobs.first(where: { $0.namingSlug == slug })?.transcriptPath?
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(slug)_naming.json")
+        if let sessionPath { try? FileManager.default.removeItem(at: sessionPath) }
+        let legacyPath = outputDir.appendingPathComponent("recordings/\(slug)_naming.json")
+        try? FileManager.default.removeItem(at: legacyPath)
     }
 
     /// Remove all naming-related data for a job: RAM caches, disk JSON, and
@@ -1215,12 +1335,22 @@ class PipelineQueue {
 
     /// Delete 16kHz audio and segment sidecar files for a slug.
     func cleanupSidecarFiles(slug: String?) {
-        guard let slug, let outputDir else { return }
-        let recordingsDir = outputDir.appendingPathComponent("recordings")
-        let suffixes = ["_16k.wav", "_app_16k.wav", "_mic_16k.wav", "_segments.json"]
-        for suffix in suffixes {
-            let path = recordingsDir.appendingPathComponent("\(slug)\(suffix)")
-            try? FileManager.default.removeItem(at: path)
+        guard let slug else { return }
+        // New session-folder names
+        let sessionDir = jobs.first(where: { $0.namingSlug == slug })?.transcriptPath?.deletingLastPathComponent()
+        if let sessionDir {
+            let newNames = ["audio_mix_16k.wav", "audio_app_16k.wav", "audio_mic_16k.wav", "segments.json"]
+            for name in newNames {
+                try? FileManager.default.removeItem(at: sessionDir.appendingPathComponent(name))
+            }
+        }
+        // Legacy flat-recordings names (backward compat)
+        if let outputDir {
+            let recordingsDir = outputDir.appendingPathComponent("recordings")
+            let suffixes = ["_16k.wav", "_app_16k.wav", "_mic_16k.wav", "_segments.json"]
+            for suffix in suffixes {
+                try? FileManager.default.removeItem(at: recordingsDir.appendingPathComponent("\(slug)\(suffix)"))
+            }
         }
     }
 
