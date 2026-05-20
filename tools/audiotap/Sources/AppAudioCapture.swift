@@ -74,8 +74,9 @@ public class AppAudioCapture {
         self.debugLogging = debugLogging
     }
 
-    /// Translate PID to CoreAudio process AudioObjectID.
-    private func translatePID() throws -> AudioObjectID {
+    /// Translate PID to CoreAudio process AudioObjectID. Returns kAudioObjectUnknown if
+    /// the PID has no audio object (process never registered with CoreAudio).
+    static func translateAnyPID(_ pid: pid_t) -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -88,16 +89,52 @@ public class AppAudioCapture {
             AudioObjectID(kAudioObjectSystemObject), &address,
             UInt32(MemoryLayout<pid_t>.size), &mutablePid, &size, &objectID,
         )
-        guard status == noErr, objectID != kAudioObjectUnknown else {
+        guard status == noErr else { return AudioObjectID(kAudioObjectUnknown) }
+        return objectID
+    }
+
+    /// Translate primary PID. Throws if the primary PID can't be resolved.
+    private func translatePID() throws -> AudioObjectID {
+        let objectID = Self.translateAnyPID(pid)
+        guard objectID != kAudioObjectUnknown else {
             throw NSError(
-                domain: "audiotap", code: Int(status),
+                domain: "audiotap", code: -1,
                 userInfo: [
                     NSLocalizedDescriptionKey:
-                        "Failed to translate PID \(pid) to audio object (status: \(status))",
+                        "Failed to translate PID \(pid) to audio object",
                 ],
             )
         }
         return objectID
+    }
+
+    /// Enumerate descendant PIDs of `root` via `sysctl KERN_PROC_ALL`. Used to include
+    /// Chromium/Electron audio-service helpers in the tap — the audio-emitting subprocess
+    /// is a child of the main app PID, and CATapDescription does not follow children.
+    static func collectDescendantPIDs(of root: pid_t) -> [pid_t] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
+        var size = 0
+        if sysctl(&mib, 4, nil, &size, nil, 0) != 0 || size == 0 { return [] }
+        let stride = MemoryLayout<kinfo_proc>.stride
+        var procs = [kinfo_proc](repeating: kinfo_proc(), count: size / stride)
+        if sysctl(&mib, 4, &procs, &size, nil, 0) != 0 { return [] }
+        let count = size / stride
+        var childrenOf: [pid_t: [pid_t]] = [:]
+        for i in 0 ..< count {
+            let p = procs[i].kp_proc.p_pid
+            let pp = procs[i].kp_eproc.e_ppid
+            childrenOf[pp, default: []].append(p)
+        }
+        var result: [pid_t] = []
+        var queue: [pid_t] = [root]
+        while let cur = queue.first {
+            queue.removeFirst()
+            for k in childrenOf[cur] ?? [] {
+                result.append(k)
+                queue.append(k)
+            }
+        }
+        return result
     }
 
     public func start() throws {
@@ -263,8 +300,41 @@ public class AppAudioCapture {
             )
         }
 
-        // Create CATapDescription for the target process
-        let tap = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
+        // Diagnostic override: AUDIOTAP_SYSTEM_WIDE=1 taps every process on the system
+        // (excluding ourselves) instead of the target PID. Use this to confirm whether
+        // CATapDescription can reach the target's audio at all when per-process targeting
+        // returns silent buffers (Chromium/Electron audio service edge case).
+        let systemWide = ProcessInfo.processInfo.environment["AUDIOTAP_SYSTEM_WIDE"] == "1"
+
+        let tap: CATapDescription
+        if systemWide {
+            let ourselves = Self.translateAnyPID(getpid())
+            let excluded: [AudioObjectID] = ourselves == kAudioObjectUnknown ? [] : [ourselves]
+            logger.info("AUDIOTAP_SYSTEM_WIDE=1 — global tap excluding ourselves (\(excluded.count) PID(s) excluded)")
+            tap = CATapDescription(stereoGlobalTapButExcludeProcesses: excluded)
+        } else {
+            // Include audio-emitting descendant PIDs (Chromium/Electron audio service helper,
+            // etc.). Parent PIDs often emit zero frames because playback is in a child process.
+            var processObjects: [AudioObjectID] = [processObjectID]
+            let descendants = Self.collectDescendantPIDs(of: pid)
+            var includedChildren: [pid_t] = []
+            for child in descendants {
+                let obj = Self.translateAnyPID(child)
+                if obj != kAudioObjectUnknown, obj != processObjectID {
+                    processObjects.append(obj)
+                    includedChildren.append(child)
+                }
+            }
+            if !includedChildren.isEmpty {
+                logger.info("Including \(includedChildren.count) audio-emitting child PID(s) in tap")
+                if debugLogging {
+                    logger.info(
+                        "[debug] Child PIDs included: \(includedChildren, privacy: .public)",
+                    )
+                }
+            }
+            tap = CATapDescription(stereoMixdownOfProcesses: processObjects)
+        }
         tap.uuid = UUID()
         tap.name = "MeetingTranscriber-tap"
         tap.isPrivate = true
