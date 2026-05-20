@@ -74,16 +74,14 @@ struct MeetingTranscriberApp: App {
                 status: appState.currentStatus,
                 isWatching: appState.isWatching,
                 isModelReady: appState.isModelReady,
-                pipelineQueue: appState.pipelineQueue,
                 updateChecker: appState.updateChecker,
                 onStartStop: appState.toggleWatching,
                 onRecordApp: { bringWindowToFront(id: "record-app") },
                 onStopManualRecording: appState.watchLoop?.isManualRecording == true ? {
                     appState.stopManualRecording()
                 } : nil,
-                onOpenLastProtocol: openLastProtocol,
-                onOpenProtocol: { url in NSWorkspace.shared.open(url) },
-                onOpenProtocolsFolder: openProtocolsFolder,
+                onOpenOutputFolder: openOutputFolder,
+                onOpenDashboard: openDashboard,
                 onOpenSettings: {
                     bringWindowToFront(id: "settings")
                 },
@@ -91,7 +89,6 @@ struct MeetingTranscriberApp: App {
                     bringWindowToFront(id: "speaker-naming")
                 },
                 onProcessFiles: processAudioFiles,
-                onDismissJob: { id in appState.pipelineQueue.removeJob(id: id) },
                 onQuit: quit,
             )
         } label: { // swiftlint:disable:this closure_body_length
@@ -287,13 +284,6 @@ struct MeetingTranscriberApp: App {
         appState.enqueueFiles(panel.urls)
     }
 
-    private func openLastProtocol() {
-        if let job = appState.pipelineQueue.completedJobs.last,
-           let path = job.protocolPath ?? job.transcriptPath {
-            NSWorkspace.shared.open(path)
-        }
-    }
-
     private func bringWindowToFront(id: String) {
         openWindow(id: id)
         NSApp.activate(ignoringOtherApps: true)
@@ -311,12 +301,17 @@ struct MeetingTranscriberApp: App {
         }
     }
 
-    private func openProtocolsFolder() {
-        let protocols = appState.settings.effectiveOutputDir
-        let accessing = protocols.startAccessingSecurityScopedResource()
-        defer { if accessing { protocols.stopAccessingSecurityScopedResource() } }
-        try? FileManager.default.createDirectory(at: protocols, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(protocols)
+    private func openOutputFolder() {
+        let dir = appState.settings.effectiveOutputDir
+        let accessing = dir.startAccessingSecurityScopedResource()
+        defer { if accessing { dir.stopAccessingSecurityScopedResource() } }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(dir)
+    }
+
+    private func openDashboard() {
+        // Phase 3 will open the dashboard window. For now, open the output folder.
+        openOutputFolder()
     }
 
     private func quit() {
