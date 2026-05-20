@@ -101,9 +101,10 @@ struct TranscriptionSettingsView: View {
                 .foregroundStyle(.secondary)
 
         case .loading:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Loading model...")
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                Text("Loading model…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -126,9 +127,10 @@ struct TranscriptionSettingsView: View {
             }
 
         case .prewarming, .prewarmed, .downloaded:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Preparing model...")
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                Text("Preparing model…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
