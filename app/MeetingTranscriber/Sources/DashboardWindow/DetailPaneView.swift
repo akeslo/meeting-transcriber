@@ -155,12 +155,12 @@ struct DetailPaneView: View {
 
     private func openTranscript(for session: RecordingSession) {
         let folder = URL(fileURLWithPath: session.folderPath)
-        NSWorkspace.shared.open(folder.appendingPathComponent("transcript.md"))
+        NSWorkspace.shared.open(folder.appendingPathComponent(RecordingFileSuffix.transcript))
     }
 
     private func openProtocol(for session: RecordingSession) {
         let folder = URL(fileURLWithPath: session.folderPath)
-        NSWorkspace.shared.open(folder.appendingPathComponent("protocol.md"))
+        NSWorkspace.shared.open(folder.appendingPathComponent(RecordingFileSuffix.protocol_))
     }
 
     private func revealInFinder(for session: RecordingSession) {

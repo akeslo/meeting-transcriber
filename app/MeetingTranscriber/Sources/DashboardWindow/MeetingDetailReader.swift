@@ -52,7 +52,7 @@ struct MeetingDetailReader: View {
             playbackBar
         }
         .task {
-            loadContent()
+            await loadContent()
             loadAudio()
         }
         .onReceive(playbackTimer) { _ in
@@ -62,6 +62,11 @@ struct MeetingDetailReader: View {
                 isPlaying = false
             }
             autoScrollToCurrentSegment()
+        }
+        .onDisappear {
+            player?.stop()
+            player = nil
+            isPlaying = false
         }
     }
 
@@ -229,14 +234,21 @@ struct MeetingDetailReader: View {
 
     // MARK: - Helpers
 
-    private func loadContent() {
+    private func loadContent() async {
         let folder = URL(fileURLWithPath: session.folderPath)
         let transcriptURL = folder.appendingPathComponent(RecordingFileSuffix.transcript)
-        if let raw = try? String(contentsOf: transcriptURL, encoding: .utf8) {
-            segments = TranscriptParser.parse(markdown: raw)
+        let protocolURL   = folder.appendingPathComponent(RecordingFileSuffix.protocol_)
+
+        let (rawTranscript, rawProtocol) = await Task.detached(priority: .userInitiated) {
+            let t = try? String(contentsOf: transcriptURL, encoding: .utf8)
+            let p = try? String(contentsOf: protocolURL, encoding: .utf8)
+            return (t, p)
+        }.value
+
+        if let rawTranscript {
+            segments = TranscriptParser.parse(markdown: rawTranscript)
         }
-        let protocolURL = folder.appendingPathComponent(RecordingFileSuffix.protocol_)
-        protocolContent = (try? String(contentsOf: protocolURL, encoding: .utf8)) ?? ""
+        protocolContent = rawProtocol ?? ""
     }
 
     private func loadAudio() {
