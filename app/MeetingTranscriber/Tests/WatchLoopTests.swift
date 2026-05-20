@@ -350,35 +350,39 @@ final class WatchLoopTests: XCTestCase {
 
         XCTAssertTrue(queue.jobs.isEmpty, "record-only must not enqueue a pipeline job")
 
-        let sidecarURL = destDir.appendingPathComponent("20260503_120000_meta.json")
+        // Files land in destDir/recordings/<session-folder>/; discover it dynamically.
+        let recordingsDir = destDir.appendingPathComponent("recordings", isDirectory: true)
+        let sessionEntries = try FileManager.default.contentsOfDirectory(
+            at: recordingsDir, includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(sessionEntries.count, 1, "exactly one session folder should be created")
+        let sessionDir = sessionEntries[0]
+
+        let metaURL = sessionDir.appendingPathComponent("meta.json")
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: sidecarURL.path),
-            "sidecar should be written into the record-only output directory",
+            FileManager.default.fileExists(atPath: metaURL.path),
+            "meta.json should be written inside the session folder",
         )
         XCTAssertTrue(
             FileManager.default.fileExists(
-                atPath: destDir.appendingPathComponent("20260503_120000_mix.wav").path,
+                atPath: sessionDir.appendingPathComponent("20260503_120000_mix.wav").path,
             ),
-            "mix WAV should be moved into the record-only output directory",
+            "mix WAV should be moved into the session folder",
         )
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: mixURL.path),
             "original mix WAV should be moved (not copied) out of the recorder's transient dir",
         )
 
-        let data = try Data(contentsOf: sidecarURL)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let sidecar = try decoder.decode(RecordingSidecar.self, from: data)
-
-        XCTAssertEqual(sidecar.title, "Standup")
-        XCTAssertEqual(sidecar.appName, "Microsoft Teams")
-        XCTAssertEqual(sidecar.files.mix, "20260503_120000_mix.wav")
-        XCTAssertEqual(sidecar.files.app, "20260503_120000_app.wav")
-        XCTAssertEqual(sidecar.files.mic, "20260503_120000_mic.wav")
+        let meta = try SessionMeta.read(from: sessionDir)
+        XCTAssertEqual(meta.title, "Standup")
+        XCTAssertEqual(meta.appName, "Microsoft Teams")
+        XCTAssertEqual(meta.files.mix, "20260503_120000_mix.wav")
+        XCTAssertEqual(meta.files.app, "20260503_120000_app.wav")
+        XCTAssertEqual(meta.files.mic, "20260503_120000_mic.wav")
         // startedAt must precede stoppedAt — we don't pin exact wall-clock
         // values because the manual-recording flow records its own startTime.
-        XCTAssertLessThanOrEqual(sidecar.startedAt, sidecar.stoppedAt)
+        XCTAssertLessThanOrEqual(meta.startedAt, meta.stoppedAt)
     }
 
     func test_recordOnly_sidecarWriteFailure_setsLastErrorAndNotifies() async throws {

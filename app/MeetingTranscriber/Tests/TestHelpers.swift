@@ -177,7 +177,7 @@ func makeSilentDetector() -> MeetingDetector {
 func makeTestWatchLoop(
     pipelineQueue: PipelineQueue? = nil,
     recordOnly: @escaping () -> Bool = { false },
-    recordOnlyOutputDir: @escaping () -> URL = { AppPaths.recordingsDir },
+    recordOnlyOutputDir: @escaping () -> URL = { AppPaths.transcriberRoot },
     notifier: any AppNotifying = SilentNotifier(),
 ) -> (WatchLoop, MockRecorder) {
     let recorder = MockRecorder()

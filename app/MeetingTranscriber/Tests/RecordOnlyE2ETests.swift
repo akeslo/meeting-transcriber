@@ -40,25 +40,30 @@ final class RecordOnlyE2ETests: XCTestCase { // swiftlint:disable:this balanced_
         XCTAssertTrue(queue.jobs.isEmpty, "record-only must not enqueue a pipeline job")
         XCTAssertTrue(notifier.calls.isEmpty, "no failure notification on the happy path")
 
-        let sidecarURL = outputDir.appendingPathComponent("\(Self.basename)_meta.json")
+        // Files land in outputDir/recordings/<session-folder>/; discover it dynamically.
+        let recordingsDir = outputDir.appendingPathComponent("recordings", isDirectory: true)
+        let sessionEntries = try FileManager.default.contentsOfDirectory(
+            at: recordingsDir, includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(sessionEntries.count, 1, "exactly one session folder should be created")
+        let sessionDir = sessionEntries[0]
+
         XCTAssertTrue(
-            FileManager.default.fileExists(atPath: sidecarURL.path),
-            "sidecar JSON must land in the output directory",
+            FileManager.default.fileExists(atPath: sessionDir.appendingPathComponent("meta.json").path),
+            "meta.json must land in the session folder",
         )
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let sidecar = try decoder.decode(RecordingSidecar.self, from: Data(contentsOf: sidecarURL))
-        XCTAssertEqual(sidecar.version, RecordingSidecar.currentVersion)
-        XCTAssertEqual(sidecar.files.mix, "\(Self.basename)_mix.wav")
-        XCTAssertEqual(sidecar.files.app, "\(Self.basename)_app.wav")
-        XCTAssertEqual(sidecar.files.mic, "\(Self.basename)_mic.wav")
-        XCTAssertLessThanOrEqual(sidecar.startedAt, sidecar.stoppedAt)
+        let meta = try SessionMeta.read(from: sessionDir)
+        XCTAssertEqual(meta.version, SessionMeta.currentVersion)
+        XCTAssertEqual(meta.files.mix, "\(Self.basename)_mix.wav")
+        XCTAssertEqual(meta.files.app, "\(Self.basename)_app.wav")
+        XCTAssertEqual(meta.files.mic, "\(Self.basename)_mic.wav")
+        XCTAssertLessThanOrEqual(meta.startedAt, meta.stoppedAt)
 
         // Round-trip the moved mix file through AVAudioFile to catch corruption
         // in the move step. Lower bound is loose but tight enough to detect
         // silent truncation — fixture is 17 s @ 16 kHz ≈ 272 k frames.
-        let movedMix = outputDir.appendingPathComponent("\(Self.basename)_mix.wav")
+        let movedMix = sessionDir.appendingPathComponent("\(Self.basename)_mix.wav")
         let avFile = try AVAudioFile(forReading: movedMix)
         XCTAssertEqual(Int(avFile.processingFormat.sampleRate), 16000)
         XCTAssertGreaterThan(avFile.length, 100_000)

@@ -100,7 +100,7 @@ class WatchLoop {
         verboseDiagnostics: @escaping () -> Bool = { false },
         recordOnly: @escaping () -> Bool = { false },
         recordOnlyDestination: @escaping () -> RecordOnlyDestination = {
-            .unscoped(AppPaths.recordingsDir)
+            .unscoped(AppPaths.transcriberRoot)
         },
         notifier: any AppNotifying = SilentNotifier(),
         nowProvider: @escaping () -> Date = Date.init,
@@ -434,41 +434,46 @@ class WatchLoop {
         let stoppedAt = Date()
         let startedAt = wallClockDate(forUptime: recording.recordingStart, now: stoppedAt)
 
-        let mixName = recording.mixPath.lastPathComponent
-        let basename = RecordingFileSuffix.stripSuffix(from: mixName)?.stem
-            ?? recording.mixPath.deletingPathExtension().lastPathComponent
-
         do {
             let destination = recordOnlyDestination()
             // start/stopAccessingSecurityScopedResource MUST be called on the
             // URL that resolved from the bookmark (App Store sandboxed build,
             // or any custom Output Folder pick) — calling it on a child path
-            // silently fails. We then write into the `recordings/` subfolder
-            // beneath that scope.
+            // silently fails. SessionFolder.sessionURL appends recordings/<name>
+            // under that scope automatically.
             let accessing = destination.scope.startAccessingSecurityScopedResource()
             defer { if accessing { destination.scope.stopAccessingSecurityScopedResource() } }
 
-            let destDir = destination.writeDir
-            try FileManager.default.createDirectory(
-                at: destDir, withIntermediateDirectories: true,
+            let sessionDir = SessionFolder.sessionURL(
+                root: destination.scope,
+                date: startedAt,
+                title: title
             )
-            let movedMix = try Self.move(recording.mixPath, into: destDir)
-            let movedApp = try recording.appPath.map { try Self.move($0, into: destDir) }
-            let movedMic = try recording.micPath.map { try Self.move($0, into: destDir) }
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
 
-            let sidecar = RecordingSidecar(
+            let movedMix = try Self.move(recording.mixPath, into: sessionDir)
+            let movedApp = try recording.appPath.map { try Self.move($0, into: sessionDir) }
+            let movedMic = try recording.micPath.map { try Self.move($0, into: sessionDir) }
+
+            let meta = SessionMeta(
                 title: title,
                 appName: appName,
                 startedAt: startedAt,
                 stoppedAt: stoppedAt,
                 participants: participants,
                 micDelaySeconds: recording.micDelay,
-                mixFilename: movedMix.lastPathComponent,
-                appFilename: movedApp?.lastPathComponent,
-                micFilename: movedMic?.lastPathComponent,
+                engine: "record-only",
+                diarizerMode: "none",
+                files: SessionMeta.FileRefs(
+                    app: movedApp?.lastPathComponent,
+                    mic: movedMic?.lastPathComponent,
+                    mix: movedMix.lastPathComponent,
+                    transcript: nil,
+                    protocol_: nil
+                )
             )
-            try sidecar.write(toDirectory: destDir, basename: basename)
-            logger.info("Record-only: wrote sidecar + WAVs to \(destDir.path) for \(title)")
+            try meta.write(to: sessionDir)
+            logger.info("Record-only: wrote session folder \(sessionDir.lastPathComponent) for \(title)")
         } catch {
             logger.error("Record-only: \(error.localizedDescription)")
             update { next in
