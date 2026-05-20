@@ -238,13 +238,11 @@ final class MenuBarViewTests: XCTestCase {
         XCTAssertNoThrow(try body.find(text: "Idle"))
     }
 
-    func testMeetingAppAndPidShown() throws {
+    func testMeetingTitleShownWhenRecording() throws {
         let meeting = MeetingInfo(app: "Zoom", title: "Retro", pid: 456)
         let sut = makeView(status: makeStatus(state: .recording, meeting: meeting))
         let body = try sut.inspect()
-        let texts = body.findAll(ViewType.Text.self)
-        let found = texts.contains { (try? $0.string())?.contains("Zoom") == true }
-        XCTAssertTrue(found, "App name 'Zoom' should appear in meeting info")
+        XCTAssertNoThrow(try body.find(text: "Retro"), "Meeting title should appear in Zone 1")
     }
 
     // MARK: - Record App button
