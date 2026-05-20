@@ -307,9 +307,9 @@ final class AppSettings {
         customOutputDirBookmark = nil
     }
 
-    /// The effective output directory: custom choice or ~/Downloads/MeetingTranscriber/.
+    /// The effective output directory: custom choice or ~/Documents/Transcriber/.
     var effectiveOutputDir: URL {
-        customOutputDir ?? AppPaths.downloadsProtocolsDir
+        customOutputDir ?? AppPaths.transcriberRoot
     }
 
     // MARK: - Diagnostics
