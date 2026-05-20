@@ -51,6 +51,7 @@ struct PipelineJob: Identifiable, Codable {
     let micDelay: TimeInterval
     let participants: [String]
     let enqueuedAt: Date
+    var startedAt: Date?
     var state: JobState
     var error: String?
     var warnings: [String]
@@ -76,6 +77,7 @@ struct PipelineJob: Identifiable, Codable {
         self.micDelay = micDelay
         self.participants = participants
         self.enqueuedAt = Date()
+        self.startedAt = nil
         self.state = .waiting
         self.error = nil
         self.warnings = []

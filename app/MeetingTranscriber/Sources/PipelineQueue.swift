@@ -504,6 +504,9 @@ class PipelineQueue {
         do {
             // --- Transcription ---
             updateJobState(id: jobID, to: .transcribing)
+            if jobs[index].startedAt == nil {
+                jobs[index].startedAt = Date()
+            }
             startElapsedTimer()
             logger.info("[\(shortID, privacy: .public)] transcription_start title=\(title, privacy: .private)")
 
