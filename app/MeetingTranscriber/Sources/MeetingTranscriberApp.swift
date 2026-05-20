@@ -1,4 +1,5 @@
 import Combine
+import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -46,6 +47,11 @@ private struct AnimatedMenuBarIcon: View {
 @main
 struct MeetingTranscriberApp: App {
     @State private var appState = AppState(notifier: NotificationManager.shared)
+    private let modelContainer: ModelContainer = {
+        let config = ModelConfiguration(url: AppPaths.libraryStore)
+        // swiftlint:disable:next force_try
+        return try! ModelContainer(for: RecordingSession.self, configurations: config)
+    }()
     @Environment(\.openWindow)
     private var openWindow
 
@@ -81,7 +87,7 @@ struct MeetingTranscriberApp: App {
                     appState.stopManualRecording()
                 } : nil,
                 onOpenOutputFolder: openOutputFolder,
-                onOpenDashboard: openDashboard,
+                onOpenDashboard: { openWindow(id: "dashboard") },
                 onOpenSettings: {
                     bringWindowToFront(id: "settings")
                 },
@@ -205,6 +211,13 @@ struct MeetingTranscriberApp: App {
             )
         }
         .windowResizability(.contentSize)
+
+        WindowGroup(id: "dashboard") {
+            DashboardWindowContent(pipelineQueue: appState.pipelineQueue, settings: appState.settings)
+                .modelContainer(modelContainer)
+        }
+        .defaultSize(width: 1200, height: 700)
+        .defaultPosition(.center)
     }
 
     // MARK: - Speaker Naming Window
