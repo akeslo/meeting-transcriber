@@ -4,18 +4,15 @@ struct MenuBarView: View {
     let status: TranscriberStatus?
     let isWatching: Bool
     let isModelReady: Bool
-    let pipelineQueue: PipelineQueue
     var updateChecker: UpdateChecker?
     let onStartStop: () -> Void
     let onRecordApp: () -> Void
     let onStopManualRecording: (() -> Void)?
-    let onOpenLastProtocol: () -> Void
-    let onOpenProtocol: (URL) -> Void
-    let onOpenProtocolsFolder: () -> Void
+    let onOpenOutputFolder: () -> Void
+    let onOpenDashboard: () -> Void
     let onOpenSettings: () -> Void
     let onNameSpeakers: (() -> Void)?
     let onProcessFiles: () -> Void
-    let onDismissJob: (UUID) -> Void
     let onQuit: () -> Void
 
     private var state: TranscriberState {
@@ -23,47 +20,94 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        // Status header
-        VStack(alignment: .leading, spacing: 2) {
-            Label(state.label, systemImage: state.icon)
-                .font(.headline)
+        // ── Zone 1: Status ──────────────────────────────────────────────
+        zone1Status
 
+        // Model-not-ready warning sits between Zone 1 and Zone 2.
+        if !isModelReady { modelNotReadyWarning }
+
+        Divider()
+
+        // ── Zone 2: Actions ─────────────────────────────────────────────
+        zone2Actions
+
+        Divider()
+
+        // ── Zone 3: Quit ────────────────────────────────────────────────
+        Button {
+            onQuit()
+        } label: {
+            Text("Quit")
+        }
+        .keyboardShortcut("q")
+    }
+
+    // MARK: - Zone 1
+
+    @ViewBuilder
+    private var zone1Status: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            // Primary row: dot + state label + meeting title
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(statusDotColor)
+                    .frame(width: 7, height: 7)
+                HStack(spacing: 4) {
+                    Text(state.label)
+                        .font(.headline)
+                    if let title = status?.meeting?.title {
+                        Text("·")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text(title)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            // Secondary row: detail / elapsed
             if let detail = status?.detail, !detail.isEmpty {
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 12)
             }
         }
         .padding(.horizontal, 4)
 
-        // Meeting info
-        if let meeting = status?.meeting {
-            Divider()
-            VStack(alignment: .leading, spacing: 2) {
-                Text(meeting.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text("\(meeting.app) (PID \(meeting.pid))")
+        // userAction banner
+        if state == .waitingForSpeakerNames || state == .waitingForSpeakerCount {
+            if let onNameSpeakers {
+                HStack {
+                    Text("Speakers need names")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Name Now →") {
+                        onNameSpeakers()
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
             }
-            .padding(.horizontal, 4)
         }
 
-        // Error info
+        // Error detail
         if let error = status?.error, state == .error {
-            Divider()
             Text(error)
                 .font(.caption)
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
         }
+    }
 
-        if !isModelReady { modelNotReadyBanner }
+    // MARK: - Zone 2
 
-        Divider()
-
-        // Start/Stop Watching
+    @ViewBuilder
+    private var zone2Actions: some View {
+        // Start / Stop Watching
         Button {
             onStartStop()
         } label: {
@@ -76,6 +120,7 @@ struct MenuBarView: View {
         .keyboardShortcut("s")
         .disabled(!isModelReady && !isWatching)
 
+        // Record App / Stop Recording
         if let onStopManualRecording {
             Button {
                 onStopManualRecording()
@@ -93,15 +138,7 @@ struct MenuBarView: View {
             .disabled(!isModelReady)
         }
 
-        if let onNameSpeakers {
-            Button {
-                onNameSpeakers()
-            } label: {
-                Label("Name Speakers...", systemImage: "person.2.fill")
-            }
-            .keyboardShortcut("n")
-        }
-
+        // Process Audio/Video Files
         Button {
             onProcessFiles()
         } label: {
@@ -110,39 +147,23 @@ struct MenuBarView: View {
         .keyboardShortcut("p")
         .disabled(!isModelReady)
 
-        // Processing queue
-        if !pipelineQueue.jobs.isEmpty {
-            Divider()
-            Label("Processing", systemImage: "gearshape.2.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            ForEach(pipelineQueue.jobs) { job in
-                jobRow(job)
-            }
-        }
-
-        Divider()
-
-        // Open last protocol
-        if let protocolPath = status?.protocolPath {
-            Button {
-                onOpenLastProtocol()
-            } label: {
-                Label("Open Last Protocol", systemImage: "doc.text")
-            }
-            .keyboardShortcut("o")
-            .disabled(protocolPath.isEmpty)
-        }
-
+        // Open Output Folder
         Button {
-            onOpenProtocolsFolder()
+            onOpenOutputFolder()
         } label: {
             Label("Open Output Folder", systemImage: "folder")
         }
 
+        // Open Dashboard
+        Button {
+            onOpenDashboard()
+        } label: {
+            Label("Open Dashboard", systemImage: "chart.bar.doc.horizontal")
+        }
+        .keyboardShortcut("d")
+
+        // Update available (Peach Glow tint, inserted above Settings)
         if let update = updateChecker?.availableUpdate {
-            Divider()
             Button {
                 NSWorkspace.shared.open(update.dmgURL ?? update.htmlURL)
             } label: {
@@ -150,31 +171,23 @@ struct MenuBarView: View {
                     "Update Available: \(update.tagName)",
                     systemImage: "arrow.down.circle.fill",
                 )
+                .foregroundStyle(Color(nsColor: MenuBarIcon.peachGlow))
             }
         }
 
-        Divider()
-
+        // Settings
         Button {
             onOpenSettings()
         } label: {
             Label("Settings...", systemImage: "gear")
         }
         .keyboardShortcut(",")
-
-        Divider()
-
-        Button {
-            onQuit()
-        } label: {
-            Text("Quit")
-        }
-        .keyboardShortcut("q")
     }
 
+    // MARK: - Model-not-ready warning
+
     @ViewBuilder
-    private var modelNotReadyBanner: some View {
-        Divider()
+    private var modelNotReadyWarning: some View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
@@ -187,78 +200,20 @@ struct MenuBarView: View {
             }
         }
         .padding(.horizontal, 4)
+        .padding(.vertical, 2)
     }
 
     // MARK: - Helpers
 
-    private func jobRow(_ job: PipelineJob) -> some View {
-        HStack {
-            Circle()
-                .fill(jobColor(job))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading) {
-                Text(job.meetingTitle)
-                    .font(.caption)
-                jobStateLabel(job)
-            }
-            Spacer()
-            if job.state == .done, let path = job.protocolPath ?? job.transcriptPath {
-                Button("Open") { onOpenProtocol(path) }
-                    .font(.caption2)
-            }
-            if job.state == .speakerNamingPending {
-                Button("Name Speakers") { onNameSpeakers?() }
-                    .font(.caption2)
-            }
-            if job.state == .waiting || job.state == .transcribing
-                || job.state == .diarizing || job.state == .generatingProtocol {
-                Button("Cancel") { pipelineQueue.cancelJob(id: job.id) }
-                    .font(.caption2)
-            }
-            if job.state == .done || job.state == .error || job.state == .speakerNamingPending {
-                Button("Dismiss") { onDismissJob(job.id) }
-                    .font(.caption2)
-            }
-        }
-        .padding(.horizontal, 4)
-    }
-
-    private func jobStateLabel(_ job: PipelineJob) -> some View {
-        Group {
-            if [.transcribing, .diarizing, .generatingProtocol].contains(job.state) {
-                Text("\(job.state.label) \(formattedElapsed(pipelineQueue.activeJobElapsed))")
-                    .foregroundStyle(.secondary)
-            } else if job.state == .error, let msg = job.error {
-                Text(msg)
-                    .foregroundStyle(.red)
-            } else if job.state == .done, !job.warnings.isEmpty {
-                Text(job.warnings.joined(separator: "; "))
-                    .foregroundStyle(.orange)
-            } else {
-                Text(job.state.label)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .font(.caption2)
-    }
-
-    private func formattedElapsed(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        if total < 60 {
-            return "\(total)s"
-        }
-        return "\(total / 60):\(String(format: "%02d", total % 60))"
-    }
-
-    private func jobColor(_ job: PipelineJob) -> Color {
-        switch job.state {
-        case .waiting: .gray
-        case .transcribing: .blue
-        case .diarizing: .purple
-        case .generatingProtocol: .orange
-        case .speakerNamingPending: .purple
-        case .done: job.warnings.isEmpty ? .green : .yellow
-        case .error: .red
+    private var statusDotColor: Color {
+        switch state {
+        case .recording, .transcribing, .recordingDone, .generatingProtocol,
+             .waitingForSpeakerNames, .waitingForSpeakerCount, .protocolReady:
+            Color(nsColor: MenuBarIcon.peachGlow)
+        case .error:
+            .red
+        default:
+            .gray
         }
     }
 }
