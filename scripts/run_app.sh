@@ -6,13 +6,20 @@
 #   E2E driver (scripts/e2e-app.sh) which deploys the bundle to a stable
 #   path and launches it itself; opening the in-tree bundle there would
 #   confuse macOS LaunchServices about which one to use for TCC.
+# --fast: Skip the .build wipe and rely on incremental swift build. Faster
+#   iteration; combine with the dev keychain cert (see setup-self-hosted-runner.sh)
+#   to keep TCC permissions persistent across rebuilds — TCC keys by cert
+#   leaf SHA-1 for self-signed certs, so the cdhash can change freely without
+#   re-prompting Mic / Screen Recording grants.
 
 set -euo pipefail
 
 BUILD_ONLY=false
+FAST=false
 for arg in "$@"; do
     case "$arg" in
         --build-only) BUILD_ONLY=true ;;
+        --fast) FAST=true ;;
         *) echo "Unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
@@ -36,9 +43,13 @@ if pgrep -x "MeetingTranscriber" > /dev/null 2>&1; then
     sleep 1
 fi
 
-# Clean stale build artifacts
-echo "Cleaning build artifacts..."
-rm -rf "$SPM_DIR/.build"
+# Clean stale build artifacts (skipped in --fast mode for incremental rebuilds)
+if [ "$FAST" = true ]; then
+    echo "Fast mode — skipping .build wipe (incremental rebuild)"
+else
+    echo "Cleaning build artifacts..."
+    rm -rf "$SPM_DIR/.build"
+fi
 
 echo "Building Meeting Transcriber app..."
 cd "$SPM_DIR"
@@ -61,12 +72,23 @@ GIT_HASH=$(git -C "$TRANSCRIBER_ROOT" rev-parse --short HEAD 2>/dev/null || echo
 
 cp "$BUILD_BINARY" "$APP_BINARY"
 
-# Code-sign so macOS keeps Screen Recording permission across rebuilds.
-# Uses SHA-1 hash to avoid "ambiguous identity" errors with duplicate names.
-SIGN_HASH=$(security find-identity -v -p codesigning | head -1 | awk '{print $2}')
+# Code-sign so macOS keeps Screen Recording / Mic permissions across rebuilds.
+# Prefer the dev self-signed cert created by setup-self-hosted-runner.sh —
+# TCC keys by cert leaf SHA-1 for self-signed certs, so the cdhash can change
+# on every rebuild without re-prompting permission grants.
+DEV_CERT_NAME="MeetingTranscriberDevSelfHosted"
+SIGN_HASH=$(security find-identity -v -p codesigning | grep "$DEV_CERT_NAME" | head -1 | awk '{print $2}')
+if [ -z "$SIGN_HASH" ]; then
+    SIGN_HASH=$(security find-identity -v -p codesigning | head -1 | awk '{print $2}')
+fi
 if [ -n "$SIGN_HASH" ]; then
     codesign --force --sign "$SIGN_HASH" "$APP_BUNDLE" 2>/dev/null && \
         echo "  Signed with: $SIGN_HASH"
+else
+    echo "  WARNING: no codesigning identity found — signing ad-hoc."
+    echo "  macOS TCC will re-prompt Mic / Screen Recording on every rebuild."
+    echo "  Run ./scripts/setup-self-hosted-runner.sh once to create a stable dev cert."
+    codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
 fi
 
 if [ "$BUILD_ONLY" = true ]; then
