@@ -29,7 +29,17 @@ APP_MACOS="$APP_BUNDLE/Contents/MacOS"
 APP_BINARY="$APP_MACOS/MeetingTranscriber"
 INFO_PLIST="$SPM_DIR/Sources/Info.plist"
 
-# Always rebuild to pick up code changes
+# Kill any running instance
+if pgrep -x "MeetingTranscriber" > /dev/null 2>&1; then
+    echo "Killing existing MeetingTranscriber instance..."
+    pkill -x "MeetingTranscriber" || true
+    sleep 1
+fi
+
+# Clean stale build artifacts
+echo "Cleaning build artifacts..."
+rm -rf "$SPM_DIR/.build"
+
 echo "Building Meeting Transcriber app..."
 cd "$SPM_DIR"
 swift build -c release
