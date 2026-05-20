@@ -444,11 +444,11 @@ class WatchLoop {
             let accessing = destination.scope.startAccessingSecurityScopedResource()
             defer { if accessing { destination.scope.stopAccessingSecurityScopedResource() } }
 
-            let sessionDir = SessionFolder.sessionURL(
-                root: destination.scope,
-                date: startedAt,
-                title: title
-            )
+            // Use destination.writeDir (= scope/recordings/) as the parent so
+            // the session folder lands at <writeDir>/<session-name>, consistent
+            // with RecordOnlyDestination's documented contract.
+            let sessionDir = destination.writeDir
+                .appendingPathComponent(SessionFolder.folderName(date: startedAt, title: title))
             try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
 
             let movedMix = try Self.move(recording.mixPath, into: sessionDir)
