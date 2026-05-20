@@ -361,7 +361,13 @@ final class AppState { // swiftlint:disable:this type_body_length
                 syncLanguageSettings()
                 pipelineQueue = makePipelineQueue()
 
-                let detector: any MeetingDetecting = PowerAssertionDetector()
+                let browserDetector = BrowserTabDetector(
+                    websitesProvider: { [settings] in settings.watchedWebsites },
+                )
+                let detector: any MeetingDetecting = CompositeDetector([
+                    PowerAssertionDetector(),
+                    browserDetector,
+                ])
 
                 let loop = WatchLoop(
                     detector: detector,

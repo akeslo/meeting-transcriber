@@ -5,6 +5,9 @@ struct GeneralSettingsView: View {
     @Bindable var settings: AppSettings
     var updateChecker: UpdateChecker?
 
+    @State private var showAddWebsite = false
+    @State private var editingWebsite: WatchedWebsite?
+
     var body: some View {
         // swiftlint:disable:next closure_body_length
         Form {
@@ -19,6 +22,8 @@ struct GeneralSettingsView: View {
             Section("Apps to Watch") {
                 Toggle("Zoom", isOn: $settings.watchZoom)
             }
+
+            watchedWebsitesSection
 
             Section("Detection") {
                 HStack {
@@ -49,6 +54,34 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var watchedWebsitesSection: some View {
+        Section("Watched Websites") {
+            ForEach($settings.watchedWebsites) { $site in
+                WatchedWebsiteRow(site: $site) {
+                    settings.watchedWebsites.removeAll { $0.id == site.id }
+                } onEdit: {
+                    editingWebsite = site
+                }
+            }
+            Button("Add Website") { showAddWebsite = true }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+        }
+        .sheet(isPresented: $showAddWebsite) {
+            WebsiteEditSheet(website: nil) { site in
+                settings.watchedWebsites.append(site)
+            }
+        }
+        .sheet(item: $editingWebsite) { site in
+            WebsiteEditSheet(website: site) { updated in
+                if let i = settings.watchedWebsites.firstIndex(where: { $0.id == updated.id }) {
+                    settings.watchedWebsites[i] = updated
+                }
+            }
+        }
     }
 
     private var recordOnlyBanner: some View {
@@ -131,5 +164,91 @@ struct GeneralSettingsView: View {
                 }
             }
         }
+    }
+}
+
+struct WatchedWebsiteRow: View {
+    @Binding var site: WatchedWebsite
+    let onDelete: () -> Void
+    let onEdit: () -> Void
+
+    var body: some View {
+        HStack {
+            Toggle(isOn: $site.enabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(site.name)
+                    Text(site.urlPattern)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Button { onEdit() } label: { Image(systemName: "pencil") }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            Button { onDelete() } label: { Image(systemName: "trash") }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+        }
+    }
+}
+
+struct WebsiteEditSheet: View {
+    let website: WatchedWebsite?
+    let onSave: (WatchedWebsite) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var urlPattern: String
+
+    init(website: WatchedWebsite?, onSave: @escaping (WatchedWebsite) -> Void) {
+        self.website = website
+        self.onSave = onSave
+        _name = State(initialValue: website?.name ?? "")
+        _urlPattern = State(initialValue: website?.urlPattern ?? "")
+    }
+
+    private var isValid: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty &&
+            !urlPattern.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(website == nil ? "Add Website" : "Edit Website")
+                .font(.headline)
+
+            Form {
+                TextField("Name", text: $name)
+                    .textFieldStyle(.roundedBorder)
+                TextField("URL or domain (e.g. youtube.com)", text: $urlPattern)
+                    .textFieldStyle(.roundedBorder)
+            }
+            .formStyle(.columns)
+
+            Text("Recording starts when any open tab URL contains this text.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    let saved = WatchedWebsite(
+                        id: website?.id ?? UUID(),
+                        name: name.trimmingCharacters(in: .whitespaces),
+                        urlPattern: urlPattern.trimmingCharacters(in: .whitespaces),
+                        enabled: website?.enabled ?? true,
+                    )
+                    onSave(saved)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isValid)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
     }
 }

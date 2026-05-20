@@ -342,6 +342,18 @@ final class AppSettings {
         didSet { defaults.set(includePreReleases, forKey: "includePreReleases") }
     }
 
+    // MARK: - Watched Websites
+
+    var watchedWebsites: [WatchedWebsite] {
+        didSet { saveWatchedWebsites() }
+    }
+
+    private func saveWatchedWebsites() {
+        if let data = try? JSONEncoder().encode(watchedWebsites) {
+            defaults.set(data, forKey: "watchedWebsites")
+        }
+    }
+
     // MARK: - Computed
 
     var watchApps: [String] {
@@ -355,6 +367,13 @@ final class AppSettings {
 
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
+
+        if let data = defaults.data(forKey: "watchedWebsites"),
+           let sites = try? JSONDecoder().decode([WatchedWebsite].self, from: data) {
+            watchedWebsites = sites
+        } else {
+            watchedWebsites = [WatchedWebsite(name: "YouTube", urlPattern: "youtube.com", enabled: false)]
+        }
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
         endGrace = defaults.object(forKey: "endGrace") as? Double ?? 15.0
