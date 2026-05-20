@@ -209,28 +209,29 @@ class PipelineQueue {
         else { return }
         // Derive session dir from the saved transcript path
         let sessionDirForJob = transcriptPath.deletingLastPathComponent()
+        guard let od = outputDir else { return }
         await generateProtocol(
             jobID: jobID,
             transcript: transcript,
             title: jobs[jobIndex].meetingTitle,
             sessionDir: sessionDirForJob,
+            outputDir: od,
         )
         if let idx = jobs.firstIndex(where: { $0.id == jobID }),
            jobs[idx].state == .generatingProtocol {
             updateJobState(id: jobID, to: .done)
-            if let sessionDirForJob = jobs.first(where: { $0.id == jobID })?.transcriptPath?.deletingLastPathComponent(),
-               let od = outputDir {
-                persistRecordingSession(
-                    jobID: jobID,
-                    sessionDir: sessionDirForJob,
-                    outputDir: od,
-                    audioFiles: [RecordingFileSuffix.mix, RecordingFileSuffix.app, RecordingFileSuffix.mic].filter { name in
-                        FileManager.default.fileExists(atPath: sessionDirForJob.appendingPathComponent(name).path)
-                    },
-                    status: SessionStatus.done,
-                    engine: "unknown"
-                )
-            }
+            // Use already-captured sessionDirForJob / od (captured before generateProtocol call above)
+            // so a concurrent removeJob triggered by updateJobState can't nil out the lookup.
+            persistRecordingSession(
+                jobID: jobID,
+                sessionDir: sessionDirForJob,
+                outputDir: od,
+                audioFiles: [RecordingFileSuffix.mix, RecordingFileSuffix.app, RecordingFileSuffix.mic].filter { name in
+                    FileManager.default.fileExists(atPath: sessionDirForJob.appendingPathComponent(name).path)
+                },
+                status: SessionStatus.done,
+                engine: "unknown"
+            )
         }
     }
 
@@ -620,6 +621,10 @@ class PipelineQueue {
                 return
             }
 
+            // Capture sessionStart once — used both inside the diarization loop (SpeakerNamingData audio path)
+            // and below for the final session folder, so both resolve to the same folder name.
+            let sessionStart = jobs.first(where: { $0.id == jobID })?.startedAt ?? Date()
+
             // --- Diarization (optional) ---
             var finalTranscript = transcript
             if diarizeEnabled, let diarizationFactory {
@@ -744,8 +749,7 @@ class PipelineQueue {
                             // Derive session dir for audio path (deterministic formula;
                             // the folder is created later in the pipeline but the URL is
                             // stable and used here for SpeakerNamingData).
-                            let earlySessionStart = jobs.first(where: { $0.id == jobID })?.startedAt ?? Date()
-                            let earlySessionDir = SessionFolder.sessionURL(root: outputDir, date: earlySessionStart, title: title)
+                            let earlySessionDir = SessionFolder.sessionURL(root: outputDir, date: sessionStart, title: title)
                             let persistedAudioPath = earlySessionDir.appendingPathComponent("audio_mix_16k.wav")
 
                             let namingData = SpeakerNamingData(
@@ -902,7 +906,6 @@ class PipelineQueue {
             }
 
             // --- Create per-session folder ---
-            let sessionStart = jobs.first(where: { $0.id == jobID })?.startedAt ?? Date()
             let sessionDir = SessionFolder.sessionURL(root: outputDir, date: sessionStart, title: title)
             let accessing = outputDir.startAccessingSecurityScopedResource()
             defer { if accessing { outputDir.stopAccessingSecurityScopedResource() } }
@@ -977,7 +980,11 @@ class PipelineQueue {
                     protocol_: nil
                 )
             )
-            try? sessionMeta.write(to: sessionDir)
+            do {
+                try sessionMeta.write(to: sessionDir)
+            } catch {
+                logger.warning("Failed to write meta.json: \(error)")
+            }
 
             // --- Protocol Generation (optional) ---
             // Skip when naming is pending — protocol will be generated on
@@ -987,7 +994,7 @@ class PipelineQueue {
             if speakerNamingDataByJob[jobID] == nil {
                 await generateProtocol(
                     jobID: jobID, transcript: finalTranscript, title: title,
-                    sessionDir: sessionDir,
+                    sessionDir: sessionDir, outputDir: outputDir,
                 )
             }
 
@@ -1035,7 +1042,7 @@ class PipelineQueue {
     /// Used by: main pipeline (if no naming pending), reapplySpeakerNames
     /// (after confirm), skipped/stale paths (with current auto-names).
     private func generateProtocol(
-        jobID: UUID, transcript: String, title: String, sessionDir: URL,
+        jobID: UUID, transcript: String, title: String, sessionDir: URL, outputDir: URL,
     ) async {
         guard let protocolGeneratorFactory, let generator = protocolGeneratorFactory() else {
             return
@@ -1052,9 +1059,8 @@ class PipelineQueue {
             )
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
-            let parentDir = sessionDir.deletingLastPathComponent()
-            let accessingForProtocol = parentDir.startAccessingSecurityScopedResource()
-            defer { if accessingForProtocol { parentDir.stopAccessingSecurityScopedResource() } }
+            let accessingForProtocol = outputDir.startAccessingSecurityScopedResource()
+            defer { if accessingForProtocol { outputDir.stopAccessingSecurityScopedResource() } }
             try fullMD.write(to: mdPath, atomically: true, encoding: .utf8)
             logger.info("[\(shortID, privacy: .public)] protocol_saved file=\(mdPath.lastPathComponent, privacy: .public)")
             if let idx = jobs.firstIndex(where: { $0.id == jobID }) {
@@ -1104,7 +1110,11 @@ class PipelineQueue {
             warnings: job.warnings
         )
         ctx.insert(session)
-        try? ctx.save()
+        do {
+            try ctx.save()
+        } catch {
+            logger.error("SwiftData save failed: \(error)")
+        }
     }
 
     // MARK: - Late re-apply speaker names
@@ -1117,6 +1127,10 @@ class PipelineQueue {
               let jobIndex = jobs.firstIndex(where: { $0.id == jobID }) else { return }
 
         let slug = jobs[jobIndex].namingSlug
+        // Capture before any async work or updateJobState — removeJob is scheduled after
+        // completedJobLifetime so a subsequent jobs.first(where:) lookup might return nil.
+        let sessionDirForReapply = jobs[jobIndex].transcriptPath?.deletingLastPathComponent()
+        let odForReapply = outputDir
 
         // Update speaker matcher DB
         let matcher = speakerMatcherFactory()
@@ -1144,14 +1158,14 @@ class PipelineQueue {
                 }
                 try transcript.write(to: transcriptPath, atomically: true, encoding: .utf8)
 
-                // Derive session dir from the saved transcript path
-                let sessionDirForJob = jobs[jobIndex].transcriptPath?.deletingLastPathComponent()
-                if let sessionDirForJob {
+                // Derive session dir from the saved transcript path (captured above before async work)
+                if let sessionDirForJob = sessionDirForReapply, let od = odForReapply {
                     await generateProtocol(
                         jobID: jobID,
                         transcript: transcript,
                         title: jobs[jobIndex].meetingTitle,
                         sessionDir: sessionDirForJob,
+                        outputDir: od,
                     )
                 }
             } catch {
@@ -1161,8 +1175,7 @@ class PipelineQueue {
 
         removeNamingData(jobID: jobID, slug: slug)
         updateJobState(id: jobID, to: .done)
-        if let sessionDirForJob = jobs.first(where: { $0.id == jobID })?.transcriptPath?.deletingLastPathComponent(),
-           let od = outputDir {
+        if let sessionDirForJob = sessionDirForReapply, let od = odForReapply {
             persistRecordingSession(
                 jobID: jobID,
                 sessionDir: sessionDirForJob,
