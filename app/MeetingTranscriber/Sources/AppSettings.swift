@@ -372,7 +372,7 @@ final class AppSettings {
            let sites = try? JSONDecoder().decode([WatchedWebsite].self, from: data) {
             watchedWebsites = sites
         } else {
-            watchedWebsites = [WatchedWebsite(name: "YouTube", urlPattern: "youtube.com", enabled: false)]
+            watchedWebsites = [WatchedWebsite(name: "YouTube", urlPattern: "https://www.youtube.com/watch?v=", enabled: false)]
         }
 
         pollInterval = defaults.object(forKey: "pollInterval") as? Double ?? 3.0
