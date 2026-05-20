@@ -32,7 +32,7 @@ final class MenuBarViewTests: XCTestCase {
     private func makeView(
         status: TranscriberStatus? = nil,
         isWatching: Bool = false,
-        pipelineQueue: PipelineQueue? = nil,
+        isModelReady: Bool = true,
         updateChecker: UpdateChecker? = nil,
         onNameSpeakers: (() -> Void)? = nil,
         onStopManualRecording: (() -> Void)? = nil,
@@ -40,18 +40,16 @@ final class MenuBarViewTests: XCTestCase {
         MenuBarView(
             status: status,
             isWatching: isWatching,
-            pipelineQueue: pipelineQueue ?? PipelineQueue(),
+            isModelReady: isModelReady,
             updateChecker: updateChecker,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: onStopManualRecording,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: onNameSpeakers,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
     }
@@ -105,13 +103,35 @@ final class MenuBarViewTests: XCTestCase {
         // swiftlint:disable:next trailing_closure
         let sut = makeView(status: makeStatus(state: .waitingForSpeakerNames), onNameSpeakers: {})
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Name Speakers..."))
+        XCTAssertNoThrow(try body.find(text: "Name Now →"))
     }
 
     func testNameSpeakersButtonHiddenWhenIdle() throws {
         let sut = makeView(status: makeStatus(state: .idle))
         let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(text: "Name Speakers..."))
+        XCTAssertThrowsError(try body.find(text: "Name Now →"))
+    }
+
+    func testNameSpeakersButtonCallsCallback() throws {
+        var called = false
+        let sut = MenuBarView(
+            status: makeStatus(state: .waitingForSpeakerNames),
+            isWatching: false,
+            isModelReady: true,
+            updateChecker: nil,
+            onStartStop: {},
+            onRecordApp: {},
+            onStopManualRecording: nil,
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
+            onOpenSettings: {},
+            onNameSpeakers: { called = true },
+            onProcessFiles: {},
+            onQuit: {},
+        )
+        let body = try sut.inspect()
+        try body.find(button: "Name Now →").tap()
+        XCTAssertTrue(called)
     }
 
     // MARK: - Detail text
@@ -128,32 +148,12 @@ final class MenuBarViewTests: XCTestCase {
         XCTAssertThrowsError(try body.find(text: "Checking Teams..."))
     }
 
-    // MARK: - Protocol link
-
-    func testOpenLastProtocolShownWhenPathPresent() throws {
-        let sut = makeView(status: makeStatus(state: .protocolReady, protocolPath: "/tmp/p.md"))
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Open Last Protocol"))
-    }
-
-    func testOpenLastProtocolHiddenWhenNoPath() throws {
-        let sut = makeView(status: makeStatus(state: .idle))
-        let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(text: "Open Last Protocol"))
-    }
-
     // MARK: - Static buttons always present
 
     func testSettingsButtonExists() throws {
         let sut = makeView(status: makeStatus())
         let body = try sut.inspect()
         XCTAssertNoThrow(try body.find(text: "Settings..."))
-    }
-
-    func testOpenProtocolsFolderButtonExists() throws {
-        let sut = makeView(status: makeStatus())
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Open Protocols Folder"))
     }
 
     func testQuitButtonExists() throws {
@@ -169,18 +169,16 @@ final class MenuBarViewTests: XCTestCase {
         let sut = MenuBarView(
             status: makeStatus(state: .idle),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: { called = true },
             onRecordApp: {},
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
         let body = try sut.inspect()
@@ -193,18 +191,16 @@ final class MenuBarViewTests: XCTestCase {
         let sut = MenuBarView(
             status: makeStatus(state: .idle),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: { called = true },
         )
         let body = try sut.inspect()
@@ -217,94 +213,20 @@ final class MenuBarViewTests: XCTestCase {
         let sut = MenuBarView(
             status: makeStatus(state: .idle),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: { called = true },
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
         let body = try sut.inspect()
         try body.find(button: "Settings...").tap()
-        XCTAssertTrue(called)
-    }
-
-    func testProtocolsFolderButtonCallsCallback() throws {
-        var called = false
-        let sut = MenuBarView(
-            status: makeStatus(state: .idle),
-            isWatching: false,
-            pipelineQueue: PipelineQueue(),
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: { called = true },
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        try body.find(button: "Open Protocols Folder").tap()
-        XCTAssertTrue(called)
-    }
-
-    func testOpenLastProtocolButtonCallsCallback() throws {
-        var called = false
-        let sut = MenuBarView(
-            status: makeStatus(state: .protocolReady, protocolPath: "/tmp/p.md"),
-            isWatching: false,
-            pipelineQueue: PipelineQueue(),
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: { called = true },
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        try body.find(button: "Open Last Protocol").tap()
-        XCTAssertTrue(called)
-    }
-
-    func testNameSpeakersButtonCallsCallback() throws {
-        var called = false
-        let sut = MenuBarView(
-            status: makeStatus(state: .waitingForSpeakerNames),
-            isWatching: false,
-            pipelineQueue: PipelineQueue(),
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: { called = true },
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        try body.find(button: "Name Speakers...").tap()
         XCTAssertTrue(called)
     }
 
@@ -323,215 +245,6 @@ final class MenuBarViewTests: XCTestCase {
         let texts = body.findAll(ViewType.Text.self)
         let found = texts.contains { (try? $0.string())?.contains("Zoom") == true }
         XCTAssertTrue(found, "App name 'Zoom' should appear in meeting info")
-    }
-
-    // MARK: - Processing section
-
-    func testProcessingSectionHiddenWhenNoJobs() throws {
-        let sut = makeView(status: makeStatus())
-        let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(text: "Processing"))
-    }
-
-    func testProcessingSectionShownWithActiveJob() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Standup",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil,
-            micPath: nil,
-            micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .transcribing)
-
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: queue,
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Processing"))
-        XCTAssertNoThrow(try body.find(text: "Standup"))
-        XCTAssertNoThrow(try body.find(text: "Transcribing... 0s"))
-    }
-
-    func testDismissButtonShownForCompletedJob() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Retro",
-            appName: "Zoom",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil,
-            micPath: nil,
-            micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .done)
-
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: queue,
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Dismiss"))
-    }
-
-    func testProcessFilesButtonCallsCallback() throws {
-        var called = false
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: PipelineQueue(),
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: { called = true },
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        try body.find(button: "Process Audio/Video Files...").tap()
-        XCTAssertTrue(called)
-    }
-
-    func testDismissButtonCallsCallbackWithJobID() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Standup",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil,
-            micPath: nil,
-            micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .done)
-
-        var dismissedID: UUID?
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: queue,
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { dismissedID = $0 },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        try body.find(button: "Dismiss").tap()
-        XCTAssertEqual(dismissedID, job.id)
-    }
-
-    func testDismissButtonShownForErrorJob() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Sprint",
-            appName: "Webex",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil,
-            micPath: nil,
-            micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .error, error: "Failed")
-
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: queue,
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Dismiss"))
-        XCTAssertNoThrow(try body.find(text: "Failed"))
-    }
-
-    func testWarningJobShowsWarningText() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Standup",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil,
-            micPath: nil,
-            micDelay: 0,
-        )
-        var warningJob = job
-        warningJob.warnings.append("Diarization failed — speakers not identified")
-        warningJob.state = .done
-        queue.enqueue(warningJob)
-
-        let sut = MenuBarView(
-            status: makeStatus(),
-            isWatching: false,
-            pipelineQueue: queue,
-            updateChecker: nil,
-            onStartStop: {},
-            onRecordApp: {},
-            onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
-            onOpenSettings: {},
-            onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
-            onQuit: {},
-        )
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Diarization failed — speakers not identified"))
     }
 
     // MARK: - Record App button
@@ -553,18 +266,16 @@ final class MenuBarViewTests: XCTestCase {
         let sut = MenuBarView(
             status: makeStatus(state: .idle),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: { called = true },
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
         let body = try sut.inspect()
@@ -592,18 +303,16 @@ final class MenuBarViewTests: XCTestCase {
         let sut = MenuBarView(
             status: makeStatus(state: .recording),
             isWatching: false,
-            pipelineQueue: PipelineQueue(),
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: { called = true },
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
         let body = try sut.inspect()
@@ -650,38 +359,26 @@ final class MenuBarViewTests: XCTestCase {
         XCTAssertNoThrow(try body.find(text: "Process Audio/Video Files..."))
     }
 
-    // MARK: - Error job display
-
-    func testErrorJobShowsErrorMessage() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Broken",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .error, error: "Transcription failed")
-
+    func testProcessFilesButtonCallsCallback() throws {
+        var called = false
         let sut = MenuBarView(
             status: makeStatus(),
             isWatching: false,
-            pipelineQueue: queue,
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: {},
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
-            onProcessFiles: {},
-            onDismissJob: { _ in },
+            onProcessFiles: { called = true },
             onQuit: {},
         )
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Transcription failed"))
+        try body.find(button: "Process Audio/Video Files...").tap()
+        XCTAssertTrue(called)
     }
 
     // MARK: - Record/Stop button mutual exclusion
@@ -701,70 +398,6 @@ final class MenuBarViewTests: XCTestCase {
         XCTAssertThrowsError(try body.find(text: "Record App..."))
     }
 
-    // MARK: - Job state labels
-
-    func testWaitingJobShowsWaitingLabel() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Standup",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job)
-
-        let sut = makeView(status: makeStatus(), pipelineQueue: queue)
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Waiting..."))
-    }
-
-    func testCancelButtonShownForWaitingJob() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Sprint",
-            appName: "Zoom",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job)
-
-        let sut = makeView(status: makeStatus(), pipelineQueue: queue)
-        let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(button: "Cancel"))
-    }
-
-    func testCancelButtonHiddenForDoneJob() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Sprint",
-            appName: "Zoom",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .done)
-
-        let sut = makeView(status: makeStatus(), pipelineQueue: queue)
-        let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(button: "Cancel"))
-    }
-
-    func testDoneJobWithoutPathsHidesOpenButton() throws {
-        let queue = PipelineQueue()
-        let job = PipelineJob(
-            meetingTitle: "Sprint",
-            appName: "Zoom",
-            mixPath: URL(fileURLWithPath: "/tmp/mix.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job)
-        queue.updateJobState(id: job.id, to: .done)
-
-        let sut = makeView(status: makeStatus(), pipelineQueue: queue)
-        let body = try sut.inspect()
-        XCTAssertThrowsError(try body.find(button: "Open"))
-    }
-
     // MARK: - All state labels shown
 
     func testAllTranscriberStateLabelsRendered() throws {
@@ -782,44 +415,98 @@ final class MenuBarViewTests: XCTestCase {
         }
     }
 
-    // MARK: - Multiple jobs
+    // MARK: - Open Output Folder + Dashboard
 
-    func testMultipleJobsRendered() throws {
-        let queue = PipelineQueue()
-        let job1 = PipelineJob(
-            meetingTitle: "Meeting 1",
-            appName: "Teams",
-            mixPath: URL(fileURLWithPath: "/tmp/mix1.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        let job2 = PipelineJob(
-            meetingTitle: "Meeting 2",
-            appName: "Zoom",
-            mixPath: URL(fileURLWithPath: "/tmp/mix2.wav"),
-            appPath: nil, micPath: nil, micDelay: 0,
-        )
-        queue.enqueue(job1)
-        queue.enqueue(job2)
+    func testOpenOutputFolderButtonExists() throws {
+        let sut = makeView(status: makeStatus())
+        let body = try sut.inspect()
+        XCTAssertNoThrow(try body.find(text: "Open Output Folder"))
+    }
 
+    func testOpenDashboardButtonExists() throws {
+        let sut = makeView(status: makeStatus())
+        let body = try sut.inspect()
+        XCTAssertNoThrow(try body.find(text: "Open Dashboard"))
+    }
+
+    func testOpenOutputFolderButtonCallsCallback() throws {
+        var called = false
         let sut = MenuBarView(
             status: makeStatus(),
             isWatching: false,
-            pipelineQueue: queue,
+            isModelReady: true,
             updateChecker: nil,
             onStartStop: {},
             onRecordApp: {},
             onStopManualRecording: nil,
-            onOpenLastProtocol: {},
-            onOpenProtocol: { _ in },
-            onOpenProtocolsFolder: {},
+            onOpenOutputFolder: { called = true },
+            onOpenDashboard: {},
             onOpenSettings: {},
             onNameSpeakers: nil,
             onProcessFiles: {},
-            onDismissJob: { _ in },
             onQuit: {},
         )
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Meeting 1"))
-        XCTAssertNoThrow(try body.find(text: "Meeting 2"))
+        try body.find(button: "Open Output Folder").tap()
+        XCTAssertTrue(called)
+    }
+
+    func testOpenDashboardButtonCallsCallback() throws {
+        var called = false
+        let sut = MenuBarView(
+            status: makeStatus(),
+            isWatching: false,
+            isModelReady: true,
+            updateChecker: nil,
+            onStartStop: {},
+            onRecordApp: {},
+            onStopManualRecording: nil,
+            onOpenOutputFolder: {},
+            onOpenDashboard: { called = true },
+            onOpenSettings: {},
+            onNameSpeakers: nil,
+            onProcessFiles: {},
+            onQuit: {},
+        )
+        let body = try sut.inspect()
+        try body.find(button: "Open Dashboard").tap()
+        XCTAssertTrue(called)
+    }
+
+    // MARK: - Model-not-ready warning
+
+    func testModelNotReadyWarningShownWhenNotReady() throws {
+        let sut = makeView(status: makeStatus(), isModelReady: false)
+        let body = try sut.inspect()
+        XCTAssertNoThrow(try body.find(text: "Model not loaded"))
+    }
+
+    func testModelNotReadyWarningHiddenWhenReady() throws {
+        let sut = makeView(status: makeStatus(), isModelReady: true)
+        let body = try sut.inspect()
+        XCTAssertThrowsError(try body.find(text: "Model not loaded"))
+    }
+
+    // MARK: - User-action banner
+
+    func testUserActionBannerShownWhenWaitingForSpeakerNames() throws {
+        // swiftlint:disable:next trailing_closure
+        let sut = makeView(status: makeStatus(state: .waitingForSpeakerNames), onNameSpeakers: {})
+        let body = try sut.inspect()
+        XCTAssertNoThrow(try body.find(text: "Speakers need names"))
+        XCTAssertNoThrow(try body.find(text: "Name Now →"))
+    }
+
+    func testUserActionBannerShownWhenWaitingForSpeakerCount() throws {
+        // swiftlint:disable:next trailing_closure
+        let sut = makeView(status: makeStatus(state: .waitingForSpeakerCount), onNameSpeakers: {})
+        let body = try sut.inspect()
+        XCTAssertNoThrow(try body.find(text: "Speakers need names"))
+    }
+
+    func testUserActionBannerHiddenWhenNoCallback() throws {
+        let sut = makeView(status: makeStatus(state: .waitingForSpeakerNames), onNameSpeakers: nil)
+        let body = try sut.inspect()
+        XCTAssertThrowsError(try body.find(text: "Speakers need names"))
     }
 }
