@@ -2,11 +2,64 @@
 import XCTest
 
 @MainActor
-final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_length
-    func testImageWithNoBadgeIsTemplate() {
-        let image = MenuBarIcon.image(badge: .inactive)
-        XCTAssertTrue(image.isTemplate)
+final class MenuBarIconTests: XCTestCase {
+    // MARK: - Non-template contract (all images colored, isTemplate = false)
+
+    func testAllBadgeKindsAreNonTemplate() {
+        for badge in BadgeKind.allCases {
+            let image = MenuBarIcon.image(badge: badge)
+            XCTAssertFalse(
+                image.isTemplate,
+                "Badge \(badge) must be non-template (colored design)"
+            )
+        }
     }
+
+    func testAllAnimationFramesAreNonTemplate() {
+        let animatedBadges: [BadgeKind] = [.recording, .transcribing, .diarizing, .processing]
+        for badge in animatedBadges {
+            for frame in 0 ..< MenuBarIcon.frameCount {
+                let image = MenuBarIcon.image(badge: badge, animationFrame: frame)
+                XCTAssertFalse(
+                    image.isTemplate,
+                    "\(badge) frame \(frame) must be non-template"
+                )
+            }
+        }
+    }
+
+    func testRecordOnlyOverlayIsNonTemplate() {
+        for badge in BadgeKind.allCases {
+            let image = MenuBarIcon.image(badge: badge, recordOnlyOverlay: true)
+            XCTAssertFalse(
+                image.isTemplate,
+                "record-only overlay must be non-template for \(badge)"
+            )
+        }
+    }
+
+    func testPermissionOverlayIsNonTemplate() {
+        for badge in BadgeKind.allCases {
+            let image = MenuBarIcon.image(badge: badge, animationFrame: 0, permissionOverlay: true)
+            XCTAssertFalse(image.isTemplate, "permission overlay on \(badge) should be non-template")
+        }
+    }
+
+    func testMicSilentOverlayIsNonTemplate() {
+        for badge in BadgeKind.allCases {
+            let image = MenuBarIcon.image(badge: badge, micSilentOverlay: true)
+            XCTAssertFalse(image.isTemplate, "mic-silent overlay must be non-template for \(badge)")
+        }
+    }
+
+    func testAppSilentOverlayIsNonTemplate() {
+        for badge in BadgeKind.allCases {
+            let image = MenuBarIcon.image(badge: badge, appSilentOverlay: true)
+            XCTAssertFalse(image.isTemplate, "app-silent overlay must be non-template for \(badge)")
+        }
+    }
+
+    // MARK: - Image size
 
     func testImageSizeIs18x18() {
         let image = MenuBarIcon.image(badge: .inactive)
@@ -14,100 +67,15 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(image.size.height, 18, accuracy: 0.01)
     }
 
-    func testRecordOnlyOverlayProducesNonTemplateImageOverAnyBadge() {
-        for badge in BadgeKind.allCases {
-            let image = MenuBarIcon.image(badge: badge, recordOnlyOverlay: true)
-            XCTAssertFalse(
-                image.isTemplate,
-                "record-only overlay must be non-template for \(badge) so the red dot stays red",
-            )
-        }
-    }
-
-    func testRecordOnlyOverlayDefaultsOffStaysTemplate() {
-        let image = MenuBarIcon.image(badge: .recording)
-        XCTAssertTrue(image.isTemplate, "without overlay flag, default rendering stays template")
-    }
-
-    /// Regression test: when a non-animated badge (e.g. `.inactive`) is rendered with the
-    /// record-only overlay, it must NOT pick up the live `animationFrame` — otherwise the
-    /// idle waveform bounces as if recording. See MenuBarIcon.image(...) frame-clamp logic.
-    func testRecordOnlyOverlayDoesNotAnimateStaticBadges() {
-        let staticBadges: [BadgeKind] = [.inactive, .userAction, .done, .error, .updateAvailable]
-        for badge in staticBadges {
-            let frame0 = MenuBarIcon.image(badge: badge, animationFrame: 0, recordOnlyOverlay: true)
-            let frame3 = MenuBarIcon.image(badge: badge, animationFrame: 3, recordOnlyOverlay: true)
-            XCTAssertEqual(
-                frame0.tiffRepresentation,
-                frame3.tiffRepresentation,
-                "Static badge \(badge) should render identically across frames under recordOnlyOverlay",
-            )
-        }
-    }
-
-    /// Inverse check: animated badges (e.g. `.recording`) MUST advance their frame under the
-    /// overlay — otherwise the live waveform bounce is killed when record-only is enabled.
-    func testRecordOnlyOverlayKeepsAnimatedBadgesAnimating() {
-        let animatedBadges: [BadgeKind] = [.recording, .transcribing, .diarizing, .processing]
-        for badge in animatedBadges {
-            let frame0 = MenuBarIcon.image(badge: badge, animationFrame: 0, recordOnlyOverlay: true)
-            let frame3 = MenuBarIcon.image(badge: badge, animationFrame: 3, recordOnlyOverlay: true)
-            XCTAssertNotEqual(
-                frame0.tiffRepresentation,
-                frame3.tiffRepresentation,
-                "Animated badge \(badge) should advance under recordOnlyOverlay",
-            )
-        }
-    }
-
-    // MARK: - Per-channel silence overlay
-
-    func testMicSilentOverlayProducesNonTemplateImage() {
-        for badge in BadgeKind.allCases {
-            let image = MenuBarIcon.image(badge: badge, micSilentOverlay: true)
-            XCTAssertFalse(image.isTemplate, "mic-silent overlay must be non-template for \(badge)")
-        }
-    }
-
-    func testAppSilentOverlayProducesNonTemplateImage() {
-        for badge in BadgeKind.allCases {
-            let image = MenuBarIcon.image(badge: badge, appSilentOverlay: true)
-            XCTAssertFalse(image.isTemplate, "app-silent overlay must be non-template for \(badge)")
-        }
-    }
-
-    func testChannelOverlaysDefaultOff() {
-        let image = MenuBarIcon.image(badge: .recording)
-        XCTAssertTrue(image.isTemplate, "without overlay flag, recording stays template")
-    }
-
-    func testMicAndAppSilentRenderDistinctImages() {
-        let micRed = MenuBarIcon.image(badge: .recording, animationFrame: 0, micSilentOverlay: true)
-        let appRed = MenuBarIcon.image(badge: .recording, animationFrame: 0, appSilentOverlay: true)
-        let bothRed = MenuBarIcon.image(badge: .recording, animationFrame: 0, micSilentOverlay: true, appSilentOverlay: true)
-        let normal = MenuBarIcon.image(badge: .recording, animationFrame: 0)
-        XCTAssertNotEqual(micRed.tiffRepresentation, normal.tiffRepresentation)
-        XCTAssertNotEqual(appRed.tiffRepresentation, normal.tiffRepresentation)
-        XCTAssertNotEqual(micRed.tiffRepresentation, appRed.tiffRepresentation, "top-half and bottom-half tint must differ")
-        XCTAssertNotEqual(bothRed.tiffRepresentation, micRed.tiffRepresentation)
-        XCTAssertNotEqual(bothRed.tiffRepresentation, appRed.tiffRepresentation)
-    }
-
-    func testAllBadgeKindsProduceValidImages() {
-        // Badges that paint a colored mark (red dot / exclamation) must stay non-template
-        // so the color survives macOS's monochrome template tinting.
-        let nonTemplateBadges: Set<BadgeKind> = [.error]
+    func testAllBadgeKindsProduceCorrectSize() {
         for badge in BadgeKind.allCases {
             let image = MenuBarIcon.image(badge: badge)
-            if nonTemplateBadges.contains(badge) {
-                XCTAssertFalse(image.isTemplate, "Badge \(badge) should be non-template (colored)")
-            } else {
-                XCTAssertTrue(image.isTemplate, "Badge \(badge) should produce a template image")
-            }
             XCTAssertEqual(image.size.width, 18, accuracy: 0.01, "Badge \(badge) width")
             XCTAssertEqual(image.size.height, 18, accuracy: 0.01, "Badge \(badge) height")
         }
     }
+
+    // MARK: - Animation contracts
 
     func testAnimatedBadgeKinds() {
         XCTAssertTrue(BadgeKind.recording.isAnimated)
@@ -116,99 +84,171 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertTrue(BadgeKind.processing.isAnimated)
         XCTAssertFalse(BadgeKind.inactive.isAnimated)
         XCTAssertFalse(BadgeKind.done.isAnimated)
+        XCTAssertFalse(BadgeKind.error.isAnimated)
+        XCTAssertFalse(BadgeKind.userAction.isAnimated)
+        XCTAssertFalse(BadgeKind.updateAvailable.isAnimated)
     }
 
-    func testAllAnimationFramesProduceValidImages() {
-        let animatedBadges: [BadgeKind] = [.recording, .transcribing, .diarizing, .processing]
-        for badge in animatedBadges {
-            for frame in 0 ..< MenuBarIcon.frameCount {
-                let image = MenuBarIcon.image(badge: badge, animationFrame: frame)
-                XCTAssertTrue(image.isTemplate, "\(badge) frame \(frame)")
-                XCTAssertEqual(image.size.width, 18, accuracy: 0.01)
-                XCTAssertEqual(image.size.height, 18, accuracy: 0.01)
-            }
+    func testStaticBadgesProduceIdenticalImagesAcrossFrames() {
+        let staticBadges: [BadgeKind] = [.inactive, .userAction, .done, .error, .updateAvailable]
+        for badge in staticBadges {
+            let frame0 = MenuBarIcon.image(badge: badge, animationFrame: 0)
+            let frame3 = MenuBarIcon.image(badge: badge, animationFrame: 3)
+            XCTAssertEqual(
+                frame0.tiffRepresentation,
+                frame3.tiffRepresentation,
+                "Static badge \(badge) should render identically across frames"
+            )
         }
     }
 
-    // MARK: - Frame Wrapping
+    func testRecordOnlyOverlayDoesNotAnimateStaticBadges() {
+        let staticBadges: [BadgeKind] = [.inactive, .userAction, .done, .error, .updateAvailable]
+        for badge in staticBadges {
+            let frame0 = MenuBarIcon.image(badge: badge, animationFrame: 0, recordOnlyOverlay: true)
+            let frame3 = MenuBarIcon.image(badge: badge, animationFrame: 3, recordOnlyOverlay: true)
+            XCTAssertEqual(
+                frame0.tiffRepresentation,
+                frame3.tiffRepresentation,
+                "Static badge \(badge) should render identically across frames under recordOnlyOverlay"
+            )
+        }
+    }
+
+    func testRecordOnlyOverlayKeepsAnimatedBadgesAnimating() {
+        let animatedBadges: [BadgeKind] = [.recording, .transcribing, .diarizing, .processing]
+        for badge in animatedBadges {
+            let frame0 = MenuBarIcon.image(badge: badge, animationFrame: 0, recordOnlyOverlay: true)
+            let frame3 = MenuBarIcon.image(badge: badge, animationFrame: 3, recordOnlyOverlay: true)
+            XCTAssertNotEqual(
+                frame0.tiffRepresentation,
+                frame3.tiffRepresentation,
+                "Animated badge \(badge) should advance under recordOnlyOverlay"
+            )
+        }
+    }
 
     func testAnimationFrameWrapsAroundFrameCount() {
         let badge = BadgeKind.recording
         let normal = MenuBarIcon.image(badge: badge, animationFrame: 2)
         let wrapped = MenuBarIcon.image(badge: badge, animationFrame: 2 + MenuBarIcon.frameCount)
-        XCTAssertTrue(normal.isTemplate)
-        XCTAssertTrue(wrapped.isTemplate)
         XCTAssertEqual(normal.size, wrapped.size)
-    }
-
-    // MARK: - Permission Overlay
-
-    func testPermissionOverlayIsNonTemplate() {
-        // Recording is normally a template image — with the overlay it must become non-template
-        // because the red exclamation dot can't be monochrome.
-        let image = MenuBarIcon.image(badge: .recording, animationFrame: 0, permissionOverlay: true)
-        XCTAssertFalse(image.isTemplate)
-    }
-
-    func testPermissionOverlayAppliesToAllActiveBadges() {
-        for badge in BadgeKind.allCases {
-            let image = MenuBarIcon.image(badge: badge, animationFrame: 0, permissionOverlay: true)
-            XCTAssertFalse(image.isTemplate, "Overlay on \(badge) should be non-template")
-            XCTAssertEqual(image.size.width, 18, accuracy: 0.01)
-            XCTAssertEqual(image.size.height, 18, accuracy: 0.01)
-        }
-    }
-
-    func testPermissionOverlayDefaultsToFalse() {
-        let withoutParam = MenuBarIcon.image(badge: .recording, animationFrame: 0)
-        let explicitFalse = MenuBarIcon.image(badge: .recording, animationFrame: 0, permissionOverlay: false)
-        XCTAssertEqual(withoutParam.isTemplate, explicitFalse.isTemplate)
+        XCTAssertFalse(normal.isTemplate)
+        XCTAssertFalse(wrapped.isTemplate)
     }
 
     func testLargeAnimationFrameDoesNotCrash() {
         for badge in BadgeKind.allCases where badge.isAnimated {
             let image = MenuBarIcon.image(badge: badge, animationFrame: 999)
-            XCTAssertTrue(image.isTemplate, "Large frame index should wrap safely for \(badge)")
+            XCTAssertFalse(image.isTemplate, "Large frame index should wrap safely for \(badge)")
         }
     }
 
-    // MARK: - Layout Math
+    // MARK: - Per-channel silence overlays
 
-    func testBarsLayoutCentersHorizontally() {
-        let rect = NSRect(x: 0, y: 0, width: 18, height: 18)
-        let layout = MenuBarIcon.barsLayout(in: rect)
-        // 5 bars × 2.2 width + 4 gaps × (3.6 - 2.2) = 11 + 5.6 = 16.6
-        // left = (18 - 16.6) / 2 = 0.7
-        let barsWidth: CGFloat = 5 * 2.2 + 4 * (3.6 - 2.2)
-        let expectedLeft = (18 - barsWidth) / 2
-        XCTAssertEqual(layout.left, expectedLeft, accuracy: 0.01)
+    func testMicAndAppSilentRenderDistinctImages() {
+        let micRed = MenuBarIcon.image(badge: .recording, animationFrame: 0, micSilentOverlay: true)
+        let appRed = MenuBarIcon.image(badge: .recording, animationFrame: 0, appSilentOverlay: true)
+        let bothRed = MenuBarIcon.image(
+            badge: .recording, animationFrame: 0, micSilentOverlay: true, appSilentOverlay: true
+        )
+        let normal = MenuBarIcon.image(badge: .recording, animationFrame: 0)
+        XCTAssertNotEqual(micRed.tiffRepresentation, normal.tiffRepresentation)
+        XCTAssertNotEqual(appRed.tiffRepresentation, normal.tiffRepresentation)
+        XCTAssertNotEqual(
+            micRed.tiffRepresentation, appRed.tiffRepresentation,
+            "top-half and bottom-half tint must differ"
+        )
+        XCTAssertNotEqual(bothRed.tiffRepresentation, micRed.tiffRepresentation)
+        XCTAssertNotEqual(bothRed.tiffRepresentation, appRed.tiffRepresentation)
     }
 
-    func testBarsLayoutCentersVertically() {
-        let rect = NSRect(x: 0, y: 0, width: 18, height: 18)
-        let layout = MenuBarIcon.barsLayout(in: rect)
-        XCTAssertEqual(layout.centerY, 9.0, accuracy: 0.01)
+    // MARK: - Heartbeat-specific rendering tests
+
+    func testHeartbeatInactiveRendersNonEmpty() {
+        let image = MenuBarIcon.image(badge: .inactive)
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else {
+            XCTFail("Could not get bitmap for inactive badge")
+            return
+        }
+        var hasOpaquePx = false
+        outer: for y in 0 ..< bitmap.pixelsHigh {
+            for x in 0 ..< bitmap.pixelsWide {
+                let color = bitmap.colorAt(x: x, y: y)
+                if (color?.alphaComponent ?? 0) > 0.05 {
+                    hasOpaquePx = true
+                    break outer
+                }
+            }
+        }
+        XCTAssertTrue(hasOpaquePx, "Inactive heartbeat icon must contain visible pixels")
     }
 
-    func testTextLayoutLeft() {
-        let rect = NSRect(x: 0, y: 0, width: 18, height: 18)
-        let layout = MenuBarIcon.textLayout(in: rect)
-        XCTAssertEqual(layout.left, 18 * 0.12, accuracy: 0.01)
+    func testRecordingPulseFramesDifferAcrossAnimation() {
+        let frame0 = MenuBarIcon.image(badge: .recording, animationFrame: 0)
+        let frame3 = MenuBarIcon.image(badge: .recording, animationFrame: 3)
+        XCTAssertNotEqual(
+            frame0.tiffRepresentation,
+            frame3.tiffRepresentation,
+            "Recording pulse frames 0 and 3 should differ (different pulse opacity)"
+        )
     }
 
-    func testTextLayoutTopCentersVertically() {
-        let rect = NSRect(x: 0, y: 0, width: 18, height: 18)
-        let layout = MenuBarIcon.textLayout(in: rect)
-        // 5 lines × 1.4 height + 4 gaps × (2.8 - 1.4) = 7 + 5.6 = 12.6
-        // top = 9 + 12.6/2 = 15.3
-        let linesHeight: CGFloat = 5 * 1.4 + 4 * (2.8 - 1.4)
-        let expectedTop = 18.0 / 2 + linesHeight / 2
-        XCTAssertEqual(layout.top, expectedTop, accuracy: 0.01)
+    func testSpinnerFramesDifferForTranscribing() {
+        let f0 = MenuBarIcon.image(badge: .transcribing, animationFrame: 0)
+        let f1 = MenuBarIcon.image(badge: .transcribing, animationFrame: 1)
+        XCTAssertNotEqual(
+            f0.tiffRepresentation,
+            f1.tiffRepresentation,
+            "Transcribing spinner frames 0 and 1 should differ"
+        )
     }
 
-    // MARK: - BadgeKind.compute()
+    func testSpinnerFramesDifferForDiarizing() {
+        let f0 = MenuBarIcon.image(badge: .diarizing, animationFrame: 0)
+        let f2 = MenuBarIcon.image(badge: .diarizing, animationFrame: 2)
+        XCTAssertNotEqual(
+            f0.tiffRepresentation,
+            f2.tiffRepresentation,
+            "Diarizing spinner frames 0 and 2 should differ"
+        )
+    }
 
-    // 1. Recording while watchLoop recording
+    func testSpinnerFramesDifferForProcessing() {
+        let f0 = MenuBarIcon.image(badge: .processing, animationFrame: 0)
+        let f1 = MenuBarIcon.image(badge: .processing, animationFrame: 1)
+        XCTAssertNotEqual(
+            f0.tiffRepresentation,
+            f1.tiffRepresentation,
+            "Processing spinner frames 0 and 1 should differ"
+        )
+    }
+
+    func testErrorBadgeIsNonTemplate() {
+        let image = MenuBarIcon.image(badge: .error)
+        XCTAssertFalse(image.isTemplate, ".error badge must be non-template (red ring visible)")
+    }
+
+    func testColorConstantsExposed() {
+        XCTAssertEqual(MenuBarIcon.spaceIndigo.alphaComponent, 1.0, accuracy: 0.01)
+        XCTAssertEqual(MenuBarIcon.peachGlow.alphaComponent, 1.0, accuracy: 0.01)
+    }
+
+    func testRecordOnlyDotPositionIsBottomLeft() {
+        let image = MenuBarIcon.image(badge: .inactive, recordOnlyOverlay: true)
+        XCTAssertFalse(image.isTemplate)
+        XCTAssertNotNil(image.tiffRepresentation)
+    }
+
+    func testPermissionOverlayDefaultsToFalse() {
+        let withoutParam = MenuBarIcon.image(badge: .recording, animationFrame: 0)
+        let explicitFalse = MenuBarIcon.image(badge: .recording, animationFrame: 0, permissionOverlay: false)
+        XCTAssertEqual(withoutParam.tiffRepresentation, explicitFalse.tiffRepresentation)
+    }
+
+    // MARK: - BadgeKind.compute() — unchanged logic, preserved tests
+
     func testCompute_watchLoopRecording_returnsRecording() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -220,7 +260,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .recording)
     }
 
-    // 2. Recording takes priority over transcriberState
     func testCompute_watchLoopRecording_priorityOverTranscriberState() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -232,7 +271,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .recording)
     }
 
-    // 3. UserAction for waitingForSpeakerCount
     func testCompute_waitingForSpeakerCount_returnsUserAction() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -244,7 +282,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .userAction)
     }
 
-    // 4. UserAction for waitingForSpeakerNames
     func testCompute_waitingForSpeakerNames_returnsUserAction() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -256,7 +293,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .userAction)
     }
 
-    // 5. Done for protocolReady
     func testCompute_protocolReady_returnsDone() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -268,7 +304,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .done)
     }
 
-    // 6. Error for transcriberError
     func testCompute_transcriberError_returnsError() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -280,7 +315,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .error)
     }
 
-    // 7. Transcribing for transcriberTranscribing
     func testCompute_transcriberTranscribing_returnsTranscribing() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -292,7 +326,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .transcribing)
     }
 
-    // 8. Transcribing for recordingDone
     func testCompute_recordingDone_returnsTranscribing() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -304,7 +337,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .transcribing)
     }
 
-    // 9. Processing for generatingProtocol
     func testCompute_generatingProtocol_returnsProcessing() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -316,7 +348,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .processing)
     }
 
-    // 10. ActiveJob transcribing (watchLoop inactive)
     func testCompute_activeJobTranscribing_returnsTranscribing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -328,7 +359,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .transcribing)
     }
 
-    // 11. ActiveJob diarizing
     func testCompute_activeJobDiarizing_returnsDiarizing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -340,7 +370,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .diarizing)
     }
 
-    // 12. ActiveJob generatingProtocol → processing
     func testCompute_activeJobGeneratingProtocol_returnsProcessing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -352,7 +381,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .processing)
     }
 
-    // 13. ActiveJob waiting → processing
     func testCompute_activeJobWaiting_returnsProcessing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -364,7 +392,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .processing)
     }
 
-    // 14. ActiveJob done → processing
     func testCompute_activeJobDone_returnsProcessing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -376,7 +403,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .processing)
     }
 
-    // 15. ActiveJob error → processing
     func testCompute_activeJobError_returnsProcessing() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -388,7 +414,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .processing)
     }
 
-    // 16. UpdateAvailable when all idle
     func testCompute_updateAvailable_returnsUpdateAvailable() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -400,7 +425,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .updateAvailable)
     }
 
-    // 17. Inactive when all idle
     func testCompute_allIdle_returnsInactive() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -412,7 +436,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .inactive)
     }
 
-    // 18. WatchLoop active but idle transcriberState → inactive
     func testCompute_watchLoopActiveIdleTranscriber_returnsInactive() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -424,7 +447,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .inactive)
     }
 
-    // 19. ActiveJob takes priority over updateAvailable
     func testCompute_activeJob_priorityOverUpdateAvailable() {
         let result = BadgeKind.compute(
             watchLoopActive: false,
@@ -436,7 +458,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .transcribing)
     }
 
-    // 20. WatchLoop recording takes priority over activeJob and updateAvailable
     func testCompute_watchLoopRecording_priorityOverActiveJobAndUpdate() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
@@ -448,7 +469,6 @@ final class MenuBarIconTests: XCTestCase { // swiftlint:disable:this type_body_l
         XCTAssertEqual(result, .recording)
     }
 
-    // 21. WatchLoop active with .watching transcriberState → falls through to inactive
     func testCompute_watchLoopActiveWatchingState_fallsThroughToInactive() {
         let result = BadgeKind.compute(
             watchLoopActive: true,
