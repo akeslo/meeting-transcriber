@@ -143,7 +143,7 @@ class BrowserTabDetector: MeetingDetecting {
                 ? chromiumScript(for: browser.scriptAppName)
                 : safariScript(for: browser.scriptAppName)
             let urls = runAppleScript(script)
-            logger.info("browser_fetch browser=\(browser.processName) tabs=\(urls.count)")
+            logger.info("browser_fetch browser=\(browser.processName, privacy: .public) tabs=\(urls.count, privacy: .public)")
             results.append(contentsOf: urls.map { TabInfo(processName: browser.processName, pid: pid, url: $0) })
         }
         return results
@@ -192,7 +192,9 @@ class BrowserTabDetector: MeetingDetecting {
         guard let script = NSAppleScript(source: source) else { return [] }
         let result = script.executeAndReturnError(&errorDict)
         if let err = errorDict {
-            logger.info("applescript_failed: \(err)")
+            let msg = err[NSAppleScript.errorMessage] as? String ?? err.description
+            let code = err[NSAppleScript.errorNumber] as? Int ?? -1
+            logger.warning("applescript_failed code=\(code, privacy: .public) msg=\(msg, privacy: .public)")
             return []
         }
         return extractStrings(from: result)
