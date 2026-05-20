@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
     let status: TranscriberStatus?
     let isWatching: Bool
+    let isModelReady: Bool
     let pipelineQueue: PipelineQueue
     var updateChecker: UpdateChecker?
     let onStartStop: () -> Void
@@ -58,6 +59,8 @@ struct MenuBarView: View {
                 .padding(.horizontal, 4)
         }
 
+        if !isModelReady { modelNotReadyBanner }
+
         Divider()
 
         // Start/Stop Watching
@@ -71,6 +74,7 @@ struct MenuBarView: View {
             }
         }
         .keyboardShortcut("s")
+        .disabled(!isModelReady && !isWatching)
 
         if let onStopManualRecording {
             Button {
@@ -86,6 +90,7 @@ struct MenuBarView: View {
                 Label("Record App...", systemImage: "record.circle")
             }
             .keyboardShortcut("r")
+            .disabled(!isModelReady)
         }
 
         if let onNameSpeakers {
@@ -103,6 +108,7 @@ struct MenuBarView: View {
             Label("Process Audio/Video Files...", systemImage: "doc.badge.plus")
         }
         .keyboardShortcut("p")
+        .disabled(!isModelReady)
 
         // Processing queue
         if !pipelineQueue.jobs.isEmpty {
@@ -164,6 +170,23 @@ struct MenuBarView: View {
             Text("Quit")
         }
         .keyboardShortcut("q")
+    }
+
+    @ViewBuilder
+    private var modelNotReadyBanner: some View {
+        Divider()
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Model not loaded")
+                    .font(.caption.weight(.semibold))
+                Text("Open Settings → Transcription to load.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Helpers

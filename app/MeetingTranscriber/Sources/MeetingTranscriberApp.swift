@@ -73,6 +73,7 @@ struct MeetingTranscriberApp: App {
             MenuBarView(
                 status: appState.currentStatus,
                 isWatching: appState.isWatching,
+                isModelReady: appState.isModelReady,
                 pipelineQueue: appState.pipelineQueue,
                 updateChecker: appState.updateChecker,
                 onStartStop: appState.toggleWatching,

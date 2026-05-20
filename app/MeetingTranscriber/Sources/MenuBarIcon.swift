@@ -427,6 +427,7 @@ extension BadgeKind {
         activeJobState: JobState?,
         updateAvailable: Bool,
         permissionProblem: Bool = false,
+        modelReady: Bool = true,
     ) -> BadgeKind {
         if watchLoopActive {
             if watchLoopState == .recording { return .recording }
@@ -446,6 +447,7 @@ extension BadgeKind {
         case .none: break
         }
         if permissionProblem { return .error }
+        if !modelReady { return .error }
         if updateAvailable { return .updateAvailable }
         return .inactive
     }

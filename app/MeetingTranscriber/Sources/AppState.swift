@@ -295,6 +295,10 @@ final class AppState { // swiftlint:disable:this type_body_length
         watchLoop?.isActive == true && watchLoop?.isManualRecording == false
     }
 
+    var isModelReady: Bool {
+        activeTranscriptionEngine.modelState == .loaded
+    }
+
     var currentBadge: BadgeKind {
         BadgeKind.compute(
             watchLoopActive: watchLoop?.isActive == true,
@@ -303,6 +307,7 @@ final class AppState { // swiftlint:disable:this type_body_length
             activeJobState: pipelineQueue.activeJobs.first?.state,
             updateAvailable: updateChecker.availableUpdate != nil,
             permissionProblem: permissionHealth?.isHealthy == false,
+            modelReady: isModelReady,
         )
     }
 
