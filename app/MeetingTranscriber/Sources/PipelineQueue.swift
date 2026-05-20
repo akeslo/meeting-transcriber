@@ -218,6 +218,19 @@ class PipelineQueue {
         if let idx = jobs.firstIndex(where: { $0.id == jobID }),
            jobs[idx].state == .generatingProtocol {
             updateJobState(id: jobID, to: .done)
+            if let sessionDirForJob = jobs.first(where: { $0.id == jobID })?.transcriptPath?.deletingLastPathComponent(),
+               let od = outputDir {
+                persistRecordingSession(
+                    jobID: jobID,
+                    sessionDir: sessionDirForJob,
+                    outputDir: od,
+                    audioFiles: [RecordingFileSuffix.mix, RecordingFileSuffix.app, RecordingFileSuffix.mic].filter { name in
+                        FileManager.default.fileExists(atPath: sessionDirForJob.appendingPathComponent(name).path)
+                    },
+                    status: SessionStatus.done,
+                    engine: "unknown"
+                )
+            }
         }
     }
 
@@ -728,9 +741,12 @@ class PipelineQueue {
                                 "[recognition] \(matched.count) speakers, \(autoMatched) auto, \(unknown) unknown",
                             )
 
-                            // Use persisted 16kHz path (survives workDir cleanup)
-                            let recordingsDir = outputDir.appendingPathComponent("recordings")
-                            let persistedAudioPath = recordingsDir.appendingPathComponent("\(slug)_16k.wav")
+                            // Derive session dir for audio path (deterministic formula;
+                            // the folder is created later in the pipeline but the URL is
+                            // stable and used here for SpeakerNamingData).
+                            let earlySessionStart = jobs.first(where: { $0.id == jobID })?.startedAt ?? Date()
+                            let earlySessionDir = SessionFolder.sessionURL(root: outputDir, date: earlySessionStart, title: title)
+                            let persistedAudioPath = earlySessionDir.appendingPathComponent("audio_mix_16k.wav")
 
                             let namingData = SpeakerNamingData(
                                 jobID: jobID,
@@ -950,7 +966,7 @@ class PipelineQueue {
                 startedAt: sessionStart,
                 stoppedAt: Date(),
                 participants: jobs.first(where: { $0.id == jobID })?.participants ?? [],
-                micDelaySeconds: 0,
+                micDelaySeconds: micDelay,
                 engine: "unknown",
                 diarizerMode: "unknown",
                 files: SessionMeta.FileRefs(
@@ -1036,6 +1052,9 @@ class PipelineQueue {
             )
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
+            let parentDir = sessionDir.deletingLastPathComponent()
+            let accessingForProtocol = parentDir.startAccessingSecurityScopedResource()
+            defer { if accessingForProtocol { parentDir.stopAccessingSecurityScopedResource() } }
             try fullMD.write(to: mdPath, atomically: true, encoding: .utf8)
             logger.info("[\(shortID, privacy: .public)] protocol_saved file=\(mdPath.lastPathComponent, privacy: .public)")
             if let idx = jobs.firstIndex(where: { $0.id == jobID }) {
@@ -1142,6 +1161,19 @@ class PipelineQueue {
 
         removeNamingData(jobID: jobID, slug: slug)
         updateJobState(id: jobID, to: .done)
+        if let sessionDirForJob = jobs.first(where: { $0.id == jobID })?.transcriptPath?.deletingLastPathComponent(),
+           let od = outputDir {
+            persistRecordingSession(
+                jobID: jobID,
+                sessionDir: sessionDirForJob,
+                outputDir: od,
+                audioFiles: [RecordingFileSuffix.mix, RecordingFileSuffix.app, RecordingFileSuffix.mic].filter { name in
+                    FileManager.default.fileExists(atPath: sessionDirForJob.appendingPathComponent(name).path)
+                },
+                status: SessionStatus.done,
+                engine: "unknown"
+            )
+        }
     }
 
     // MARK: - Late Re-diarization
@@ -1476,63 +1508,6 @@ class PipelineQueue {
         // pop, so MeetingTranscriberApp brings the window forward.
         if !pendingSpeakerNamingJobs.isEmpty {
             NotificationCenter.default.post(name: .showSpeakerNaming, object: nil)
-        }
-    }
-
-    // MARK: - Audio File Copy
-
-    /// Copy recording audio files to the protocol output directory. Nil
-    /// `mixPath` (paired imports without a `_mix.wav` source) → mix slot
-    /// is skipped, no persistent mix is written.
-    private static func copyAudioToOutput(
-        mixPath: URL?, appPath: URL?, micPath: URL?,
-        title: String, outputDir: URL,
-    ) {
-        // Each move below renames-in-place — if two of the three URLs point at
-        // the same file, the first move destroys the source for the next one.
-        // Loud failure in dev/CI > silent data destruction.
-        if let mixStd = mixPath?.standardizedFileURL {
-            precondition(
-                appPath.map { mixStd != $0.standardizedFileURL } ?? true,
-                "copyAudioToOutput: mixPath aliases appPath — would destroy source",
-            )
-            precondition(
-                micPath.map { mixStd != $0.standardizedFileURL } ?? true,
-                "copyAudioToOutput: mixPath aliases micPath — would destroy source",
-            )
-        }
-
-        let accessing = outputDir.startAccessingSecurityScopedResource()
-        defer { if accessing { outputDir.stopAccessingSecurityScopedResource() } }
-
-        let fm = FileManager.default
-        try? fm.createDirectory(at: outputDir, withIntermediateDirectories: true)
-        let slug = ProtocolGenerator.filename(title: title, ext: "").dropLast() // remove trailing "."
-        let audioPaths: [(URL, String)] = [
-            mixPath.map { ($0, "\(slug)\(RecordingFileSuffix.mix)") },
-            appPath.map { ($0, "\(slug)\(RecordingFileSuffix.app)") },
-            micPath.map { ($0, "\(slug)\(RecordingFileSuffix.mic)") },
-        ].compactMap(\.self)
-
-        let outputDirStd = outputDir.standardizedFileURL
-        for (src, name) in audioPaths {
-            let dst = outputDir.appendingPathComponent(name)
-            // Source already in the target dir → move would just rename in place
-            // with a fresh `<today_timestamp>_<title>` prefix, which produces an
-            // endless compounding-rename loop on every re-import (orphan recovery
-            // re-picks the new name on next launch). The file is already at its
-            // final home; keep it put.
-            if src.deletingLastPathComponent().standardizedFileURL == outputDirStd {
-                logger.info("Audio already in output dir, skipping rename: \(src.lastPathComponent)")
-                continue
-            }
-            do {
-                if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
-                try fm.moveItem(at: src, to: dst)
-                logger.info("Audio moved: \(name)")
-            } catch {
-                logger.warning("Failed to move audio \(name): \(error.localizedDescription)")
-            }
         }
     }
 
