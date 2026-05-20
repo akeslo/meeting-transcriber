@@ -48,6 +48,7 @@ final class WhisperKitEngine: TranscribingEngine {
     private(set) var transcriptionProgress: Double = 0
     private var pipe: WhisperKit?
     private var loadingTask: Task<Void, Never>?
+    private var lastLoggedDownloadPct: Int = -1
 
     func loadModel() async {
         // Deduplicate concurrent loads
@@ -59,28 +60,40 @@ final class WhisperKitEngine: TranscribingEngine {
         let task = Task {
             modelState = .downloading
             downloadProgress = 0
+            lastLoggedDownloadPct = -1
+            logger.info("whisperkit_download_start model=\(self.modelVariant, privacy: .public)")
             do {
-                // Step 1: Download with progress tracking
                 let modelFolder = try await WhisperKit.download(
                     variant: modelVariant,
                 ) { progress in
                     Task { @MainActor in
                         self.downloadProgress = progress.fractionCompleted
+                        let pct = Int(progress.fractionCompleted * 100)
+                        let milestone = (pct / 10) * 10
+                        if milestone > self.lastLoggedDownloadPct {
+                            self.lastLoggedDownloadPct = milestone
+                            let done = ByteCountFormatter.string(fromByteCount: Int64(progress.completedUnitCount), countStyle: .file)
+                            let total = ByteCountFormatter.string(fromByteCount: Int64(progress.totalUnitCount), countStyle: .file)
+                            logger.info("whisperkit_download_progress \(milestone, privacy: .public)% (\(done, privacy: .public) / \(total, privacy: .public))")
+                        }
                     }
                 }
 
-                // Step 2: Init with local model folder (skips download)
+                logger.info("whisperkit_download_done model=\(self.modelVariant, privacy: .public) — compiling CoreML models (may take 1-3 min)")
                 modelState = .loading
                 downloadProgress = 1.0
+                let loadStart = Date()
                 pipe = try await WhisperKit(
                     WhisperKitConfig(
                         model: modelVariant,
                         modelFolder: modelFolder.path(),
                     ),
                 )
+                let elapsed = String(format: "%.1f", Date().timeIntervalSince(loadStart))
+                logger.info("whisperkit_load_done model=\(self.modelVariant, privacy: .public) elapsed=\(elapsed, privacy: .public)s")
                 modelState = .loaded
             } catch {
-                logger.error("WhisperKit model load failed: \(error.localizedDescription, privacy: .public)")
+                logger.error("whisperkit_load_failed: \(error.localizedDescription, privacy: .public)")
                 modelState = .unloaded
                 downloadProgress = 0
             }
