@@ -23,8 +23,9 @@ enum SessionFolder {
             .components(separatedBy: "-")
             .filter { !$0.isEmpty }
             .joined(separator: "-")
-        return String(collapsed.prefix(40))
+        let result = String(collapsed.prefix(40))
             .trimmingCharacters(in: .init(charactersIn: "-"))
+        return result.isEmpty ? "untitled" : result
     }
 
     /// Folder name: `YYYY-MM-DD_HHmmss_<slug>`.

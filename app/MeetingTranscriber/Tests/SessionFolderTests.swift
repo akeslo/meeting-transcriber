@@ -20,6 +20,14 @@ final class SessionFolderTests: XCTestCase {
         XCTAssertEqual(SessionFolder.slug(from: ""), "untitled")
     }
 
+    func test_slug_onlySpecialChars() {
+        XCTAssertEqual(SessionFolder.slug(from: "!!!"), "untitled")
+    }
+
+    func test_slug_onlySpaces() {
+        XCTAssertEqual(SessionFolder.slug(from: "   "), "untitled")
+    }
+
     func test_slug_collapsesMultipleHyphens() {
         XCTAssertEqual(SessionFolder.slug(from: "Hello -- World"), "hello-world")
     }
