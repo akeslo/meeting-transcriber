@@ -55,6 +55,7 @@ struct PipelineJob: Identifiable, Codable {
     var state: JobState
     var error: String?
     var warnings: [String]
+    var progress: Double = 0
     var transcriptPath: URL?
     var protocolPath: URL?
     var namingSlug: String?
@@ -79,6 +80,33 @@ struct PipelineJob: Identifiable, Codable {
         self.enqueuedAt = Date()
         self.startedAt = nil
         self.state = .waiting
+        self.error = nil
+        self.warnings = []
+        self.progress = 0
+        self.transcriptPath = nil
+        self.protocolPath = nil
+        self.namingSlug = nil
+    }
+
+    init(
+        id: UUID = UUID(),
+        meetingTitle: String,
+        state: JobState = .waiting,
+        progress: Double = 0,
+        startedAt: Date? = nil,
+    ) {
+        self.id = id
+        self.meetingTitle = meetingTitle
+        self.appName = ""
+        self.mixPath = nil
+        self.appPath = nil
+        self.micPath = nil
+        self.micDelay = 0
+        self.participants = []
+        self.enqueuedAt = Date()
+        self.startedAt = startedAt
+        self.state = state
+        self.progress = progress
         self.error = nil
         self.warnings = []
         self.transcriptPath = nil
