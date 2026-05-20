@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Design tokens (module-private)
@@ -40,10 +41,10 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // Task 4 fills this in — placeholder for now
-                Text("Recent Activity — coming in Task 4")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                RecentActivitySection(
+                    selectedNav: $selectedNav,
+                    selectedSessionID: $selectedSessionID
+                )
             }
             .padding(24)
         }
@@ -179,5 +180,73 @@ private struct QuickControlsCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(paleSlate, lineWidth: 1)
         )
+    }
+}
+
+// MARK: - RecentActivitySection
+
+private struct RecentActivitySection: View {
+    @Binding var selectedNav: NavItem
+    @Binding var selectedSessionID: UUID?
+
+    @Query(
+        sort: \RecordingSession.createdAt,
+        order: .reverse
+    )
+    private var allSessions: [RecordingSession]
+
+    private var recentSessions: [RecordingSession] {
+        Array(allSessions.prefix(3))
+    }
+
+    private let spaceIndigo = Color(red: 0.082, green: 0.114, blue: 0.208)
+    private let paleSlate   = Color(red: 0.878, green: 0.898, blue: 0.941)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent Activity")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(spaceIndigo)
+                Spacer()
+                Button("View All →") {
+                    selectedNav = .library
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(spaceIndigo)
+            }
+
+            if recentSessions.isEmpty {
+                Text("No recordings yet.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(recentSessions) { session in
+                        Button {
+                            selectedSessionID = session.id
+                            selectedNav = .library
+                        } label: {
+                            SessionRowView(session: session, isSelected: false)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if session.id != recentSessions.last?.id {
+                            Divider()
+                                .padding(.leading, 16)
+                        }
+                    }
+                }
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(paleSlate, lineWidth: 1)
+                )
+            }
+        }
     }
 }
