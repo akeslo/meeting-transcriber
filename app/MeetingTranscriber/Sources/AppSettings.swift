@@ -210,6 +210,10 @@ final class AppSettings {
         didSet { defaults.set(diarizerMode.rawValue, forKey: "diarizerMode") }
     }
 
+    // Live dBFS readings updated during recording (not persisted to UserDefaults)
+    var lastAppDbfs: Double = -60
+    var lastMicDbfs: Double = -60
+
     /// Number of expected speakers. 0 = auto-detect.
     var numSpeakers: Int {
         didSet {
