@@ -363,6 +363,7 @@ final class AppState { // swiftlint:disable:this type_body_length
 
                 let browserDetector = BrowserTabDetector(
                     websitesProvider: { [settings] in settings.watchedWebsites },
+                    browserProvider: { [settings] in settings.watchedBrowser },
                 )
                 let detector: any MeetingDetecting = CompositeDetector([
                     PowerAssertionDetector(),

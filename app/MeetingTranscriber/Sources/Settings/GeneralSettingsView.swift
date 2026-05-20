@@ -59,6 +59,12 @@ struct GeneralSettingsView: View {
     @ViewBuilder
     private var watchedWebsitesSection: some View {
         Section("Watched Websites") {
+            Picker("Browser", selection: $settings.watchedBrowser) {
+                Text("All Browsers").tag("")
+                ForEach(BrowserTabDetector.knownBrowsers, id: \.processName) { b in
+                    Text(b.processName).tag(b.processName)
+                }
+            }
             ForEach($settings.watchedWebsites) { $site in
                 WatchedWebsiteRow(site: $site) {
                     settings.watchedWebsites.removeAll { $0.id == site.id }
@@ -177,9 +183,16 @@ struct WatchedWebsiteRow: View {
             Toggle(isOn: $site.enabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(site.name)
-                    Text(site.urlPattern)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Text(site.urlPattern)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if site.recordMic {
+                            Label("Mic", systemImage: "mic.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                    }
                 }
             }
             Spacer()
@@ -200,12 +213,14 @@ struct WebsiteEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var urlPattern: String
+    @State private var recordMic: Bool
 
     init(website: WatchedWebsite?, onSave: @escaping (WatchedWebsite) -> Void) {
         self.website = website
         self.onSave = onSave
         _name = State(initialValue: website?.name ?? "")
         _urlPattern = State(initialValue: website?.urlPattern ?? "")
+        _recordMic = State(initialValue: website?.recordMic ?? false)
     }
 
     private var isValid: Bool {
@@ -223,6 +238,7 @@ struct WebsiteEditSheet: View {
                     .textFieldStyle(.roundedBorder)
                 TextField("URL or domain (e.g. youtube.com)", text: $urlPattern)
                     .textFieldStyle(.roundedBorder)
+                Toggle("Record microphone", isOn: $recordMic)
             }
             .formStyle(.columns)
 
@@ -240,6 +256,7 @@ struct WebsiteEditSheet: View {
                         name: name.trimmingCharacters(in: .whitespaces),
                         urlPattern: urlPattern.trimmingCharacters(in: .whitespaces),
                         enabled: website?.enabled ?? true,
+                        recordMic: recordMic,
                     )
                     onSave(saved)
                     dismiss()

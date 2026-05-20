@@ -344,6 +344,11 @@ final class AppSettings {
 
     // MARK: - Watched Websites
 
+    /// Process name of the browser to poll for tabs, or "" to poll all known browsers.
+    var watchedBrowser: String {
+        didSet { defaults.set(watchedBrowser, forKey: "watchedBrowser") }
+    }
+
     var watchedWebsites: [WatchedWebsite] {
         didSet { saveWatchedWebsites() }
     }
@@ -367,6 +372,7 @@ final class AppSettings {
 
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
+        watchedBrowser = defaults.string(forKey: "watchedBrowser") ?? ""
 
         if let data = defaults.data(forKey: "watchedWebsites"),
            let sites = try? JSONDecoder().decode([WatchedWebsite].self, from: data) {

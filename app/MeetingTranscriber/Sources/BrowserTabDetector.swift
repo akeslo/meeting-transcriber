@@ -32,6 +32,7 @@ class BrowserTabDetector: MeetingDetecting {
     ]
 
     private let websitesProvider: () -> [WatchedWebsite]
+    private let browserProvider: () -> String
     private let confirmationCount: Int
     private var consecutiveHits: [UUID: Int] = [:]
     private var lastMatch: [UUID: (processName: String, pid: pid_t)] = [:]
@@ -39,11 +40,14 @@ class BrowserTabDetector: MeetingDetecting {
     /// Override in tests to inject mock tab data.
     var tabURLProvider: () -> [TabInfo] = { [] }
 
+    /// `browserProvider` returns a processName (e.g. "Dia") or "" to poll all known browsers.
     init(
         websitesProvider: @escaping () -> [WatchedWebsite],
+        browserProvider: @escaping () -> String = { "" },
         confirmationCount: Int = 2,
     ) {
         self.websitesProvider = websitesProvider
+        self.browserProvider = browserProvider
         self.confirmationCount = confirmationCount
         tabURLProvider = { [weak self] in self?.systemTabURLs() ?? [] }
     }
@@ -97,6 +101,7 @@ class BrowserTabDetector: MeetingDetecting {
                     windowTitle: site.name,
                     ownerName: match.processName,
                     windowPID: match.pid,
+                    noMicOverride: !site.recordMic,
                 )
             }
         }
@@ -133,8 +138,12 @@ class BrowserTabDetector: MeetingDetecting {
     private func systemTabURLs() -> [TabInfo] {
         var results: [TabInfo] = []
         let running = NSWorkspace.shared.runningApplications
+        let selected = browserProvider()
+        let candidates = selected.isEmpty
+            ? Self.knownBrowsers
+            : Self.knownBrowsers.filter { $0.processName == selected }
 
-        for browser in Self.knownBrowsers {
+        for browser in candidates {
             guard let app = running.first(where: { $0.localizedName == browser.processName }) else {
                 continue
             }

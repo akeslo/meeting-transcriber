@@ -8,6 +8,8 @@ struct DetectedMeeting: Equatable {
     let ownerName: String
     let windowPID: pid_t
     let detectedAt: Date
+    /// When non-nil, overrides WatchLoop's global `noMic` setting for this recording.
+    let noMicOverride: Bool?
 
     init(
         pattern: AppMeetingPattern,
@@ -15,12 +17,14 @@ struct DetectedMeeting: Equatable {
         ownerName: String,
         windowPID: pid_t,
         detectedAt: Date = Date(),
+        noMicOverride: Bool? = nil,
     ) {
         self.pattern = pattern
         self.windowTitle = windowTitle
         self.ownerName = ownerName
         self.windowPID = windowPID
         self.detectedAt = detectedAt
+        self.noMicOverride = noMicOverride
     }
 }
 

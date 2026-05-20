@@ -323,7 +323,7 @@ class WatchLoop {
         let recorder = recorderFactory()
         try recorder.start(
             appPID: meeting.windowPID,
-            noMic: noMic,
+            noMic: meeting.noMicOverride ?? noMic,
             micDeviceUID: micDeviceUID,
             debugLogging: verboseDiagnostics(),
         )
