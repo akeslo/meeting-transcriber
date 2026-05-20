@@ -25,7 +25,7 @@ class BrowserTabDetector: MeetingDetecting {
         BrowserDef(processName: "Brave Browser", scriptAppName: "Brave Browser", chromiumStyle: true),
         BrowserDef(processName: "Arc", scriptAppName: "Arc", chromiumStyle: true),
         BrowserDef(processName: "Microsoft Edge", scriptAppName: "Microsoft Edge", chromiumStyle: true),
-        BrowserDef(processName: "DIA", scriptAppName: "DIA", chromiumStyle: true),
+        BrowserDef(processName: "Dia", scriptAppName: "Dia", chromiumStyle: true),
         BrowserDef(processName: "Orion", scriptAppName: "Orion", chromiumStyle: false),
         BrowserDef(processName: "Vivaldi", scriptAppName: "Vivaldi", chromiumStyle: true),
         BrowserDef(processName: "Opera", scriptAppName: "Opera", chromiumStyle: true),
