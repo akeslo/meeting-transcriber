@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Meeting Transcriber
 
 ## Project Structure
@@ -15,13 +19,14 @@ app/MeetingTranscriber/    # Swift macOS menu bar app (SPM)
     MenuBarIcon.swift      # Animated waveform menu bar icon + BadgeKind.compute() pure function
     SettingsView.swift     # Settings window (TabView shell hosting six sub-views in Settings/)
     Settings/
-      GeneralSettingsView.swift  # Apps to Watch · Detection · Updates
+      GeneralSettingsView.swift  # Apps to Watch · Watched Websites · Detection · Updates
       AudioSettingsView.swift    # Microphone device · VAD settings
       TranscriptionSettingsView.swift  # ASR engine picker + per-engine options
       SpeakersSettingsView.swift # Diarization · Mic Speaker Name · Known Voices · Recognition Stats
       OutputSettingsView.swift   # LLM provider · protocol language · output folder · prompt
       AdvancedSettingsView.swift # Permissions · Diagnostics · About
       View+RecordOnly.swift      # `recordOnlyDisabled(_:)` SwiftUI modifier (dim + disable downstream sections)
+      PickerLanguages.swift      # Language list for ASR engine language pickers
     SpeakerNamingView.swift # Speaker naming dialog + AccessibleTextField
     KnownVoicesView.swift  # Speaker DB management UI (rename, delete, merge entries)
     RecognitionStatsView.swift # Recognition stats display (aggregate counts from recognition_log.jsonl)
@@ -52,8 +57,22 @@ app/MeetingTranscriber/    # Swift macOS menu bar app (SPM)
     OpenAIProtocolGenerator.swift # OpenAI-compatible API protocol generation (Ollama, LM Studio, etc.)
     WatchLoop.swift        # @MainActor watch loop: detect → record → enqueue PipelineJob
     DualSourceRecorder.swift  # App audio (AudioTapLib) + mic recording (captures startTime in start())
-    MeetingDetecting.swift # MeetingDetecting protocol + DetectedMeeting model
+    MeetingDetecting.swift # MeetingDetecting protocol + DetectedMeeting model (noMicOverride field)
     MeetingDetector.swift  # Window title matching (counts each pattern once per poll)
+    BrowserTabDetector.swift  # Meeting detection via browser tab URLs (AppleScript, 10 browsers supported)
+    CompositeDetector.swift   # Chains multiple MeetingDetecting instances; polls all, returns first match
+    WatchedWebsite.swift      # Codable model for browser URL pattern watching (urlPattern, recordMic)
+    PowerAssertionDetector.swift  # Meeting detection via IOKit power assertions (sandbox-safe)
+    WatchLoopState.swift      # Value-type snapshot of WatchLoop's five observable fields (for tests + RPC)
+    WatchLoopEndPolicy.swift  # Pure decision logic for meeting-end grace/max-duration polling
+    ManualRecordingMonitorPolicy.swift  # Pure decision logic for manual recording PID-exit/max-duration
+    ChannelHealthMonitor.swift  # Detects asymmetric silence (one channel dead, other active); 90s debounce
+    SilentRecordingMonitor.swift  # Detects symmetric silence (both channels dead); 90s debounce
+    PipelineSnapshot.swift    # Pipeline queue JSON persistence (atomic rename via replaceItemAt)
+    SnapshotWriterActor.swift  # Actor that owns snapshot writes — avoids blocking UI on macOS 26 rename deadlock
+    PairedRecordingResolver.swift  # Groups imported URLs into dual-source pairs (_app+_mic or _mix) + singletons
+    PairedImportPanelDelegate.swift  # NSOpenPanel delegate showing pairing preview in accessory view
+    RecordingFileSuffix.swift  # Centralized filename suffixes: _mix.wav, _app.wav, _mic.wav
     FFmpegHelper.swift     # ffmpeg CLI detection + audio extraction for MKV/WebM/OGG
     AudioMixer.swift       # Multi-format audio loading (WAV/MP3/M4A/MP4 via AVAsset fallback, MKV/WebM/OGG via ffmpeg) + mixing to 16kHz mono
     MicRecorder.swift      # Microphone recording via AVAudioEngine
@@ -62,7 +81,6 @@ app/MeetingTranscriber/    # Swift macOS menu bar app (SPM)
     Permissions.swift      # Permission checks (mic, screen recording)
     ParticipantReader.swift # Reads meeting participants via accessibility
     MeetingPatterns.swift  # App-specific window title patterns
-    PowerAssertionDetector.swift  # Meeting detection via IOKit power assertions (sandbox-safe)
     UpdateChecker.swift    # GitHub release update checker
     Bundle+AppVersion.swift # Bundle extension: appVersion + gitCommitHash from Info.plist
     DiagnosticExporter.swift # Reads log entries → shareable .log file (Settings → Advanced → Export Diagnostics)
@@ -295,8 +313,29 @@ Use the `/git-workflow` skill. Commit proactively after every logical unit of wo
 - Grace period minimum is 1 second (enforced in `AppSettings.endGrace` setter).
 
 **Detection:**
-- `MeetingDetecting` protocol abstracts detection strategies. Two implementations: `MeetingDetector` (window title matching via `CGWindowListCopyWindowInfo`) and `PowerAssertionDetector` (IOKit power assertions — sandbox-safe, no Screen Recording permission needed).
+- `MeetingDetecting` protocol abstracts detection strategies. Three implementations: `MeetingDetector` (window title matching via `CGWindowListCopyWindowInfo`), `PowerAssertionDetector` (IOKit power assertions — sandbox-safe, no Screen Recording permission needed), and `BrowserTabDetector` (browser tab URL matching via AppleScript).
+- `CompositeDetector` chains all active detectors — polls every one each cycle so confirmation counters stay accurate, returns first match. `WatchLoop` uses a `CompositeDetector`.
+- `BrowserTabDetector` reads tab URLs via AppleScript from any running supported browser (Safari, Chrome, Brave, Arc, Edge, Dia, Vivaldi, Opera, Chromium, Orion). Matches against `AppSettings.watchedWebsites` (`[WatchedWebsite]`). Each `WatchedWebsite` has `urlPattern` (substring match), `enabled`, and `recordMic`. Requires 2 consecutive hits (configurable `confirmationCount`) before firing. `DetectedMeeting.noMicOverride` carries the site's `recordMic` flag through to the recorder.
 - `MeetingDetector` counts each pattern once per poll — prevents over-counting when multiple windows match the same app.
+
+**Audio health monitoring:**
+- `ChannelHealthMonitor` (pure struct) detects *asymmetric* silence — one channel silent (≤ −60 dBFS) while the other carries speech (≥ −50 dBFS) — with a 90 s debounce. Emits `ChannelHealthEvent.started` / `.recovered`. Used to alert when e.g. the mic channel is dead but app audio is fine.
+- `SilentRecordingMonitor` (pure struct) detects *symmetric* silence — both channels silent — with a 90 s debounce. Catches the failure mode where AirPods HFP or Teams internal mixing makes the CATapDescription tap see only zero buffers. Emits `SilentRecordingEvent.started` / `.recovered`.
+- Both monitors use hysteresis: mid-zone readings (between silence and speech thresholds) keep the debounce timer running but don't reset it, preventing flapping on natural speech pauses.
+
+**Pure policy types:**
+- `WatchLoopEndPolicy` (pure enum) encapsulates meeting-end poll decisions: continue (meeting active), continue (grace running), stop (grace expired), stop (max duration). Extracted from `WatchLoop` so grace-reset branches can be unit-tested without driving async timers.
+- `ManualRecordingMonitorPolicy` (pure enum) encapsulates manual recording stop decisions: continue, stop (PID exited), stop (max duration). Same extraction rationale as `WatchLoopEndPolicy`.
+- `WatchLoopState` (value type) snapshots `WatchLoop`'s five `@Observable` fields — used in tests and by `RPCStateSnapshot` for equality checks without field-wise comparisons.
+
+**Paired recording import:**
+- `PairedRecordingResolver` groups a flat URL list into dual-source pairs (`_app.wav` + `_mic.wav` sharing a stem, or a `_mix.wav`) plus singletons. A pair produces one dual-track `PipelineJob`; singletons produce one each.
+- `PairedImportPanelDelegate` attaches to `NSOpenPanel` as an accessory view delegate, updating a label in real time: "2 paired recordings + 1 single file → 3 transcripts".
+- `RecordingFileSuffix` centralizes the three audio filename suffixes (`_mix.wav`, `_app.wav`, `_mic.wav`) used by `DualSourceRecorder`, `PairedRecordingResolver`, and `RecordingSidecar`.
+
+**Pipeline queue persistence:**
+- `PipelineSnapshot` (pure enum) handles JSON encode/decode + atomic rename (`replaceItemAt`) for `pipeline_queue.json`. Returns `nil` (not `[]`) when no file exists so callers can log "no snapshot" vs "empty snapshot" differently.
+- `SnapshotWriterActor` owns the actual write so a stalled `renamex_np` (observed on macOS 26 when Spotlight's `mds_stores` holds a rename lock) blocks only this actor's thread — never the UI, `WatchLoop`, or RPC server.
 
 **Diarization:**
 - `FluidDiarizer` uses FluidAudio (CoreML/ANE) for on-device speaker diarization — no HuggingFace token needed. Two modes: `.offlineDiarizer` (default) and `.sortformer` (overlap-aware, via `SortformerDiarizer`). Selected via `AppSettings.diarizerMode`.
@@ -334,7 +373,7 @@ Use the `/git-workflow` skill. Commit proactively after every logical unit of wo
 
 **Record-only mode:**
 - When `AppSettings.recordOnly` is true, `WatchLoop.enqueueRecording()` moves the dual-source WAVs into `<settings.effectiveOutputDir>/recordings/` and writes a `<basename>_meta.json` `RecordingSidecar` next to them, skipping the entire post-processing pipeline (VAD, transcription, diarization, protocol generation). Both call sites — auto-detected meetings (`handleMeeting`) and manual recordings (`stopManualRecording`) — flow through the same branch. The destination is wrapped in `startAccessingSecurityScopedResource()` to honour user-picked Output Folder bookmarks (relevant for the App Store sandboxed build).
-- Sidecar JSON contains: `version` (currently `RecordingSidecar.currentVersion = 1`), `title`, `appName`, `startedAt`/`stoppedAt` (ISO 8601, reconstructed from `recordingStart` uptime), `participants`, `micDelaySeconds`, `files` (basenames only). Optional `app` / `mic` filenames are omitted when nil. Suffix constants live as static lets on the relevant types: `RecordingSidecar.filenameSuffix = "_meta.json"`, `DualSourceRecorder.mixFilenameSuffix = "_mix.wav"`.
+- Sidecar JSON contains: `version` (currently `RecordingSidecar.currentVersion = 1`), `title`, `appName`, `startedAt`/`stoppedAt` (ISO 8601, reconstructed from `recordingStart` uptime), `participants`, `micDelaySeconds`, `files` (basenames only). Optional `app` / `mic` filenames are omitted when nil. Suffix constants: `RecordingSidecar.filenameSuffix = "_meta.json"`; audio suffixes (`_mix.wav`, `_app.wav`, `_mic.wav`) live in `RecordingFileSuffix`.
 - Intended for fleet topologies where macOS clients capture and a separate machine (e.g. Linux GPU host) processes the audio via Syncthing or similar.
 - Menu bar: the small red dot is rendered as a **persistent overlay** (`MenuBarIcon.image(..., recordOnlyOverlay:)`) on top of *whatever* primary badge `BadgeKind.compute(...)` would otherwise show — idle, recording, transcribing, etc. — so the mode is always visible. Permission overlay (red exclamation) takes precedence when both apply, since a permission problem actually breaks recording. Settings tabs dim Transcription / Protocol / VAD / Diarization sections via `View.recordOnlyDisabled(_:)` and show a banner in the General tab pointing at the active output dir.
 - Sidecar write failures notify the user via `NotificationManager` (injected as `any AppNotifying` on `WatchLoop`) since record-only does not transition state to `.error`.

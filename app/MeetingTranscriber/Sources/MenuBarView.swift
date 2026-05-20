@@ -138,7 +138,7 @@ struct MenuBarView: View {
         Button {
             onOpenProtocolsFolder()
         } label: {
-            Label("Open Protocols Folder", systemImage: "folder")
+            Label("Open Output Folder", systemImage: "folder")
         }
 
         if let update = updateChecker?.availableUpdate {
