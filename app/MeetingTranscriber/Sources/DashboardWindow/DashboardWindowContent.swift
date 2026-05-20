@@ -4,10 +4,23 @@ import SwiftUI
 struct DashboardWindowContent: View {
     var pipelineQueue: PipelineQueue
     var settings: AppSettings
+    var status: TranscriberStatus?
+    var isWatching: Bool
+    var onStartStop: () -> Void
+    var whisperKitEngine: WhisperKitEngine
+    var parakeetEngine: ParakeetEngine
+    var qwen3Engine: (any TranscribingEngine)?
+    var updateChecker: UpdateChecker?
+    var recognitionStatsLog: RecognitionStatsLog
+    var enrollmentDiarizerFactory: (() -> any DiarizationProvider)?
+    var namingDialogActive: Bool
+    var pipelineBusy: Bool
+    var onSpeakerMutate: (() -> Void)?
 
     @State private var selectedNav: NavItem = .library
     @State private var selectedSessionID: UUID?
     @State private var storageLabel: String = "—"
+    @State private var elapsedLabel: String = "—"
 
     @Environment(\.modelContext) private var modelContext
     @Query private var allSessions: [RecordingSession]
@@ -64,16 +77,27 @@ struct DashboardWindowContent: View {
                 selectedSessionID: $selectedSessionID
             )
         case .dashboard:
-            placeholderPane(
-                icon: "square.grid.2x2",
-                title: "Dashboard",
-                subtitle: "Summary and analytics — coming in a future release."
+            DashboardView(
+                status: status,
+                isWatching: isWatching,
+                settings: settings,
+                elapsedLabel: elapsedLabel,
+                onStartStop: onStartStop,
+                selectedNav: $selectedNav,
+                selectedSessionID: $selectedSessionID
             )
         case .settings:
-            placeholderPane(
-                icon: "gearshape",
-                title: "Settings",
-                subtitle: "Open the Settings window via the menu bar for now."
+            SettingsContentView(
+                settings: settings,
+                whisperKitEngine: whisperKitEngine,
+                parakeetEngine: parakeetEngine,
+                qwen3Engine: qwen3Engine,
+                updateChecker: updateChecker,
+                recognitionStatsLog: recognitionStatsLog,
+                enrollmentDiarizerFactory: enrollmentDiarizerFactory,
+                namingDialogActive: namingDialogActive,
+                pipelineBusy: pipelineBusy,
+                onSpeakerMutate: onSpeakerMutate
             )
         }
     }

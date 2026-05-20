@@ -213,8 +213,28 @@ struct MeetingTranscriberApp: App {
         .windowResizability(.contentSize)
 
         WindowGroup(id: "dashboard") {
-            DashboardWindowContent(pipelineQueue: appState.pipelineQueue, settings: appState.settings)
-                .modelContainer(modelContainer)
+            DashboardWindowContent(
+                pipelineQueue: appState.pipelineQueue,
+                settings: appState.settings,
+                status: appState.currentStatus,
+                isWatching: appState.isWatching,
+                onStartStop: { appState.toggleWatching() },
+                whisperKitEngine: appState.whisperKit,
+                parakeetEngine: appState.parakeetEngine,
+                qwen3Engine: {
+                    if #available(macOS 15, *) {
+                        return appState.qwen3Engine
+                    }
+                    return nil
+                }(),
+                updateChecker: appState.updateChecker,
+                recognitionStatsLog: appState.pipelineQueue.recognitionStatsLog ?? RecognitionStatsLog(),
+                enrollmentDiarizerFactory: { FluidDiarizer(mode: appState.settings.diarizerMode) },
+                namingDialogActive: appState.pipelineQueue.pendingSpeakerNaming != nil,
+                pipelineBusy: appState.pipelineQueue.isProcessing,
+                onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames
+            )
+            .modelContainer(modelContainer)
         }
         .defaultSize(width: 1200, height: 700)
         .defaultPosition(.center)
