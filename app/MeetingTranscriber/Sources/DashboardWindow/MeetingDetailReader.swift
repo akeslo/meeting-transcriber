@@ -194,41 +194,49 @@ struct MeetingDetailReader: View {
     // MARK: - Playback bar
 
     private var playbackBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                togglePlayback()
-            } label: {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .imageScale(.large)
-                    .foregroundStyle(spaceIndigo)
-            }
-            .buttonStyle(.plain)
-            .disabled(player == nil)
-            .keyboardShortcut(" ", modifiers: [])
+        Group {
+            if let player {
+                HStack(spacing: 12) {
+                    Button {
+                        togglePlayback()
+                    } label: {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .imageScale(.large)
+                            .foregroundStyle(spaceIndigo)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(" ", modifiers: [])
 
-            Slider(value: $playbackPosition, in: 0...max(duration, 1)) { editing in
-                if !editing, let player {
-                    player.currentTime = playbackPosition
+                    Slider(value: $playbackPosition, in: 0...max(duration, 1)) { editing in
+                        if !editing {
+                            player.currentTime = playbackPosition
+                        }
+                    }
+
+                    Text(timeLabel(playbackPosition))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color.secondary)
+                        .frame(width: 42, alignment: .trailing)
+
+                    Text("/")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.secondary)
+
+                    Text(timeLabel(duration))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color.secondary)
+                        .frame(width: 42, alignment: .leading)
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            } else {
+                Text("No audio available")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 12)
             }
-            .disabled(player == nil)
-
-            Text(timeLabel(playbackPosition))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Color.secondary)
-                .frame(width: 42, alignment: .trailing)
-
-            Text("/")
-                .font(.system(size: 11))
-                .foregroundStyle(Color.secondary)
-
-            Text(timeLabel(duration))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Color.secondary)
-                .frame(width: 42, alignment: .leading)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
