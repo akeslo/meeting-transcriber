@@ -135,16 +135,7 @@ struct DetailPaneView: View {
                     }
                 }
 
-                ScrollView {
-                    Text("Transcript reader — Phase 4")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                }
-                .frame(height: 200)
-                .background(Color.secondary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                MeetingDetailReader(session: session)
 
                 Spacer(minLength: 20)
             }
