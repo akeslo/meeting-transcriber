@@ -18,7 +18,7 @@ struct LibraryView: View {
         return sessions.filter { s in
             s.title.localizedCaseInsensitiveContains(searchText)
                 || s.appName.localizedCaseInsensitiveContains(searchText)
-                || s.participantNames.joined().localizedCaseInsensitiveContains(searchText)
+                || s.participantNames.joined(separator: " ").localizedCaseInsensitiveContains(searchText)
         }
     }
 

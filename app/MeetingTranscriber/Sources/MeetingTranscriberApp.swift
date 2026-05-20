@@ -322,11 +322,6 @@ struct MeetingTranscriberApp: App {
         NSWorkspace.shared.open(dir)
     }
 
-    private func openDashboard() {
-        // Phase 3 will open the dashboard window. For now, open the output folder.
-        openOutputFolder()
-    }
-
     private func quit() {
         appState.watchLoop?.stop()
         NSApplication.shared.terminate(nil)

@@ -7,6 +7,7 @@ struct DashboardWindowContent: View {
 
     @State private var selectedNav: NavItem = .library
     @State private var selectedSessionID: UUID?
+    @State private var storageLabel: String = "—"
 
     @Environment(\.modelContext) private var modelContext
     @Query private var allSessions: [RecordingSession]
@@ -22,10 +23,6 @@ struct DashboardWindowContent: View {
         case .parakeet:   return "Parakeet TDT"
         case .qwen3:      return "Qwen3-ASR"
         }
-    }
-
-    private var storageLabel: String {
-        formattedBytes(storageBytesUsed())
     }
 
     var body: some View {
@@ -47,6 +44,13 @@ struct DashboardWindowContent: View {
                 .frame(width: 360)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .task {
+            let root = AppPaths.transcriberRoot
+            let bytes = await Task.detached(priority: .utility) {
+                Self.bytesUsed(at: root)
+            }.value
+            storageLabel = formattedBytes(bytes)
+        }
     }
 
     // MARK: - Content pane
@@ -96,8 +100,7 @@ struct DashboardWindowContent: View {
 
     // MARK: - Storage helpers
 
-    private func storageBytesUsed() -> Int64 {
-        let root = AppPaths.transcriberRoot
+    nonisolated private static func bytesUsed(at root: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: [.fileSizeKey],
