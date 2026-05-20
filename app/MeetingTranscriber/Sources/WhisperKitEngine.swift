@@ -49,6 +49,10 @@ final class WhisperKitEngine: TranscribingEngine {
     private var pipe: WhisperKit?
     private var loadingTask: Task<Void, Never>?
     private var lastLoggedDownloadPct: Int = -1
+    private var maxDownloadTotalBytes: Int64 = 0
+    /// Below this threshold we treat the download as a cache hit — WhisperKit only
+    /// pulled a manifest/sentinel, not the multi-hundred-MB weights.
+    private static let cacheHitByteThreshold: Int64 = 1_000_000
 
     func loadModel() async {
         // Deduplicate concurrent loads
@@ -61,6 +65,7 @@ final class WhisperKitEngine: TranscribingEngine {
             modelState = .downloading
             downloadProgress = 0
             lastLoggedDownloadPct = -1
+            maxDownloadTotalBytes = 0
             logger.info("whisperkit_download_start model=\(self.modelVariant, privacy: .public)")
             do {
                 let modelFolder = try await WhisperKit.download(
@@ -68,8 +73,11 @@ final class WhisperKitEngine: TranscribingEngine {
                 ) { progress in
                     Task { @MainActor in
                         self.downloadProgress = progress.fractionCompleted
+                        self.maxDownloadTotalBytes = max(self.maxDownloadTotalBytes, progress.totalUnitCount)
                         let pct = Int(progress.fractionCompleted * 100)
                         let milestone = (pct / 10) * 10
+                        // Suppress milestone spam for trivially small downloads (cache hits).
+                        guard progress.totalUnitCount >= Self.cacheHitByteThreshold else { return }
                         if milestone > self.lastLoggedDownloadPct {
                             self.lastLoggedDownloadPct = milestone
                             let done = ByteCountFormatter.string(fromByteCount: Int64(progress.completedUnitCount), countStyle: .file)
@@ -79,7 +87,11 @@ final class WhisperKitEngine: TranscribingEngine {
                     }
                 }
 
-                logger.info("whisperkit_download_done model=\(self.modelVariant, privacy: .public) — compiling CoreML models (may take 1-3 min)")
+                if maxDownloadTotalBytes < Self.cacheHitByteThreshold {
+                    logger.info("whisperkit_cache_hit model=\(self.modelVariant, privacy: .public) — model already on disk, compiling CoreML models (may take 1-3 min)")
+                } else {
+                    logger.info("whisperkit_download_done model=\(self.modelVariant, privacy: .public) — compiling CoreML models (may take 1-3 min)")
+                }
                 modelState = .loading
                 downloadProgress = 1.0
                 let loadStart = Date()
