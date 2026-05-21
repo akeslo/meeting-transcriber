@@ -178,7 +178,7 @@ log "Building dev .app"
 "$SCRIPT_DIR/run_app.sh" --build-only
 
 mkdir -p "$(dirname "$APP_BUNDLE_PATH")"
-SRC="$ROOT/app/MeetingTranscriber/.build/MeetingTranscriber-Dev.app"
+SRC="/Applications/MeetingTranscriber-Dev.app"
 log "Deploying to $APP_BUNDLE_PATH"
 if [ -d "$APP_BUNDLE_PATH" ]; then
     rsync -a --delete "$SRC/" "$APP_BUNDLE_PATH/"
