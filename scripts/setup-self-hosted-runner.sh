@@ -273,3 +273,6 @@ Next (one-time, in the GUI session as user '$USER'):
 After that, scripts/e2e-app.sh rebuilds + redeploys, the cert leaf SHA-1
 stays $CERT_HASH across rebuilds, and TCC keeps the grants automatically.
 MSG
+
+log "Launching $APP_BUNDLE_PATH ..."
+open "$APP_BUNDLE_PATH"
