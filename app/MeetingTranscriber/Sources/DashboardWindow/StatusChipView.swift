@@ -19,6 +19,8 @@ struct StatusChipView: View {
             return .green
         case "transcribing", "diarizing", "waiting", "generatingProtocol":
             return .peachGlow
+        case "saved":
+            return .peachGlow
         case "error":
             return .red
         default:

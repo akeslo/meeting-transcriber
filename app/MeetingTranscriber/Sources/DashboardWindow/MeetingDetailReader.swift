@@ -13,6 +13,7 @@ enum DetailTab: String, CaseIterable {
 
 struct MeetingDetailReader: View {
     let session: RecordingSession
+    let settings: AppSettings
 
     @State private var activeTab: DetailTab = .transcript
     @State private var segments: [TranscriptSegment] = []
@@ -243,7 +244,7 @@ struct MeetingDetailReader: View {
     // MARK: - Helpers
 
     private func loadContent() async {
-        let folder = URL(fileURLWithPath: session.folderPath)
+        let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
         let transcriptURL = folder.appendingPathComponent(RecordingFileSuffix.transcript)
         let protocolURL   = folder.appendingPathComponent(RecordingFileSuffix.protocol_)
 
@@ -260,12 +261,15 @@ struct MeetingDetailReader: View {
     }
 
     private func loadAudio() {
-        let mixURL = URL(fileURLWithPath: session.folderPath)
-            .appendingPathComponent(RecordingFileSuffix.mix)
-        guard let p = try? AVAudioPlayer(contentsOf: mixURL) else { return }
-        p.prepareToPlay()
-        player = p
-        duration = p.duration
+        let base = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
+        for filename in [RecordingFileSuffix.mix, RecordingFileSuffix.app, RecordingFileSuffix.mic] {
+            guard session.audioFiles.contains(filename) else { continue }
+            guard let p = try? AVAudioPlayer(contentsOf: base.appendingPathComponent(filename)) else { continue }
+            p.prepareToPlay()
+            player = p
+            duration = p.duration
+            return
+        }
     }
 
     private func togglePlayback() {

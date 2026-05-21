@@ -26,6 +26,7 @@ struct DashboardView: View {
                         headline: statusHeadline,
                         subtext: statusSubtext,
                         isWatching: isWatching,
+                        isRecording: status?.state == .recording,
                         onStartStop: onStartStop
                     )
                     .frame(maxWidth: .infinity)
@@ -88,6 +89,7 @@ private struct StatusCard: View {
     let headline: String
     let subtext: String
     let isWatching: Bool
+    let isRecording: Bool
     let onStartStop: () -> Void
 
     var body: some View {
@@ -101,9 +103,11 @@ private struct StatusCard: View {
                     .foregroundStyle(Color.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                AudioSourceRow(label: "App Audio Tap", active: true)
-                AudioSourceRow(label: "Built-in Mic", active: true)
+            if isRecording {
+                VStack(alignment: .leading, spacing: 8) {
+                    AudioSourceRow(label: "App Audio Tap", active: true)
+                    AudioSourceRow(label: "Built-in Mic", active: true)
+                }
             }
 
             Button(action: onStartStop) {
