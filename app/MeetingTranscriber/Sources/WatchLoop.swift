@@ -207,7 +207,7 @@ class WatchLoop {
         update { next in
             next.phase = .recording
             next.manualRecordingInfo = ManualRecordingInfo(pid: pid, appName: appName, title: title)
-            next.detail = "Recording: \(title)"
+            next.detail = ""
         }
 
         manualRecordingTask = Task { [weak self] in
@@ -317,7 +317,7 @@ class WatchLoop {
         update { next in
             next.phase = .recording
             next.currentMeeting = meeting
-            next.detail = "Recording: \(title)"
+            next.detail = ""
         }
 
         let recorder = recorderFactory()

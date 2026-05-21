@@ -52,18 +52,9 @@ struct MenuBarView: View {
                 Circle()
                     .fill(statusDotColor)
                     .frame(width: 7, height: 7)
-                HStack(spacing: 4) {
-                    Text(state.label)
-                        .font(.headline)
-                    if let title = status?.meeting?.title {
-                        Text("·")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                        Text(title)
-                            .font(.headline)
-                            .lineLimit(1)
-                    }
-                }
+                Text((status?.meeting?.title).map { "\(state.label) · \($0)" } ?? state.label)
+                    .font(.headline)
+                    .lineLimit(1)
             }
 
             // Secondary row: detail / elapsed
