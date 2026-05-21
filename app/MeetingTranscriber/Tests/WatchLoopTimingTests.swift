@@ -9,9 +9,9 @@ import XCTest
 final class WatchLoopTimingTests: XCTestCase {
     private func makeMeeting() -> DetectedMeeting {
         DetectedMeeting(
-            pattern: .teams,
-            windowTitle: "Test | Microsoft Teams",
-            ownerName: "Microsoft Teams",
+            pattern: .zoom,
+            windowTitle: "Zoom Meeting",
+            ownerName: "zoom.us",
             windowPID: 1234,
         )
     }
@@ -46,7 +46,7 @@ final class WatchLoopTimingTests: XCTestCase {
     func testWaitForMeetingEndMaxDuration() async throws {
         let detector = PowerAssertionDetector()
         detector.assertionProvider = {
-            [1234: [["Process Name": "MSTeams", "AssertName": "Microsoft Teams Call in progress"]]]
+            [1234: [["Process Name": "zoom.us", "AssertName": "Zoom video call active"]]]
         }
 
         let clock = TestClock()
@@ -80,7 +80,7 @@ final class WatchLoopTimingTests: XCTestCase {
     func testWaitForMeetingEndResetsGraceWhenMeetingResumes() async throws {
         let detector = PowerAssertionDetector()
         let activeAssertions: [Int32: [[String: Any]]] = [
-            1234: [["Process Name": "MSTeams", "AssertName": "Microsoft Teams Call in progress"]],
+            1234: [["Process Name": "zoom.us", "AssertName": "Zoom video call active"]],
         ]
         // Sequence: inactive, ACTIVE, inactive, inactive, …
         // Without grace-reset the loop returns at poll 3 (graceStart from

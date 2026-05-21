@@ -296,8 +296,11 @@ final class AppState { // swiftlint:disable:this type_body_length
     }
 
     var isModelReady: Bool {
-        activeTranscriptionEngine.modelState == .loaded
+        _modelReadyOverride ?? (activeTranscriptionEngine.modelState == .loaded)
     }
+
+    /// Test-only override; nil in production.
+    var _modelReadyOverride: Bool?
 
     var currentBadge: BadgeKind {
         BadgeKind.compute(

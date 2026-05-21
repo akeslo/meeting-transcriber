@@ -20,7 +20,9 @@ struct GeneralSettingsView: View {
             }
 
             Section("Apps to Watch") {
+                Toggle("Microsoft Teams", isOn: $settings.watchTeams)
                 Toggle("Zoom", isOn: $settings.watchZoom)
+                Toggle("Webex", isOn: $settings.watchWebex)
             }
 
             watchedWebsitesSection

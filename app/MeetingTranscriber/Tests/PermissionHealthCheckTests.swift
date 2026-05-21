@@ -167,7 +167,7 @@ final class PermissionHealthCheckTests: XCTestCase {
             microphone: .healthy,
             accessibility: .broken,
         )
-        XCTAssertFalse(result.isHealthy)
+        XCTAssertTrue(result.isHealthy, "accessibility is optional — broken accessibility doesn't block recording")
         XCTAssertEqual(result.problems, [.accessibilityBroken])
     }
 

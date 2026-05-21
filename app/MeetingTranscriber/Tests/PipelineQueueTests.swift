@@ -384,7 +384,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
 
-        let mixFile = recDir.appendingPathComponent("20260311_100000_mix.wav")
+        let mixFile = recDir.appendingPathComponent("20260311_100000_audio_mix.wav")
         try Data(repeating: 0xFF, count: 100).write(to: mixFile)
 
         let freshQueue = PipelineQueue(logDir: tmpDir)
@@ -402,7 +402,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
 
-        let mixFile = recDir.appendingPathComponent("20260311_100000_mix.wav")
+        let mixFile = recDir.appendingPathComponent("20260311_100000_audio_mix.wav")
         try Data(repeating: 0xFF, count: 100).write(to: mixFile)
 
         let freshQueue = PipelineQueue(logDir: tmpDir)
@@ -423,7 +423,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
 
-        let mixFile = recDir.appendingPathComponent("20260311_100000_mix.wav")
+        let mixFile = recDir.appendingPathComponent("20260311_100000_audio_mix.wav")
         try Data(repeating: 0x00, count: 44).write(to: mixFile)
 
         let freshQueue = PipelineQueue(logDir: tmpDir)
@@ -437,9 +437,9 @@ final class PipelineQueueTests: XCTestCase {
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
 
         let prefix = "20260311_100000"
-        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_mix.wav"))
-        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_app.wav"))
-        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_mic.wav"))
+        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_audio_mix.wav"))
+        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_audio_app.wav"))
+        try Data(repeating: 0xFF, count: 100).write(to: recDir.appendingPathComponent("\(prefix)_audio_mic.wav"))
 
         let freshQueue = PipelineQueue(logDir: tmpDir)
         await freshQueue.recoverOrphanedRecordings(recordingsDir: recDir)
@@ -453,7 +453,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
 
-        let mixFile = recDir.appendingPathComponent("20250101_100000_mix.wav")
+        let mixFile = recDir.appendingPathComponent("20250101_100000_audio_mix.wav")
         try Data(repeating: 0xFF, count: 100).write(to: mixFile)
 
         let freshQueue = PipelineQueue(logDir: tmpDir)
@@ -533,8 +533,8 @@ final class PipelineQueueTests: XCTestCase {
     func testMigrateSeedsProcessedRecordingsFromExistingMixFiles() async throws {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
-        let mixA = recDir.appendingPathComponent("20260101_100000_mix.wav")
-        let mixB = recDir.appendingPathComponent("20260102_100000_mix.wav")
+        let mixA = recDir.appendingPathComponent("20260101_100000_audio_mix.wav")
+        let mixB = recDir.appendingPathComponent("20260102_100000_audio_mix.wav")
         try Data(repeating: 0xFF, count: 100).write(to: mixA)
         try Data(repeating: 0xFF, count: 100).write(to: mixB)
         // Non-mix file must be ignored.
@@ -576,7 +576,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
         for i in 0 ..< 50 {
-            let mixFile = recDir.appendingPathComponent("20260311_10000\(i)_mix.wav")
+            let mixFile = recDir.appendingPathComponent("20260311_10000\(i)_audio_mix.wav")
             try Data(repeating: 0xFF, count: 100).write(to: mixFile)
         }
 
@@ -601,7 +601,7 @@ final class PipelineQueueTests: XCTestCase {
         let recDir = tmpDir.appendingPathComponent("recordings")
         try FileManager.default.createDirectory(at: recDir, withIntermediateDirectories: true)
         for i in 0 ..< 50 {
-            let mixFile = recDir.appendingPathComponent("20260311_10000\(i)_mix.wav")
+            let mixFile = recDir.appendingPathComponent("20260311_10000\(i)_audio_mix.wav")
             try Data(repeating: 0xFF, count: 100).write(to: mixFile)
         }
 

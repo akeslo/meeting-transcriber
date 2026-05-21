@@ -74,7 +74,7 @@ final class MenuBarViewTests: XCTestCase {
         let meeting = MeetingInfo(app: "Teams", title: "Standup", pid: 123)
         let sut = makeView(status: makeStatus(state: .recording, meeting: meeting))
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Standup"))
+        XCTAssertNoThrow(try body.find(text: "Recording · Standup"))
     }
 
     func testMeetingInfoHiddenWhenIdle() throws {
@@ -242,7 +242,7 @@ final class MenuBarViewTests: XCTestCase {
         let meeting = MeetingInfo(app: "Zoom", title: "Retro", pid: 456)
         let sut = makeView(status: makeStatus(state: .recording, meeting: meeting))
         let body = try sut.inspect()
-        XCTAssertNoThrow(try body.find(text: "Retro"), "Meeting title should appear in Zone 1")
+        XCTAssertNoThrow(try body.find(text: "Recording · Retro"), "Meeting title should appear in Zone 1")
     }
 
     // MARK: - Record App button

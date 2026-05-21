@@ -230,7 +230,7 @@ class WatchLoop {
         update { next in
             next.phase = .recording
             next.manualRecordingInfo = ManualRecordingInfo(pid: pid, appName: appName, title: title)
-            next.detail = ""
+            next.detail = "Recording: \(title)"
         }
 
         manualRecordingTask = Task { [weak self] in

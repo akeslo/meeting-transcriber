@@ -923,6 +923,7 @@ class PipelineQueue {
             // --- Move audio to session folder ---
             var audioFiles: [String] = []
             let fm = FileManager.default
+            let outputDirStd = outputDir.standardizedFileURL
             for (srcPath, destName) in [
                 (mixPath, RecordingFileSuffix.mix),
                 (appPath, RecordingFileSuffix.app),
@@ -933,8 +934,20 @@ class PipelineQueue {
             }) {
                 let dest = sessionDir.appendingPathComponent(destName)
                 do {
+                    let srcStd = srcPath.standardizedFileURL
+                    let destStd = dest.standardizedFileURL
+                    guard srcStd != destStd else {
+                        audioFiles.append(destName)
+                        continue
+                    }
                     if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-                    try fm.moveItem(at: srcPath, to: dest)
+                    // Source inside outputDir → copy to preserve the original (re-import safety).
+                    let srcInOutputDir = srcStd.path.hasPrefix(outputDirStd.path + "/")
+                    if srcInOutputDir {
+                        try fm.copyItem(at: srcPath, to: dest)
+                    } else {
+                        try fm.moveItem(at: srcPath, to: dest)
+                    }
                     audioFiles.append(destName)
                     logger.info("[\(shortID, privacy: .public)] audio_moved dest=\(destName, privacy: .public)")
                 } catch {

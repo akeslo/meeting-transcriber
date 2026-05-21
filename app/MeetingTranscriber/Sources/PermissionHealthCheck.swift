@@ -81,8 +81,9 @@ struct HealthCheckResult: Equatable {
     }
 
     // Accessibility is optional — its denial doesn't make the app unhealthy.
+    // Mic notDetermined means the OS hasn't prompted yet; recording will work once granted.
     var isHealthy: Bool {
-        screenRecording == .healthy && microphone == .healthy
+        screenRecording == .healthy && (microphone == .healthy || microphone == .notDetermined)
     }
 
     var notificationBody: String {

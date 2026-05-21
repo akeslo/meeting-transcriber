@@ -202,9 +202,9 @@ final class WorkflowIntegrationTests: XCTestCase {
         let (h, _) = try makeHarness(diarizeEnabled: false)
 
         let importDir = try makeTempDirectory(prefix: "import-source")
-        let mixURL = importDir.appendingPathComponent("standup_mix.wav")
-        let appURL = importDir.appendingPathComponent("standup_app.wav")
-        let micURL = importDir.appendingPathComponent("standup_mic.wav")
+        let mixURL = importDir.appendingPathComponent("standup_\(RecordingFileSuffix.mix)")
+        let appURL = importDir.appendingPathComponent("standup_\(RecordingFileSuffix.app)")
+        let micURL = importDir.appendingPathComponent("standup_\(RecordingFileSuffix.mic)")
         for url in [mixURL, appURL, micURL] {
             try FileManager.default.copyItem(at: h.audioPath, to: url)
         }
@@ -229,8 +229,11 @@ final class WorkflowIntegrationTests: XCTestCase {
         XCTAssertEqual(h.queue.jobs.first?.state, .done)
 
         let recordingsDir = tmpDir.appendingPathComponent("recordings")
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: recordingsDir.path)) ?? []
-        let audioWAVs = names.filter { $0.hasSuffix(".wav") && !$0.contains("_16k") }
+        // Session dir is nested inside recordingsDir — enumerate recursively.
+        let allFiles = (FileManager.default.enumerator(atPath: recordingsDir.path)?
+            .allObjects as? [String] ?? [])
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+        let audioWAVs = allFiles.filter { $0.hasSuffix(".wav") && !$0.contains("_16k") }
 
         // Exactly one triplet — no aliasing artifacts.
         XCTAssertEqual(audioWAVs.count { $0.hasSuffix(RecordingFileSuffix.mix) }, 1)

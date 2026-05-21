@@ -34,6 +34,9 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
             outputDir: testLogDir,
             logDir: testLogDir,
         )
+        // Tests don't load the real model; treat it as ready so badge tests
+        // aren't masked by the "model not loaded" error badge.
+        state._modelReadyOverride = true
         return (state, notifier)
     }
 
@@ -357,18 +360,18 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
     func testEnqueueFilesPairsTripletAsOneDualTrackJob() {
         let (state, _) = makeState()
         let urls = [
-            URL(fileURLWithPath: "/tmp/standup_app.wav"),
-            URL(fileURLWithPath: "/tmp/standup_mic.wav"),
-            URL(fileURLWithPath: "/tmp/standup_mix.wav"),
+            URL(fileURLWithPath: "/tmp/standup_\(RecordingFileSuffix.app)"),
+            URL(fileURLWithPath: "/tmp/standup_\(RecordingFileSuffix.mic)"),
+            URL(fileURLWithPath: "/tmp/standup_\(RecordingFileSuffix.mix)"),
         ]
 
         state.enqueueFiles(urls)
 
         XCTAssertEqual(state.pipelineQueue.jobs.count, 1)
         let job = state.pipelineQueue.jobs[0]
-        XCTAssertEqual(job.mixPath?.lastPathComponent, "standup_mix.wav")
-        XCTAssertEqual(job.appPath?.lastPathComponent, "standup_app.wav")
-        XCTAssertEqual(job.micPath?.lastPathComponent, "standup_mic.wav")
+        XCTAssertEqual(job.mixPath?.lastPathComponent, "standup_\(RecordingFileSuffix.mix)")
+        XCTAssertEqual(job.appPath?.lastPathComponent, "standup_\(RecordingFileSuffix.app)")
+        XCTAssertEqual(job.micPath?.lastPathComponent, "standup_\(RecordingFileSuffix.mic)")
     }
 
     func testEnqueueExistingFilesEmptyArrayReturnsZero() {
@@ -402,13 +405,14 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
     }
 
     func testEnqueueFilesAppPlusMicWithoutMixHasNilMixPath() {
-        // No `_mix.wav` in selection — job carries nil mixPath; the pipeline
+        // No mix file in selection — job carries nil mixPath; the pipeline
         // mixes app+mic into the workdir cache on the fly, no persistent mix
         // is written to recordings/.
         let (state, _) = makeState()
+        let basename = "20260311_143000"
         let urls = [
-            URL(fileURLWithPath: "/tmp/20260311_143000_app.wav"),
-            URL(fileURLWithPath: "/tmp/20260311_143000_mic.wav"),
+            URL(fileURLWithPath: "/tmp/\(basename)_\(RecordingFileSuffix.app)"),
+            URL(fileURLWithPath: "/tmp/\(basename)_\(RecordingFileSuffix.mic)"),
         ]
 
         state.enqueueFiles(urls)
@@ -416,8 +420,8 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
         XCTAssertEqual(state.pipelineQueue.jobs.count, 1)
         let job = state.pipelineQueue.jobs[0]
         XCTAssertNil(job.mixPath, "paired without mix → nil mixPath")
-        XCTAssertEqual(job.appPath?.lastPathComponent, "20260311_143000_app.wav")
-        XCTAssertEqual(job.micPath?.lastPathComponent, "20260311_143000_mic.wav")
+        XCTAssertEqual(job.appPath?.lastPathComponent, "\(basename)_\(RecordingFileSuffix.app)")
+        XCTAssertEqual(job.micPath?.lastPathComponent, "\(basename)_\(RecordingFileSuffix.mic)")
     }
 
     func testEnqueueFilesLoneAppFallsBackToSingleton() {
@@ -436,9 +440,9 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
     func testEnqueueFilesMixedPairAndSingleton() {
         let (state, _) = makeState()
         let urls = [
-            URL(fileURLWithPath: "/tmp/meeting_app.wav"),
-            URL(fileURLWithPath: "/tmp/meeting_mic.wav"),
-            URL(fileURLWithPath: "/tmp/meeting_mix.wav"),
+            URL(fileURLWithPath: "/tmp/meeting_\(RecordingFileSuffix.app)"),
+            URL(fileURLWithPath: "/tmp/meeting_\(RecordingFileSuffix.mic)"),
+            URL(fileURLWithPath: "/tmp/meeting_\(RecordingFileSuffix.mix)"),
             URL(fileURLWithPath: "/tmp/podcast.mp3"),
         ]
 
@@ -463,15 +467,15 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
             stoppedAt: Date(timeIntervalSince1970: 1_777_001_800),
             participants: ["Speaker A", "Speaker B"],
             micDelaySeconds: 0.25,
-            mixFilename: "\(basename)_mix.wav",
-            appFilename: "\(basename)_app.wav",
-            micFilename: "\(basename)_mic.wav",
+            mixFilename: "\(basename)_\(RecordingFileSuffix.mix)",
+            appFilename: "\(basename)_\(RecordingFileSuffix.app)",
+            micFilename: "\(basename)_\(RecordingFileSuffix.mic)",
         ).write(toDirectory: tmpDir, basename: basename)
 
         state.enqueueFiles([
-            tmpDir.appendingPathComponent("\(basename)_app.wav"),
-            tmpDir.appendingPathComponent("\(basename)_mic.wav"),
-            tmpDir.appendingPathComponent("\(basename)_mix.wav"),
+            tmpDir.appendingPathComponent("\(basename)_\(RecordingFileSuffix.app)"),
+            tmpDir.appendingPathComponent("\(basename)_\(RecordingFileSuffix.mic)"),
+            tmpDir.appendingPathComponent("\(basename)_\(RecordingFileSuffix.mix)"),
         ])
 
         XCTAssertEqual(state.pipelineQueue.jobs.count, 1)

@@ -119,6 +119,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
 
         // Verify recording happened
         XCTAssertTrue(recorder.startCalled)
@@ -180,6 +181,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
 
         // Verify dual-source paths were stored in the job
         XCTAssertEqual(queue.jobs.count, 1)
@@ -225,6 +227,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
 
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(queue.jobs[0].state, .waiting)
@@ -269,6 +272,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
         await queue.processNext()
 
         // Protocol should still be generated (diarization skipped gracefully)
@@ -286,20 +290,20 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
         let detector = PowerAssertionDetector(confirmationCount: 1)
         detector.windowListProvider = { [] }
 
-        let teamsAssertions: [Int32: [[String: Any]]] = [
+        let zoomAssertions: [Int32: [[String: Any]]] = [
             1234: [[
-                "Process Name": "MSTeams",
-                "AssertName": "Microsoft Teams Call in progress",
+                "Process Name": "zoom.us",
+                "AssertName": "Zoom video call active",
             ]],
         ]
-        detector.assertionProvider = { teamsAssertions }
+        detector.assertionProvider = { zoomAssertions }
 
         // First detection succeeds
         let firstDetection = detector.checkOnce()
         XCTAssertNotNil(firstDetection, "Should detect meeting on first check")
 
         // Reset with cooldown
-        detector.reset(appName: "Microsoft Teams")
+        detector.reset(appName: "Zoom")
 
         // Second detection should fail due to cooldown
         let secondDetection = detector.checkOnce()
@@ -401,6 +405,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
 
         XCTAssertEqual(queue.jobs.count, 1)
 
@@ -445,6 +450,7 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
+        loop.skipTitle()
 
         // Verify a job was enqueued
         XCTAssertEqual(queue.jobs.count, 1, "Should enqueue exactly one job")
