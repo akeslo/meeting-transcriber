@@ -179,19 +179,20 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var modelNotReadyWarning: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Model not loaded")
-                    .font(.caption.weight(.semibold))
-                Text("Open Dashboard → Settings → Transcription to load.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+        Button { onOpenSettings() } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Model not loaded")
+                        .font(.caption.weight(.semibold))
+                    Text("Open Settings → Transcription to load.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
     }
 
     // MARK: - Helpers

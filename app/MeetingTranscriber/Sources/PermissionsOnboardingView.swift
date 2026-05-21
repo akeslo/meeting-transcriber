@@ -43,9 +43,10 @@ struct PermissionsOnboardingView: View {
                     status: screenRecording,
                     optional: false,
                 ) {
-                    NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-                    )
+                    // CGRequestScreenCaptureAccess triggers the TCC dialog
+                    // and ensures the app appears in System Settings → Screen Recording.
+                    CGRequestScreenCaptureAccess()
+                    Task { await refreshAll() }
                 }
                 Divider().padding(.leading, 56)
                 permissionRow(
