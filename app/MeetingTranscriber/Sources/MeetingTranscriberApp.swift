@@ -50,6 +50,8 @@ private struct AnimatedMenuBarIcon: View {
 struct MeetingTranscriberApp: App {
     @State private var appState = AppState(notifier: NotificationManager.shared)
     private let modelContainer: ModelContainer = {
+        // Migrate library.sqlite from old Documents location before opening the store.
+        AppPaths.migrateIfNeeded()
         let config = ModelConfiguration(url: AppPaths.libraryStore)
         // swiftlint:disable:next force_try
         return try! ModelContainer(for: RecordingSession.self, configurations: config)
@@ -58,7 +60,6 @@ struct MeetingTranscriberApp: App {
     private var openWindow
 
     init() {
-        AppPaths.migrateIfNeeded()
         NotificationManager.shared.setUp()
         DualSourceRecorder.cleanupTempFiles()
         let suppressAutoWatch = ProcessInfo.processInfo.environment["MEETINGTRANSCRIBER_DEBUG_SUPPRESS_AUTOWATCH"] == "1"
