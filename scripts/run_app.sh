@@ -89,7 +89,7 @@ rm -rf "$ICONSET_TMP"
 # TCC keys by cert leaf SHA-1 for self-signed certs, so the cdhash can change
 # on every rebuild without re-prompting permission grants.
 DEV_CERT_NAME="MeetingTranscriberDevSelfHosted"
-SIGN_HASH=$(security find-identity -v -p codesigning | grep "$DEV_CERT_NAME" | head -1 | awk '{print $2}')
+SIGN_HASH=$(security find-identity -v -p codesigning | grep "$DEV_CERT_NAME" | head -1 | awk '{print $2}' || true)
 if [ -n "$SIGN_HASH" ]; then
     codesign --force --sign "$SIGN_HASH" "$APP_BUNDLE" 2>/dev/null && \
         echo "  Signed with dev cert: $SIGN_HASH" || {
