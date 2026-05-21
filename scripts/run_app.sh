@@ -72,6 +72,18 @@ GIT_HASH=$(git -C "$TRANSCRIBER_ROOT" rev-parse --short HEAD 2>/dev/null || echo
 
 cp "$BUILD_BINARY" "$APP_BINARY"
 
+# Build app icon: compile Assets.xcassets PNGs → AppIcon.icns via iconutil
+ASSETS_DIR="$SPM_DIR/Sources/Assets.xcassets/AppIcon.appiconset"
+RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+mkdir -p "$RESOURCES_DIR"
+ICONSET_TMP=$(mktemp -d)
+ICONSET_DIR="$ICONSET_TMP/AppIcon.iconset"
+mkdir -p "$ICONSET_DIR"
+cp "$ASSETS_DIR"/icon_*.png "$ICONSET_DIR/"
+iconutil -c icns -o "$RESOURCES_DIR/AppIcon.icns" "$ICONSET_DIR" 2>/dev/null || \
+    echo "  WARNING: iconutil failed — app will show generic icon"
+rm -rf "$ICONSET_TMP"
+
 # Code-sign so macOS keeps Screen Recording / Mic permissions across rebuilds.
 # Prefer the dev self-signed cert created by setup-self-hosted-runner.sh —
 # TCC keys by cert leaf SHA-1 for self-signed certs, so the cdhash can change
