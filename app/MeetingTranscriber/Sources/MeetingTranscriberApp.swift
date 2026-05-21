@@ -89,7 +89,7 @@ struct MeetingTranscriberApp: App {
                 onOpenOutputFolder: openOutputFolder,
                 onOpenDashboard: { openWindow(id: "dashboard") },
                 onOpenSettings: {
-                    bringWindowToFront(id: "settings")
+                    openWindow(id: "dashboard")
                 },
                 onNameSpeakers: appState.pipelineQueue.pendingSpeakerNamingJobs.isEmpty ? nil : {
                     bringWindowToFront(id: "speaker-naming")
@@ -120,10 +120,10 @@ struct MeetingTranscriberApp: App {
                 bringWindowToFront(id: "speaker-naming")
             }
             .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
-                bringWindowToFront(id: "settings")
+                openWindow(id: "dashboard")
             }
             .onReceive(NotificationCenter.default.publisher(for: .closeSettings)) { _ in
-                closeWindow(id: "settings")
+                closeWindow(id: "dashboard")
             }
             .task {
                 switch appState.settings.transcriptionEngine {
@@ -174,30 +174,6 @@ struct MeetingTranscriberApp: App {
                         closeWindow(id: "speaker-naming")
                     }
                 }
-        }
-        .windowResizability(.contentSize)
-
-        Window("Settings", id: "settings") {
-            SettingsView(
-                settings: appState.settings,
-                whisperKitEngine: appState.whisperKit,
-                parakeetEngine: appState.parakeetEngine,
-                qwen3Engine: {
-                    if #available(macOS 15, *) {
-                        return appState.qwen3Engine
-                    }
-                    return nil
-                }(),
-                updateChecker: appState.updateChecker,
-                // Share the pipeline's actor instance so both writers serialise on
-                // the same `recognition_log.jsonl` file. Fallback only fires in the
-                // test-only PipelineQueue init that intentionally leaves it nil.
-                recognitionStatsLog: appState.pipelineQueue.recognitionStatsLog ?? RecognitionStatsLog(),
-                enrollmentDiarizerFactory: { FluidDiarizer(mode: appState.settings.diarizerMode) },
-                namingDialogActive: appState.pipelineQueue.pendingSpeakerNaming != nil,
-                pipelineBusy: appState.pipelineQueue.isProcessing,
-                onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames,
-            )
         }
         .windowResizability(.contentSize)
 

@@ -122,6 +122,7 @@ private struct StatusCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(paleSlate, lineWidth: 1)
         )
+        .environment(\.colorScheme, .light)
     }
 }
 
@@ -180,6 +181,7 @@ private struct QuickControlsCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(paleSlate, lineWidth: 1)
         )
+        .environment(\.colorScheme, .light)
     }
 }
 
@@ -242,6 +244,7 @@ private struct RecentActivitySection: View {
                 }
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .environment(\.colorScheme, .light)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(paleSlate, lineWidth: 1)

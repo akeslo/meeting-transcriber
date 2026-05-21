@@ -24,6 +24,7 @@ struct AmbientLevelCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(paleSlate, lineWidth: 1)
         )
+        .environment(\.colorScheme, .light)
     }
 
     @ViewBuilder

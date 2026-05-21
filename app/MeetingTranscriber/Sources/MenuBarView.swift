@@ -194,7 +194,7 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Model not loaded")
                     .font(.caption.weight(.semibold))
-                Text("Open Settings → Transcription to load.")
+                Text("Open Dashboard → Settings → Transcription to load.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

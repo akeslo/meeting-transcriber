@@ -136,30 +136,35 @@ struct LibraryView: View {
 
     private var gridContent: some View {
         ScrollView {
-            if !inFlightJobs.isEmpty {
-                inFlightGridSection
-                Divider().padding(.horizontal, 20).padding(.vertical, 4)
-            }
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 180, maximum: 200), spacing: 12)],
-                spacing: 12
-            ) {
-                ForEach(filteredSessions, id: \.id) { session in
-                    SessionGridCardView(
-                        session: session,
-                        isSelected: selectedSessionID == session.id
-                    )
-                    .onTapGesture { selectedSessionID = session.id }
+            VStack(spacing: 0) {
+                if !inFlightJobs.isEmpty {
+                    inFlightGridSection
+                    Divider().padding(.horizontal, 20).padding(.vertical, 4)
+                }
+                sessionGrid
+                if filteredSessions.isEmpty && inFlightJobs.isEmpty {
+                    emptySearchState
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+        }
+    }
 
-            if filteredSessions.isEmpty && inFlightJobs.isEmpty {
-                emptySearchState
+    @ViewBuilder
+    private var sessionGrid: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 180, maximum: 200), spacing: 12)],
+            spacing: 12
+        ) {
+            ForEach(filteredSessions, id: \.id) { session in
+                SessionGridCardView(
+                    session: session,
+                    isSelected: selectedSessionID == session.id
+                )
+                .onTapGesture { selectedSessionID = session.id }
             }
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
     }
 
     @ViewBuilder
