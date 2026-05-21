@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # Launch the Meeting Transcriber menu bar app.
-# Builds an .app bundle so macOS APIs (notifications, etc.) work correctly.
+# Builds an .app bundle, installs to ~/Applications/MeetingTranscriber-Dev.app,
+# and launches from there so TCC permissions are stable across rebuilds.
 #
-# --build-only: Build the bundle but skip `open -W`. Used by the Pattern-C
-#   E2E driver (scripts/e2e-app.sh) which deploys the bundle to a stable
-#   path and launches it itself; opening the in-tree bundle there would
-#   confuse macOS LaunchServices about which one to use for TCC.
+# --build-only: Build + install the bundle but skip `open -W`.
 # --fast: Skip the .build wipe and rely on incremental swift build. Faster
 #   iteration; combine with the dev keychain cert (see setup-self-hosted-runner.sh)
 #   to keep TCC permissions persistent across rebuilds — TCC keys by cert
@@ -35,6 +33,8 @@ APP_BUNDLE="$SPM_DIR/.build/MeetingTranscriber-Dev.app"
 APP_MACOS="$APP_BUNDLE/Contents/MacOS"
 APP_BINARY="$APP_MACOS/MeetingTranscriber"
 INFO_PLIST="$SPM_DIR/Sources/Info.plist"
+INSTALL_PATH="$HOME/Applications/MeetingTranscriber-Dev.app"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 # Kill any running instance
 if pgrep -x "MeetingTranscriber" > /dev/null 2>&1; then
@@ -103,15 +103,22 @@ else
     codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
 fi
 
+# Install to ~/Applications for a stable launch path and persistent TCC grants
+echo "Installing to $INSTALL_PATH ..."
+mkdir -p "$HOME/Applications"
+rm -rf "$INSTALL_PATH"
+cp -R "$APP_BUNDLE" "$INSTALL_PATH"
+
+# Refresh LaunchServices so Finder / TCC show the correct icon immediately
+"$LSREGISTER" -f "$INSTALL_PATH" 2>/dev/null || true
+
 if [ "$BUILD_ONLY" = true ]; then
-    echo "Bundle ready: $APP_BUNDLE"
+    echo "Bundle installed: $INSTALL_PATH"
     exit 0
 fi
 
 echo "Starting Meeting Transcriber..."
 echo "  TRANSCRIBER_ROOT=$TRANSCRIBER_ROOT"
 
-# Launch via `open` so macOS LaunchServices properly registers the app
-# (required for notification permissions, etc.).
-# The app discovers the project root by walking up from the executable.
-open -W "$APP_BUNDLE"
+# Launch from the stable installed path so TCC associates grants with it.
+open -W "$INSTALL_PATH"
