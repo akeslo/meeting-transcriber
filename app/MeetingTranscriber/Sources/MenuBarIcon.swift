@@ -53,10 +53,16 @@ enum MenuBarIcon {
 
     // MARK: - Color Constants
 
-    /// Space Indigo — heartbeat base color (#2A324B).
-    nonisolated static let spaceIndigo = NSColor(
-        calibratedRed: 0.165, green: 0.196, blue: 0.294, alpha: 1
-    )
+    /// Space Indigo in light mode, white in dark mode — resolves at draw time
+    /// so the heartbeat waveform is always visible against the menu bar.
+    nonisolated static let spaceIndigo = NSColor(name: nil) { appearance in
+        switch appearance.bestMatch(from: [.aqua, .darkAqua, .vibrantDark]) {
+        case .darkAqua, .vibrantDark:
+            return NSColor.white
+        default:
+            return NSColor(calibratedRed: 0.165, green: 0.196, blue: 0.294, alpha: 1)
+        }
+    }
 
     /// Peach Glow — badge overlay color (#F7C59F).
     nonisolated static let peachGlow = NSColor(
