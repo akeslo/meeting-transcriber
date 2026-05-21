@@ -138,7 +138,10 @@ struct PermissionsOnboardingView: View {
                 Text(detail)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
