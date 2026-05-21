@@ -51,8 +51,8 @@ enum AppPaths {
     /// Per-session recordings directory under the new root.
     static let defaultRecordingsDir: URL = transcriberRoot.appendingPathComponent("recordings")
 
-    /// SwiftData library store location.
-    static let libraryStore: URL = transcriberRoot.appendingPathComponent("library.sqlite")
+    /// SwiftData library store location (internal app data — Application Support, not Documents).
+    static let libraryStore: URL = dataDir.appendingPathComponent("library.sqlite")
 
     /// Speaker voice profiles DB.
     static let speakersDB = dataDir.appendingPathComponent("speakers.json")
@@ -67,9 +67,24 @@ enum AppPaths {
     private static let logger = Logger(subsystem: logSubsystem, category: "AppPaths")
 
     /// Migrate IPC files from `~/.meeting-transcriber/` to `dataDir/ipc/`.
+    /// Also migrates library.sqlite from ~/Documents/Transcriber/ to dataDir if needed.
     /// Safe to call multiple times — copyItem fails gracefully if destination exists.
     static func migrateIfNeeded() {
         let fm = FileManager.default
+
+        // Migrate library.sqlite from old Documents location to Application Support.
+        let oldLibraryStore = transcriberRoot.appendingPathComponent("library.sqlite")
+        if fm.fileExists(atPath: oldLibraryStore.path),
+           !fm.fileExists(atPath: libraryStore.path) {
+            try? fm.createDirectory(at: dataDir, withIntermediateDirectories: true)
+            do {
+                try fm.moveItem(at: oldLibraryStore, to: libraryStore)
+                logger.info("Migrated library.sqlite from Documents to Application Support")
+            } catch {
+                logger.error("Failed to migrate library.sqlite: \(error.localizedDescription)")
+            }
+        }
+
         guard fm.fileExists(atPath: legacyIpcDir.path) else { return }
 
         let filesToMigrate = [
