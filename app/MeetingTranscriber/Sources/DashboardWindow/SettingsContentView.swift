@@ -1,5 +1,31 @@
 import SwiftUI
 
+// MARK: - SettingsSection
+
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case detection    = "Detection"
+    case audio        = "Audio"
+    case transcription = "Transcription"
+    case speakers     = "Speakers"
+    case output       = "Output"
+    case advanced     = "Advanced"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .detection:     return "eye"
+        case .audio:         return "mic"
+        case .transcription: return "waveform"
+        case .speakers:      return "person.2"
+        case .output:        return "doc.text"
+        case .advanced:      return "gearshape.2"
+        }
+    }
+}
+
+// MARK: - SettingsContentView
+
 struct SettingsContentView: View {
     let settings: AppSettings
     let whisperKitEngine: WhisperKitEngine
@@ -12,58 +38,95 @@ struct SettingsContentView: View {
     let pipelineBusy: Bool
     let onSpeakerMutate: (() -> Void)?
 
-    @State private var detectionExpanded: Bool = true
-    @State private var audioExpanded: Bool = true
-    @State private var transcriptionExpanded: Bool = true
-    @State private var speakersExpanded: Bool = true
-    @State private var outputExpanded: Bool = true
-    @State private var advancedExpanded: Bool = false
+    @State private var selectedSection: SettingsSection = .detection
 
     private let spaceIndigo = Color(red: 0.082, green: 0.114, blue: 0.208)
-    private let paleSlate   = Color(red: 0.878, green: 0.898, blue: 0.941)
+    private let subSidebarBg = Color(red: 0.118, green: 0.157, blue: 0.267)
+    private let peachGlow    = Color(red: 0.969, green: 0.773, blue: 0.624)
+    private let slateGrey    = Color(red: 0.780, green: 0.800, blue: 0.859)
+    private let aliceBlue    = Color(red: 0.882, green: 0.898, blue: 0.933)
 
     var body: some View {
+        HStack(spacing: 0) {
+            settingsSidebar
+            Divider()
+            sectionContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Settings sidebar
+
+    private var settingsSidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Settings")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(slateGrey)
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
+            ForEach(SettingsSection.allCases) { section in
+                settingsSidebarRow(section)
+            }
+
+            Spacer()
+        }
+        .frame(width: 160)
+        .background(subSidebarBg)
+    }
+
+    @ViewBuilder
+    private func settingsSidebarRow(_ section: SettingsSection) -> some View {
+        let isActive = selectedSection == section
+
+        Button {
+            selectedSection = section
+        } label: {
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(isActive ? peachGlow : Color.clear)
+                    .frame(width: 3, height: 16)
+                    .cornerRadius(1.5)
+
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isActive ? .white : slateGrey)
+                    .frame(width: 16)
+
+                Text(section.rawValue)
+                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(isActive ? .white : slateGrey)
+
+                Spacer()
+            }
+            .padding(.trailing, 12)
+            .padding(.vertical, 8)
+            .background(isActive ? aliceBlue.opacity(0.12) : Color.clear)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Section content
+
+    @ViewBuilder
+    private var sectionContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                SettingsSectionCard(
-                    icon: "eye",
-                    title: "Detection & Patterns",
-                    isExpanded: $detectionExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+            VStack(alignment: .leading, spacing: 0) {
+                switch selectedSection {
+                case .detection:
                     GeneralSettingsView(settings: settings, updateChecker: updateChecker)
-                }
-                SettingsSectionCard(
-                    icon: "mic",
-                    title: "Audio & Capture",
-                    isExpanded: $audioExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+                case .audio:
                     AudioSettingsView(settings: settings)
-                }
-                SettingsSectionCard(
-                    icon: "waveform",
-                    title: "Transcription Engine",
-                    isExpanded: $transcriptionExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+                case .transcription:
                     TranscriptionSettingsView(
                         settings: settings,
                         whisperKitEngine: whisperKitEngine,
                         parakeetEngine: parakeetEngine,
                         qwen3Engine: qwen3Engine,
                     )
-                }
-                SettingsSectionCard(
-                    icon: "person.2",
-                    title: "Speakers & Diarization",
-                    isExpanded: $speakersExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+                case .speakers:
                     SpeakersSettingsView(
                         settings: settings,
                         recognitionStatsLog: recognitionStatsLog,
@@ -72,63 +135,13 @@ struct SettingsContentView: View {
                         pipelineBusy: pipelineBusy,
                         onSpeakerMutate: onSpeakerMutate,
                     )
-                }
-                SettingsSectionCard(
-                    icon: "doc.text",
-                    title: "Output & Protocol",
-                    isExpanded: $outputExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+                case .output:
                     OutputSettingsView(settings: settings)
-                }
-                SettingsSectionCard(
-                    icon: "gearshape.2",
-                    title: "Advanced",
-                    isExpanded: $advancedExpanded,
-                    spaceIndigo: spaceIndigo,
-                    paleSlate: paleSlate,
-                ) {
+                case .advanced:
                     AdvancedSettingsView(settings: settings)
                 }
             }
-            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-}
-
-// MARK: - SettingsSectionCard
-
-private struct SettingsSectionCard<Content: View>: View {
-    let icon: String
-    let title: String
-    @Binding var isExpanded: Bool
-    let spaceIndigo: Color
-    let paleSlate: Color
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            content
-                .padding(.top, 12)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(spaceIndigo)
-                    .imageScale(.medium)
-                    .frame(width: 20)
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(spaceIndigo)
-            }
-        }
-        .padding(16)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(paleSlate, lineWidth: 1)
-        )
     }
 }
