@@ -250,7 +250,13 @@ class WatchLoop {
         var failureMessage: String?
         do {
             let recording = try recorder.stop()
-            enqueueRecording(title: info.title, appName: info.appName, recording: recording)
+            setPending(
+                suggestedTitle: info.title,
+                appName: info.appName,
+                recording: recording,
+                participants: []
+            )
+            NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
         } catch {
             logger.error("Failed to stop manual recording: \(error)")
             failureMessage = error.localizedDescription
@@ -368,13 +374,13 @@ class WatchLoop {
         // Stop recording
         let recording = try recorder.stop()
 
-        // --- Enqueue for background processing ---
-        enqueueRecording(
-            title: title,
+        setPending(
+            suggestedTitle: title,
             appName: meeting.pattern.appName,
             recording: recording,
-            participants: participants,
+            participants: participants
         )
+        NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
     }
 
     // MARK: - Meeting End Detection
