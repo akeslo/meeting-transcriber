@@ -30,6 +30,11 @@ struct DashboardWindowContent: View {
         return allSessions.first(where: { $0.id == id })
     }
 
+    private var selectedJob: PipelineJob? {
+        guard let id = selectedSessionID, selectedSession == nil else { return nil }
+        return pipelineQueue.jobs.first(where: { $0.id == id })
+    }
+
     private var engineLabel: String {
         switch settings.transcriptionEngine {
         case .whisperKit: return "WhisperKit"
@@ -53,7 +58,7 @@ struct DashboardWindowContent: View {
 
             Divider()
 
-            DetailPaneView(session: selectedSession)
+            DetailPaneView(session: selectedSession, job: selectedJob, settings: settings)
                 .frame(width: 360)
         }
         .frame(minWidth: 900, minHeight: 600)

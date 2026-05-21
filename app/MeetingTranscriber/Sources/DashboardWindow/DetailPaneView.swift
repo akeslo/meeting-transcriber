@@ -3,6 +3,8 @@ import SwiftUI
 
 struct DetailPaneView: View {
     let session: RecordingSession?
+    let job: PipelineJob?
+    let settings: AppSettings
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -14,6 +16,8 @@ struct DetailPaneView: View {
     var body: some View {
         if let session {
             sessionDetail(session)
+        } else if let job {
+            jobDetail(job)
         } else {
             emptyState
         }
@@ -135,7 +139,7 @@ struct DetailPaneView: View {
                     }
                 }
 
-                MeetingDetailReader(session: session)
+                MeetingDetailReader(session: session, settings: settings)
 
                 Spacer(minLength: 20)
             }
@@ -154,18 +158,36 @@ struct DetailPaneView: View {
     }
 
     private func openTranscript(for session: RecordingSession) {
-        let folder = URL(fileURLWithPath: session.folderPath)
+        let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
         NSWorkspace.shared.open(folder.appendingPathComponent(RecordingFileSuffix.transcript))
     }
 
     private func openProtocol(for session: RecordingSession) {
-        let folder = URL(fileURLWithPath: session.folderPath)
+        let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
         NSWorkspace.shared.open(folder.appendingPathComponent(RecordingFileSuffix.protocol_))
     }
 
     private func revealInFinder(for session: RecordingSession) {
-        let folder = URL(fileURLWithPath: session.folderPath)
+        let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+    }
+
+    private func jobDetail(_ job: PipelineJob) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text(job.meetingTitle.isEmpty ? "Processing…" : job.meetingTitle)
+                .font(.system(size: 17, weight: .semibold))
+                .lineLimit(3)
+            StatusChipView(status: job.state.rawValue)
+            if job.progress > 0 {
+                ProgressView(value: job.progress)
+            }
+            Text("This recording is being processed. Details will appear when complete.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
