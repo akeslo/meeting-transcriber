@@ -90,6 +90,7 @@ struct MeetingTranscriberApp: App {
                 onOpenDashboard: { openWindow(id: "dashboard") },
                 onOpenSettings: {
                     openWindow(id: "dashboard")
+                    NotificationCenter.default.post(name: .showSettings, object: nil)
                 },
                 onNameSpeakers: appState.pipelineQueue.pendingSpeakerNamingJobs.isEmpty ? nil : {
                     bringWindowToFront(id: "speaker-naming")

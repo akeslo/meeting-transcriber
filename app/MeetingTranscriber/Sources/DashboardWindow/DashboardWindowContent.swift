@@ -57,6 +57,9 @@ struct DashboardWindowContent: View {
                 .frame(width: 360)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
+            selectedNav = .settings
+        }
         .task {
             let root = AppPaths.transcriberRoot
             let bytes = await Task.detached(priority: .utility) {
