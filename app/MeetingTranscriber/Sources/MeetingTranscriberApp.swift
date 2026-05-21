@@ -193,7 +193,7 @@ struct MeetingTranscriberApp: App {
         }
         .windowResizability(.contentSize)
 
-        WindowGroup(id: "dashboard") {
+        Window("Dashboard", id: "dashboard") {
             DashboardWindowContent(
                 pipelineQueue: appState.pipelineQueue,
                 settings: appState.settings,
