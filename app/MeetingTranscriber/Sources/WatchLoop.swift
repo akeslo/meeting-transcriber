@@ -10,6 +10,13 @@ struct ManualRecordingInfo: Equatable {
     let title: String
 }
 
+struct PendingTitleEntry {
+    let suggestedTitle: String
+    let appName: String
+    let recording: RecordingResult
+    let participants: [String]
+}
+
 /// Native Swift watch loop that replaces the Python watcher.
 ///
 /// Orchestrates: meeting detection → recording → enqueue to PipelineQueue.
@@ -30,6 +37,7 @@ class WatchLoop {
 
     // Manual recording
     private(set) var manualRecordingInfo: ManualRecordingInfo?
+    var pendingTitle: PendingTitleEntry?
     /// Exposed for read-only access — AppState's per-channel level monitor polls
     /// `appLevelDBFS` / `micLevelDBFS` here at ~10 Hz to drive the asymmetric-silence
     /// indicator. Setter stays private so the recording lifecycle flows through
@@ -388,6 +396,56 @@ class WatchLoop {
     }
 
     // MARK: - Helpers
+
+    /// Stage a completed recording for user title confirmation.
+    /// Auto-flushes any existing pending entry with its suggested title.
+    func setPending(
+        suggestedTitle: String,
+        appName: String,
+        recording: RecordingResult,
+        participants: [String]
+    ) {
+        if let existing = pendingTitle {
+            enqueueRecording(
+                title: existing.suggestedTitle,
+                appName: existing.appName,
+                recording: existing.recording,
+                participants: existing.participants
+            )
+            pendingTitle = nil
+        }
+        pendingTitle = PendingTitleEntry(
+            suggestedTitle: suggestedTitle,
+            appName: appName,
+            recording: recording,
+            participants: participants
+        )
+    }
+
+    /// User confirmed a title. Trims whitespace; falls back to suggestedTitle if blank.
+    func confirmTitle(_ title: String) {
+        guard let entry = pendingTitle else { return }
+        pendingTitle = nil
+        let resolved = title.trimmingCharacters(in: .whitespaces)
+        enqueueRecording(
+            title: resolved.isEmpty ? entry.suggestedTitle : resolved,
+            appName: entry.appName,
+            recording: entry.recording,
+            participants: entry.participants
+        )
+    }
+
+    /// User skipped naming. Enqueues with the auto-detected title.
+    func skipTitle() {
+        guard let entry = pendingTitle else { return }
+        pendingTitle = nil
+        enqueueRecording(
+            title: entry.suggestedTitle,
+            appName: entry.appName,
+            recording: entry.recording,
+            participants: entry.participants
+        )
+    }
 
     private func enqueueRecording(
         title: String,
