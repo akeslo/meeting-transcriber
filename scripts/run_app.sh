@@ -90,16 +90,15 @@ rm -rf "$ICONSET_TMP"
 # on every rebuild without re-prompting permission grants.
 DEV_CERT_NAME="MeetingTranscriberDevSelfHosted"
 SIGN_HASH=$(security find-identity -v -p codesigning | grep "$DEV_CERT_NAME" | head -1 | awk '{print $2}')
-if [ -z "$SIGN_HASH" ]; then
-    SIGN_HASH=$(security find-identity -v -p codesigning | head -1 | awk '{print $2}')
-fi
 if [ -n "$SIGN_HASH" ]; then
     codesign --force --sign "$SIGN_HASH" "$APP_BUNDLE" 2>/dev/null && \
-        echo "  Signed with: $SIGN_HASH"
+        echo "  Signed with dev cert: $SIGN_HASH" || {
+        echo "  WARNING: dev cert signing failed — falling back to ad-hoc."
+        codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
+    }
 else
-    echo "  WARNING: no codesigning identity found — signing ad-hoc."
-    echo "  macOS TCC will re-prompt Mic / Screen Recording on every rebuild."
-    echo "  Run ./scripts/setup-self-hosted-runner.sh once to create a stable dev cert."
+    echo "  No MeetingTranscriberDevSelfHosted cert — signing ad-hoc."
+    echo "  TCC will re-prompt on each rebuild. Run setup-self-hosted-runner.sh once to fix."
     codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
 fi
 
