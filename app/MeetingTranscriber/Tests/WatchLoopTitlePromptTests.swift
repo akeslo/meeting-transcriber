@@ -84,6 +84,36 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "Auto Title")
     }
 
+    // MARK: - stop auto-flush
+
+    func testStopAutoFlushesPendingTitle() {
+        let queue = PipelineQueue()
+        let loop = makeLoop(queue: queue)
+        loop.pendingTitle = PendingTitleEntry(
+            suggestedTitle: "Flushed Meeting", appName: "Zoom",
+            recording: makeResult(), participants: []
+        )
+        loop.stop()
+        XCTAssertNil(loop.pendingTitle)
+        XCTAssertEqual(queue.jobs.first?.meetingTitle, "Flushed Meeting")
+    }
+
+    // MARK: - nil-guard no-ops
+
+    func testConfirmTitleIsNoOpWhenNoPendingEntry() {
+        let queue = PipelineQueue()
+        let loop = makeLoop(queue: queue)
+        loop.confirmTitle("Some Title") // no pending entry
+        XCTAssertTrue(queue.jobs.isEmpty)
+    }
+
+    func testSkipTitleIsNoOpWhenNoPendingEntry() {
+        let queue = PipelineQueue()
+        let loop = makeLoop(queue: queue)
+        loop.skipTitle()
+        XCTAssertTrue(queue.jobs.isEmpty)
+    }
+
     // MARK: - setPending auto-flush
 
     func testSetPendingAutoFlushesExistingEntry() {

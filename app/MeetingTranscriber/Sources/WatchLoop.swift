@@ -10,11 +10,17 @@ struct ManualRecordingInfo: Equatable {
     let title: String
 }
 
-struct PendingTitleEntry {
+struct PendingTitleEntry: Equatable {
     let suggestedTitle: String
     let appName: String
     let recording: RecordingResult
     let participants: [String]
+
+    static func == (lhs: PendingTitleEntry, rhs: PendingTitleEntry) -> Bool {
+        lhs.suggestedTitle == rhs.suggestedTitle &&
+            lhs.appName == rhs.appName &&
+            lhs.participants == rhs.participants
+    }
 }
 
 /// Native Swift watch loop that replaces the Python watcher.
@@ -179,6 +185,15 @@ class WatchLoop {
     func stop() {
         watchTask?.cancel()
         watchTask = nil
+        if let entry = pendingTitle {
+            enqueueRecording(
+                title: entry.suggestedTitle,
+                appName: entry.appName,
+                recording: entry.recording,
+                participants: entry.participants
+            )
+            pendingTitle = nil
+        }
         cleanupManualRecording()
         update { next in
             next.phase = .idle
@@ -426,7 +441,7 @@ class WatchLoop {
     func confirmTitle(_ title: String) {
         guard let entry = pendingTitle else { return }
         pendingTitle = nil
-        let resolved = title.trimmingCharacters(in: .whitespaces)
+        let resolved = title.trimmingCharacters(in: .whitespacesAndNewlines)
         enqueueRecording(
             title: resolved.isEmpty ? entry.suggestedTitle : resolved,
             appName: entry.appName,
