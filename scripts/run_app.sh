@@ -112,6 +112,9 @@ cp -R "$APP_BUNDLE" "$INSTALL_PATH"
 # Refresh LaunchServices so Finder / TCC show the correct icon immediately
 "$LSREGISTER" -f "$INSTALL_PATH" 2>/dev/null || true
 
+# Remove build-dir bundle — installed copy in ~/Applications is the canonical one
+rm -rf "$APP_BUNDLE"
+
 if [ "$BUILD_ONLY" = true ]; then
     echo "Bundle installed: $INSTALL_PATH"
     exit 0
