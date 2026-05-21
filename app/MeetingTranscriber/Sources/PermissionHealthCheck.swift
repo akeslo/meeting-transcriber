@@ -80,8 +80,9 @@ struct HealthCheckResult: Equatable {
         return result
     }
 
+    // Accessibility is optional — its denial doesn't make the app unhealthy.
     var isHealthy: Bool {
-        problems.isEmpty
+        screenRecording == .healthy && microphone == .healthy
     }
 
     var notificationBody: String {
