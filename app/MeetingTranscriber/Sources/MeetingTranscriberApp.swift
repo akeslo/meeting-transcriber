@@ -1,4 +1,6 @@
+import AVFoundation
 import Combine
+import CoreGraphics
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -153,6 +155,14 @@ struct MeetingTranscriberApp: App {
             .task {
                 await appState.checkPermissions()
             }
+            .task {
+                let screenOK = CGPreflightScreenCaptureAccess()
+                let micOK = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+                if !screenOK || !micOK {
+                    openWindow(id: "onboarding")
+                    bringWindowToFront(id: "onboarding")
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 // Re-check permissions when the user returns to the app (e.g. from System
                 // Settings after toggling a permission). Debounced so rapid Cmd-Tab cycles
@@ -162,6 +172,13 @@ struct MeetingTranscriberApp: App {
                 }
             }
         }
+
+        Window("Set Up Permissions", id: "onboarding") {
+            PermissionsOnboardingView {
+                closeWindow(id: "onboarding")
+            }
+        }
+        .windowResizability(.contentSize)
 
         Window("Name Speakers", id: "speaker-naming") {
             speakerNamingContent
