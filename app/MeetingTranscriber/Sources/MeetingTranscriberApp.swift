@@ -130,6 +130,10 @@ struct MeetingTranscriberApp: App {
             .onReceive(NotificationCenter.default.publisher(for: .showSpeakerNaming)) { _ in
                 bringWindowToFront(id: "speaker-naming")
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showTitlePrompt)) { _ in
+                openWindow(id: "title-prompt")
+                bringWindowToFront(id: "title-prompt")
+            }
             .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
                 openWindow(id: "dashboard")
             }
@@ -213,6 +217,12 @@ struct MeetingTranscriberApp: App {
             )
         }
         .windowResizability(.contentSize)
+
+        Window("Name this Recording", id: "title-prompt") {
+            TitlePromptView(watchLoop: appState.watchLoop)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 380, height: 130)
 
         Window("Dashboard", id: "dashboard") {
             DashboardWindowContent(
