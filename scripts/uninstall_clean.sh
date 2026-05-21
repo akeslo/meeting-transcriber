@@ -9,7 +9,7 @@ set -euo pipefail
 
 APP_NAME="MeetingTranscriber"
 DEV_BUNDLE_ID="com.meetingtranscriber.dev"
-INSTALL_PATH="$HOME/Applications/MeetingTranscriber-Dev.app"
+INSTALL_PATH="/Applications/MeetingTranscriber-Dev.app"
 APP_SUPPORT="$HOME/Library/Application Support/MeetingTranscriber"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 

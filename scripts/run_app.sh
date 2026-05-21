@@ -33,7 +33,7 @@ APP_BUNDLE="$SPM_DIR/.build/MeetingTranscriber-Dev.app"
 APP_MACOS="$APP_BUNDLE/Contents/MacOS"
 APP_BINARY="$APP_MACOS/MeetingTranscriber"
 INFO_PLIST="$SPM_DIR/Sources/Info.plist"
-INSTALL_PATH="$HOME/Applications/MeetingTranscriber-Dev.app"
+INSTALL_PATH="/Applications/MeetingTranscriber-Dev.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 # Kill any running instance
@@ -103,9 +103,9 @@ else
     codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
 fi
 
-# Install to ~/Applications for a stable launch path and persistent TCC grants
+# Install to /Applications for a stable launch path and persistent TCC grants
 echo "Installing to $INSTALL_PATH ..."
-mkdir -p "$HOME/Applications"
+mkdir -p "/Applications"
 rm -rf "$INSTALL_PATH"
 cp -R "$APP_BUNDLE" "$INSTALL_PATH"
 
