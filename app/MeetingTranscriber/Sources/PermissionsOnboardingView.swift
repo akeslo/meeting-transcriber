@@ -97,6 +97,11 @@ struct PermissionsOnboardingView: View {
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
         ) { _ in
             Task { await refreshAll() }
+            DispatchQueue.main.async {
+                NSApp.windows
+                    .first { $0.identifier?.rawValue == "onboarding" }?
+                    .makeKeyAndOrderFront(nil)
+            }
         }
     }
 
