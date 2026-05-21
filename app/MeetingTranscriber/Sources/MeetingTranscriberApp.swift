@@ -87,9 +87,13 @@ struct MeetingTranscriberApp: App {
                     appState.stopManualRecording()
                 } : nil,
                 onOpenOutputFolder: openOutputFolder,
-                onOpenDashboard: { openWindow(id: "dashboard") },
+                onOpenDashboard: {
+                    openWindow(id: "dashboard")
+                    bringWindowToFront(id: "dashboard")
+                },
                 onOpenSettings: {
                     openWindow(id: "dashboard")
+                    bringWindowToFront(id: "dashboard")
                     NotificationCenter.default.post(name: .showSettings, object: nil)
                 },
                 onNameSpeakers: appState.pipelineQueue.pendingSpeakerNamingJobs.isEmpty ? nil : {
