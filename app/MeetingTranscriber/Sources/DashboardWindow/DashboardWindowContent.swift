@@ -60,6 +60,9 @@ struct DashboardWindowContent: View {
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
             selectedNav = .settings
         }
+        .onAppear {
+            pipelineQueue.modelContext = modelContext
+        }
         .task {
             let root = AppPaths.transcriberRoot
             let bytes = await Task.detached(priority: .utility) {
