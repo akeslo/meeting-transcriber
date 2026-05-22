@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch the Meeting Transcriber menu bar app.
-# Builds an .app bundle, installs to ~/Applications/MeetingTranscriber-Dev.app,
+# Builds an .app bundle, installs to ~/Applications/AudioLeak-Dev.app,
 # and launches from there so TCC permissions are stable across rebuilds.
 #
 # --build-only: Build + install the bundle but skip `open -W`.
@@ -29,11 +29,11 @@ export TRANSCRIBER_ROOT
 
 SPM_DIR="$TRANSCRIBER_ROOT/app/MeetingTranscriber"
 BUILD_BINARY="$SPM_DIR/.build/release/MeetingTranscriber"
-APP_BUNDLE="$SPM_DIR/.build/MeetingTranscriber-Dev.app"
+APP_BUNDLE="$SPM_DIR/.build/AudioLeak-Dev.app"
 APP_MACOS="$APP_BUNDLE/Contents/MacOS"
 APP_BINARY="$APP_MACOS/MeetingTranscriber"
 INFO_PLIST="$SPM_DIR/Sources/Info.plist"
-INSTALL_PATH="/Applications/MeetingTranscriber-Dev.app"
+INSTALL_PATH="$HOME/Applications/AudioLeak-Dev.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 # Kill any running instance
@@ -102,9 +102,9 @@ else
     codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
 fi
 
-# Install to /Applications for a stable launch path and persistent TCC grants
+# Install to ~/Applications for a stable launch path and persistent TCC grants
 echo "Installing to $INSTALL_PATH ..."
-mkdir -p "/Applications"
+mkdir -p "$HOME/Applications"
 rm -rf "$INSTALL_PATH"
 cp -R "$APP_BUNDLE" "$INSTALL_PATH"
 

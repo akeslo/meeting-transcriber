@@ -46,7 +46,7 @@ while [ $# -gt 0 ]; do
 done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP="$ROOT/app/MeetingTranscriber/.build/MeetingTranscriber-Dev.app"
+APP="$ROOT/app/MeetingTranscriber/.build/AudioLeak-Dev.app"
 BIN="$APP/Contents/MacOS/MeetingTranscriber"
 MTCLI="$ROOT/tools/mt-cli/.build/debug/mt-cli"
 
@@ -82,17 +82,17 @@ fi
 
 # --- 2. Kill any running instance + clear launchctl ----------------------
 
-if pgrep -f "MeetingTranscriber-Dev" >/dev/null 2>&1; then
+if pgrep -f "AudioLeak-Dev" >/dev/null 2>&1; then
     # Graceful first, SIGKILL only as fallback — matches scripts/e2e-app.sh
     # `quit_running_app` ladder so we don't risk corrupting UserDefaults or
     # the pipeline-queue snapshot mid-write.
     osascript -e 'tell application id "com.meetingtranscriber.dev" to quit' 2>/dev/null || true
-    pkill -TERM -f "MeetingTranscriber-Dev" 2>/dev/null || true
+    pkill -TERM -f "AudioLeak-Dev" 2>/dev/null || true
     for _ in $(seq 1 10); do
-        pgrep -f "MeetingTranscriber-Dev" >/dev/null 2>&1 || break
+        pgrep -f "AudioLeak-Dev" >/dev/null 2>&1 || break
         sleep 0.5
     done
-    pkill -9 -f "MeetingTranscriber-Dev" 2>/dev/null || true
+    pkill -9 -f "AudioLeak-Dev" 2>/dev/null || true
 fi
 cleanup  # boots out stale launchctl entries
 

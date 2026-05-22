@@ -5,9 +5,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.meetingtranscriber.app</string>
     <key>CFBundleName</key>
-    <string>Meeting Transcriber</string>
+    <string>AudioLeak</string>
     <key>CFBundleDisplayName</key>
-    <string>Meeting Transcriber</string>
+    <string>AudioLeak</string>
     <key>CFBundleExecutable</key>
     <string>MeetingTranscriber</string>
     <key>CFBundleVersion</key>
@@ -25,12 +25,12 @@
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Meeting Transcriber needs microphone access to record meeting audio for transcription.</string>
+    <string>AudioLeak needs microphone access to record meeting audio for transcription.</string>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Meeting Transcriber needs Screen Recording permission to detect active meetings by reading window titles.</string>
+    <string>AudioLeak needs Screen Recording permission to detect active meetings by reading window titles.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>Meeting Transcriber uses Accessibility to detect mute state and read meeting participants.</string>
+    <string>AudioLeak uses Accessibility to detect mute state and read meeting participants.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Meeting Transcriber needs Automation access to read open browser tabs for website-based recording detection.</string>
+    <string>AudioLeak needs Automation access to read open browser tabs for website-based recording detection.</string>
 </dict>
 </plist>

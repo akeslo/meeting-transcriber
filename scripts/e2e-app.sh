@@ -17,7 +17,7 @@
 #   - A virtual input device (BlackHole 2ch) so AVAudioEngine has something
 #     to bind to on Mac mini hosts without a built-in mic
 #   - System Settings → Privacy: Microphone + Screen & System Audio Recording
-#     granted to ~/Applications/MeetingTranscriber-Dev.app
+#     granted to ~/Applications/AudioLeak-Dev.app
 #   See scripts/setup-self-hosted-runner.sh for the bootstrap flow.
 
 set -euo pipefail
@@ -50,7 +50,7 @@ Usage: e2e-app.sh [--no-build] [--keep-app] [--two-meetings] [--record-only]
                   [--reimport-recorded | --reimport-latest] [--keep-recordings]
                   [--fixture path/to.wav]
 
-  --no-build           Skip build/deploy/re-sign; use ~/Applications/MeetingTranscriber-Dev.app as-is.
+  --no-build           Skip build/deploy/re-sign; use ~/Applications/AudioLeak-Dev.app as-is.
   --keep-app           Leave the dev app running on exit. Default: quit it.
   --two-meetings       Run two meetings back-to-back (cooldown + state-reset coverage).
   --record-only        Enable record-only mode: assert on sidecar JSON + mix WAV instead
@@ -101,8 +101,8 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEV_BUNDLE_BUILD="$ROOT/app/MeetingTranscriber/.build/MeetingTranscriber-Dev.app"
-DEV_BUNDLE_DEPLOY="$HOME/Applications/MeetingTranscriber-Dev.app"
+DEV_BUNDLE_BUILD="$ROOT/app/MeetingTranscriber/.build/AudioLeak-Dev.app"
+DEV_BUNDLE_DEPLOY="$HOME/Applications/AudioLeak-Dev.app"
 SIMULATOR_PKG="$ROOT/tools/meeting-simulator"
 SIMULATOR_BIN="$SIMULATOR_PKG/.build/release/meeting-simulator"
 DEFAULT_FIXTURE="$ROOT/app/MeetingTranscriber/Tests/Fixtures/two_speakers_de.wav"
@@ -168,24 +168,24 @@ rpc() {
 # no-op. Graceful AppleScript quit first, SIGTERM after 3 s, SIGKILL last.
 quit_running_app() {
     local bundle_id="com.meetingtranscriber.dev"
-    if ! pgrep -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null; then
+    if ! pgrep -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null; then
         return 0
     fi
-    log "Stopping previous MeetingTranscriber-Dev instance"
+    log "Stopping previous AudioLeak-Dev instance"
     osascript -e "tell application id \"$bundle_id\" to quit" 2>/dev/null || true
     for _ in 1 2 3; do
-        pgrep -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null || return 0
+        pgrep -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null || return 0
         sleep 1
     done
-    pkill -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" 2>/dev/null || true
+    pkill -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" 2>/dev/null || true
     for _ in 1 2 3; do
-        pgrep -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null || return 0
+        pgrep -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null || return 0
         sleep 1
     done
-    pkill -KILL -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" 2>/dev/null || true
+    pkill -KILL -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" 2>/dev/null || true
     sleep 1
-    if pgrep -f "MeetingTranscriber-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null; then
-        fail "could not stop running MeetingTranscriber-Dev — kill it manually and retry"
+    if pgrep -f "AudioLeak-Dev.app/Contents/MacOS/MeetingTranscriber" >/dev/null; then
+        fail "could not stop running AudioLeak-Dev — kill it manually and retry"
     fi
 }
 

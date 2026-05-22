@@ -14,7 +14,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SPM_DIR="$REPO_ROOT/app/MeetingTranscriber"
-APP_BUNDLE="$SPM_DIR/.build/MeetingTranscriber-Dev.app"
+APP_BUNDLE="$SPM_DIR/.build/AudioLeak-Dev.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/MeetingTranscriber"
 MT_CLI_DIR="$REPO_ROOT/tools/mt-cli"
 MT_CLI_BIN="$MT_CLI_DIR/.build/debug/mt-cli"
@@ -26,8 +26,8 @@ fail() { printf "    \033[0;31m✗\033[0m %s\n" "$1"; exit 1; }
 
 # --- Cleanup any prior dev instance so the rebuild picks up our binary. ---
 step "Stopping any running dev app"
-if pgrep -f MeetingTranscriber-Dev >/dev/null; then
-    pkill -f MeetingTranscriber-Dev || true
+if pgrep -f AudioLeak-Dev >/dev/null; then
+    pkill -f AudioLeak-Dev || true
     sleep 2
 fi
 
@@ -56,7 +56,7 @@ lsof -i :9876 >/dev/null 2>&1 || fail "server did not bind to :9876 within 6s"
 ok "listening on :9876"
 
 # Cleanup on exit.
-trap 'pkill -f MeetingTranscriber-Dev 2>/dev/null || true' EXIT
+trap 'pkill -f AudioLeak-Dev 2>/dev/null || true' EXIT
 
 [ -s "$TOKEN_FILE" ] || fail "token file not created"
 TOKEN=$(cat "$TOKEN_FILE")

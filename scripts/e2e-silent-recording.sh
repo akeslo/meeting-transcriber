@@ -48,14 +48,14 @@ while [ $# -gt 0 ]; do
 done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEV_BUNDLE_BUILD="$ROOT/app/MeetingTranscriber/.build/MeetingTranscriber-Dev.app"
+DEV_BUNDLE_BUILD="$ROOT/app/MeetingTranscriber/.build/AudioLeak-Dev.app"
 # Deploy to a stable path so the dev .app's TCC permissions (granted via
 # the self-hosted runner's PPPC profile, keyed on bundle path + cert SHA)
 # persist across builds. A `/tmp/...` launch would get a fresh cdhash AND
 # a fresh path on every clone — TCC would deny Microphone + Screen
 # Recording and the recorder would emit zero-byte WAVs (observed during
 # this script's development).
-DEV_BUNDLE_DEPLOY="$HOME/Applications/MeetingTranscriber-Dev.app"
+DEV_BUNDLE_DEPLOY="$HOME/Applications/AudioLeak-Dev.app"
 BIN="$DEV_BUNDLE_DEPLOY/Contents/MacOS/MeetingTranscriber"
 MTCLI="$ROOT/tools/mt-cli/.build/debug/mt-cli"
 SIM="$ROOT/tools/meeting-simulator/.build/debug/meeting-simulator"
@@ -189,14 +189,14 @@ SAVED_INDICATOR="$(/usr/bin/defaults read "$BUNDLE_ID" perChannelIndicatorEnable
 
 # --- 3. Kill any running instance -------------------------------------------
 
-if pgrep -f "MeetingTranscriber-Dev" >/dev/null 2>&1; then
+if pgrep -f "AudioLeak-Dev" >/dev/null 2>&1; then
     osascript -e "tell application id \"$BUNDLE_ID\" to quit" 2>/dev/null || true
-    pkill -TERM -f "MeetingTranscriber-Dev" 2>/dev/null || true
+    pkill -TERM -f "AudioLeak-Dev" 2>/dev/null || true
     for _ in $(seq 1 10); do
-        pgrep -f "MeetingTranscriber-Dev" >/dev/null 2>&1 || break
+        pgrep -f "AudioLeak-Dev" >/dev/null 2>&1 || break
         sleep 0.5
     done
-    pkill -9 -f "MeetingTranscriber-Dev" 2>/dev/null || true
+    pkill -9 -f "AudioLeak-Dev" 2>/dev/null || true
 fi
 
 # --- 4. Launch app with RPC enabled -----------------------------------------
