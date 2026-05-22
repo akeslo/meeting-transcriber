@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds AudioLeak-Dev.app, installs to /Applications/, signs with a
+# Builds AudioLeak.app, installs to /Applications/, signs with a
 # stable self-signed cert so TCC grants (Mic, Screen Recording) persist
 # across rebuilds without re-prompting.
 #
@@ -21,11 +21,11 @@ DEV_KEYCHAIN="$HOME/Library/Keychains/meetingtranscriber-dev.keychain-db"
 DEV_KEYCHAIN_PASS=""
 
 BUILD_BINARY="$SPM_DIR/.build/release/MeetingTranscriber"
-APP_BUNDLE="$SPM_DIR/.build/AudioLeak-Dev.app"
+APP_BUNDLE="$SPM_DIR/.build/AudioLeak.app"
 APP_MACOS="$APP_BUNDLE/Contents/MacOS"
 APP_BINARY="$APP_MACOS/MeetingTranscriber"
 INFO_PLIST="$SPM_DIR/Sources/Info.plist"
-INSTALL_PATH="/Applications/AudioLeak-Dev.app"
+INSTALL_PATH="/Applications/AudioLeak.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 ARTIFACTS_DIR="/tmp/meetingtranscriber-setup"
@@ -224,8 +224,8 @@ cat <<MSG
         Installed  : $INSTALL_PATH
 
 If this is a first install, grant permissions in System Settings:
-  → Privacy & Security → Microphone               → AudioLeak-Dev.app on
-  → Privacy & Security → Screen & System Audio Recording → AudioLeak-Dev.app on
+  → Privacy & Security → Microphone               → AudioLeak.app on
+  → Privacy & Security → Screen & System Audio Recording → AudioLeak.app on
 
 MSG
 
