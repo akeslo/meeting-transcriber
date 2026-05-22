@@ -9,7 +9,7 @@ set -euo pipefail
 
 APP_NAME="MeetingTranscriber"
 DEV_BUNDLE_ID="com.meetingtranscriber.dev"
-INSTALL_PATH="$HOME/Applications/AudioLeak-Dev.app"
+INSTALL_PATH="/Applications/AudioLeak-Dev.app"
 APP_SUPPORT="$HOME/Library/Application Support/MeetingTranscriber"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
@@ -74,4 +74,4 @@ fi
 
 echo ""
 echo "Uninstall complete."
-echo "Run ./scripts/run_app.sh to rebuild and reinstall a fresh copy."
+echo "Run ./scripts/build_run_app.sh to rebuild and reinstall a fresh copy."
