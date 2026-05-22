@@ -4,6 +4,7 @@ import SwiftUI
 struct LibraryView: View {
     var pipelineQueue: PipelineQueue
     @Binding var selectedSessionID: UUID?
+    var onDeleteSession: (RecordingSession) -> Void
 
     @Query(sort: \RecordingSession.createdAt, order: .reverse)
     private var sessions: [RecordingSession]
@@ -103,32 +104,57 @@ struct LibraryView: View {
     // MARK: - List layout
 
     private var listContent: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(inFlightJobs, id: \.id) { job in
-                    inFlightListRow(job)
-                }
-                ForEach(filteredSessions, id: \.id) { session in
-                    sessionListRow(session)
-                }
-                if filteredSessions.isEmpty && inFlightJobs.isEmpty {
-                    emptySearchState
-                }
+        List {
+            inFlightJobsSection
+            sessionListSection
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .overlay {
+            if filteredSessions.isEmpty && inFlightJobs.isEmpty {
+                emptySearchState
             }
         }
     }
 
     @ViewBuilder
-    private func inFlightListRow(_ job: PipelineJob) -> some View {
-        InFlightRowView(job: job, isSelected: selectedSessionID == job.id)
+    private var inFlightJobsSection: some View {
+        ForEach(inFlightJobs, id: \.id) { job in
+            InFlightRowView(
+                job: job,
+                isSelected: selectedSessionID == job.id,
+                onCancel: { pipelineQueue.cancelJob(id: job.id) }
+            )
             .onTapGesture { selectedSessionID = job.id }
-        Divider().padding(.leading, 60)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    @ViewBuilder
+    private var sessionListSection: some View {
+        ForEach(filteredSessions, id: \.id) { session in
+            sessionListRow(session)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+        }
+        .onDelete { indexSet in
+            for index in indexSet {
+                onDeleteSession(filteredSessions[index])
+            }
+        }
     }
 
     @ViewBuilder
     private func sessionListRow(_ session: RecordingSession) -> some View {
-        SessionRowView(session: session, isSelected: selectedSessionID == session.id)
-            .onTapGesture { selectedSessionID = session.id }
+        SessionRowView(
+            session: session,
+            isSelected: selectedSessionID == session.id,
+            onDelete: { onDeleteSession(session) }
+        )
+        .onTapGesture { selectedSessionID = session.id }
         Divider().padding(.leading, 60)
     }
 
@@ -158,7 +184,8 @@ struct LibraryView: View {
             ForEach(filteredSessions, id: \.id) { session in
                 SessionGridCardView(
                     session: session,
-                    isSelected: selectedSessionID == session.id
+                    isSelected: selectedSessionID == session.id,
+                    onDelete: { onDeleteSession(session) }
                 )
                 .onTapGesture { selectedSessionID = session.id }
             }

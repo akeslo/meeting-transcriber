@@ -3,6 +3,7 @@ import SwiftUI
 struct SessionRowView: View {
     let session: RecordingSession
     let isSelected: Bool
+    let onDelete: () -> Void
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -54,6 +55,11 @@ struct SessionRowView: View {
         .frame(height: 48)
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("Move to Trash", systemImage: "trash")
+            }
+        }
     }
 
     private func iconName(for appName: String) -> String {
@@ -72,6 +78,7 @@ struct SessionRowView: View {
 struct InFlightRowView: View {
     let job: PipelineJob
     let isSelected: Bool
+    var onCancel: (() -> Void)? = nil
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -92,7 +99,7 @@ struct InFlightRowView: View {
         }
     }
 
-    var body: some View {
+    @ViewBuilder private var baseRow: some View {
         HStack(spacing: 12) {
             Image(systemName: "waveform")
                 .font(.system(size: 20))
@@ -127,5 +134,17 @@ struct InFlightRowView: View {
         .frame(height: 48)
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
+    }
+
+    var body: some View {
+        if let onCancel {
+            baseRow.contextMenu {
+                Button(role: .destructive, action: onCancel) {
+                    Label("Cancel", systemImage: "xmark.circle")
+                }
+            }
+        } else {
+            baseRow
+        }
     }
 }

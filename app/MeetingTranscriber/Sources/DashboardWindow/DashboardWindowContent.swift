@@ -1,5 +1,8 @@
+import os.log
 import SwiftData
 import SwiftUI
+
+private let dashboardLogger = Logger(subsystem: AppPaths.logSubsystem, category: "DashboardWindow")
 
 struct DashboardWindowContent: View {
     var pipelineQueue: PipelineQueue
@@ -41,6 +44,23 @@ struct DashboardWindowContent: View {
         case .parakeet:   return "Parakeet TDT"
         case .qwen3:      return "Qwen3-ASR"
         }
+    }
+
+    private func deleteSession(_ session: RecordingSession) {
+        if selectedSessionID == session.id {
+            selectedSessionID = nil
+        }
+        if !session.folderPath.isEmpty {
+            let fullURL = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
+            if FileManager.default.fileExists(atPath: fullURL.path) {
+                NSWorkspace.shared.recycle([fullURL]) { _, error in
+                    if let error {
+                        dashboardLogger.error("Trash failed '\(fullURL.path)': \(error)")
+                    }
+                }
+            }
+        }
+        modelContext.delete(session)
     }
 
     var body: some View {
@@ -85,7 +105,8 @@ struct DashboardWindowContent: View {
         case .library:
             LibraryView(
                 pipelineQueue: pipelineQueue,
-                selectedSessionID: $selectedSessionID
+                selectedSessionID: $selectedSessionID,
+                onDeleteSession: deleteSession
             )
         case .dashboard:
             DashboardView(
@@ -94,6 +115,7 @@ struct DashboardWindowContent: View {
                 settings: settings,
                 elapsedLabel: elapsedLabel,
                 onStartStop: onStartStop,
+                onDeleteSession: deleteSession,
                 selectedNav: $selectedNav,
                 selectedSessionID: $selectedSessionID
             )

@@ -111,6 +111,39 @@ final class LibraryViewTests: XCTestCase {
         XCTAssertEqual(result.count, 0)
     }
 
+    // MARK: - In-flight job filter
+
+    func test_filterInFlightJobs_excludesDoneAndError() {
+        let activeJob = makePipelineJob(state: .transcribing)
+        let doneJob   = makePipelineJob(state: .done)
+        let errorJob  = makePipelineJob(state: .error)
+        let result = LibraryView.filterInFlightJobs([activeJob, doneJob, errorJob])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].id, activeJob.id)
+    }
+
+    func test_filterInFlightJobs_includesAllActiveStates() {
+        let jobs = [
+            makePipelineJob(state: .waiting),
+            makePipelineJob(state: .transcribing),
+            makePipelineJob(state: .diarizing),
+            makePipelineJob(state: .generatingProtocol),
+        ]
+        XCTAssertEqual(LibraryView.filterInFlightJobs(jobs).count, 4)
+    }
+
+    // MARK: - Delete closure
+
+    func test_deleteSession_closureIsCalled() {
+        var deletedSession: RecordingSession?
+        let session = makeSession(title: "Meeting to Delete", appName: "Zoom")
+        let onDelete: (RecordingSession) -> Void = { deletedSession = $0 }
+
+        onDelete(session)
+
+        XCTAssertEqual(deletedSession?.title, "Meeting to Delete")
+    }
+
     // MARK: - Helpers
 
     private func makePipelineJob(state: JobState) -> PipelineJob {

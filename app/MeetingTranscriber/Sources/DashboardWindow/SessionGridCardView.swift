@@ -3,6 +3,7 @@ import SwiftUI
 struct SessionGridCardView: View {
     let session: RecordingSession
     let isSelected: Bool
+    let onDelete: () -> Void
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -75,6 +76,11 @@ struct SessionGridCardView: View {
                     lineWidth: 1
                 )
         )
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("Move to Trash", systemImage: "trash")
+            }
+        }
     }
 
     private var waveformHeights: [Int] {

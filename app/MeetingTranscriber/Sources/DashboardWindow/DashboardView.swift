@@ -15,6 +15,7 @@ struct DashboardView: View {
     @Bindable var settings: AppSettings
     let elapsedLabel: String
     let onStartStop: () -> Void
+    let onDeleteSession: (RecordingSession) -> Void
     @Binding var selectedNav: NavItem
     @Binding var selectedSessionID: UUID?
 
@@ -44,7 +45,8 @@ struct DashboardView: View {
 
                 RecentActivitySection(
                     selectedNav: $selectedNav,
-                    selectedSessionID: $selectedSessionID
+                    selectedSessionID: $selectedSessionID,
+                    onDeleteSession: onDeleteSession
                 )
             }
             .padding(24)
@@ -194,6 +196,7 @@ private struct QuickControlsCard: View {
 private struct RecentActivitySection: View {
     @Binding var selectedNav: NavItem
     @Binding var selectedSessionID: UUID?
+    let onDeleteSession: (RecordingSession) -> Void
 
     @Query(
         sort: \RecordingSession.createdAt,
@@ -235,7 +238,7 @@ private struct RecentActivitySection: View {
                             selectedSessionID = session.id
                             selectedNav = .library
                         } label: {
-                            SessionRowView(session: session, isSelected: false)
+                            SessionRowView(session: session, isSelected: false, onDelete: { onDeleteSession(session) })
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
