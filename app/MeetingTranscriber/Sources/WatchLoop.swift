@@ -102,6 +102,8 @@ class WatchLoop {
     /// Hook called when state changes (for UI updates, notifications, etc.)
     var onStateChange: ((State, State) -> Void)?
 
+    var onManualRecordingCompleted: (() -> Void)?
+
     init(
         detector: any MeetingDetecting = WatchLoop.defaultDetector(),
         recorderFactory: @MainActor @escaping () -> any RecordingProvider = { DualSourceRecorder() },
@@ -463,6 +465,7 @@ class WatchLoop {
             recording: entry.recording,
             participants: entry.participants
         )
+        onManualRecordingCompleted?()
     }
 
     /// User skipped naming. Enqueues with the auto-detected title.
@@ -475,6 +478,7 @@ class WatchLoop {
             recording: entry.recording,
             participants: entry.participants
         )
+        onManualRecordingCompleted?()
     }
 
     private func enqueueRecording(

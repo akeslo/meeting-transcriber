@@ -37,7 +37,7 @@ final class StatusChipViewTests: XCTestCase {
     }
 
     func test_chipLabel_done() {
-        XCTAssertEqual(StatusChipView.chipLabel(for: "done"), "Done")
+        XCTAssertEqual(StatusChipView.chipLabel(for: "done"), "Transcribed")
     }
 
     func test_chipLabel_transcribing() {
@@ -53,7 +53,7 @@ final class StatusChipViewTests: XCTestCase {
     }
 
     func test_chipLabel_generatingProtocol() {
-        XCTAssertEqual(StatusChipView.chipLabel(for: "generatingProtocol"), "Protocol")
+        XCTAssertEqual(StatusChipView.chipLabel(for: "generatingProtocol"), "Summarizing")
     }
 
     func test_chipLabel_error() {
