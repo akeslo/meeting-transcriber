@@ -292,14 +292,19 @@ final class AppStateTests: XCTestCase { // swiftlint:disable:this type_body_leng
 
     // MARK: - stopManualRecording
 
-    func testStopManualRecordingClearsWatchLoop() async throws {
+    func testStopManualRecordingClearsWatchLoopAfterTitleResolved() async throws {
         let (state, _) = makeState()
         let (loop, _) = makeTestWatchLoop()
         state.watchLoop = loop
         try await loop.startManualRecording(pid: 42, appName: "Chrome", title: "Meeting")
 
         state.stopManualRecording()
+        // watchLoop is not nil yet — it stays alive until the title prompt is resolved
+        // so that confirmTitle/skipTitle can still call enqueueRecording.
+        XCTAssertNotNil(state.watchLoop)
 
+        loop.skipTitle()
+        // After the user dismisses the prompt, the callback fires and clears watchLoop.
         XCTAssertNil(state.watchLoop)
     }
 

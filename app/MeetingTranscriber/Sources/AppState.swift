@@ -469,8 +469,10 @@ final class AppState { // swiftlint:disable:this type_body_length
     }
 
     func stopManualRecording() {
+        watchLoop?.onManualRecordingCompleted = { [weak self] in
+            self?.watchLoop = nil
+        }
         watchLoop?.stopManualRecording()
-        watchLoop = nil
     }
 
     /// Filters `urls` to files that currently exist on disk, forwards them to
