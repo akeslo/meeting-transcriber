@@ -71,7 +71,7 @@ class BrowserTabDetector: MeetingDetecting {
 
         for site in sites {
             for tab in tabs {
-                if tab.url.lowercased().contains(site.urlPattern.lowercased()) {
+                if site.matches(url: tab.url) {
                     logger.info("browser_match site=\(site.name) url=\(tab.url) browser=\(tab.processName) hits=\(self.consecutiveHits[site.id, default: 0] + 1)/\(self.confirmationCount)")
                     hitsThisRound.insert(site.id)
                     lastMatch[site.id] = (tab.processName, tab.pid)
@@ -116,8 +116,7 @@ class BrowserTabDetector: MeetingDetecting {
     func isMeetingActive(_ meeting: DetectedMeeting) -> Bool {
         guard let site = websitesProvider().first(where: { $0.name == meeting.pattern.appName }),
               site.enabled else { return false }
-        let lower = site.urlPattern.lowercased()
-        return tabURLProvider().contains { $0.url.lowercased().contains(lower) }
+        return tabURLProvider().contains { site.matches(url: $0.url) }
     }
 
     func reset(appName: String? = nil) {
@@ -168,7 +167,9 @@ class BrowserTabDetector: MeetingDetecting {
                 try
                     repeat with t in every tab of w
                         try
-                            set end of allURLs to URL of t
+                            if audible of t then
+                                set end of allURLs to URL of t
+                            end if
                         end try
                     end repeat
                 end try
@@ -186,7 +187,10 @@ class BrowserTabDetector: MeetingDetecting {
                 try
                     repeat with t in every tab of w
                         try
-                            set end of allURLs to URL of t
+                            set isPlaying to do JavaScript "document.querySelectorAll('audio:not([paused]),video:not([paused])').length > 0" in t
+                            if isPlaying then
+                                set end of allURLs to URL of t
+                            end if
                         end try
                     end repeat
                 end try

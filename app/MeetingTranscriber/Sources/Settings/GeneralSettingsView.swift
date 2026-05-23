@@ -4,9 +4,11 @@ import SwiftUI
 struct GeneralSettingsView: View {
     @Bindable var settings: AppSettings
     var updateChecker: UpdateChecker?
+    var onRunDetectionTest: (() -> String)? = nil
 
     @State private var showAddWebsite = false
     @State private var editingWebsite: WatchedWebsite?
+    @State private var dryRunResult: String? = nil
 
     var body: some View {
         // swiftlint:disable:next closure_body_length
@@ -28,6 +30,21 @@ struct GeneralSettingsView: View {
             watchedWebsitesSection
 
             Section("Detection") {
+                if let onRunDetectionTest {
+                    HStack {
+                        Button("Test Detection Now") {
+                            dryRunResult = onRunDetectionTest()
+                        }
+                        Spacer()
+                        if let result = dryRunResult {
+                            Label(result, systemImage: result.hasPrefix("Detected") ? "checkmark.circle.fill" : "eye.slash")
+                                .font(.caption)
+                                .foregroundStyle(result.hasPrefix("Detected") ? Color.green : Color.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
                 HStack {
                     Text("Poll Interval")
                     Spacer()
@@ -189,6 +206,11 @@ struct WatchedWebsiteRow: View {
                         Text(site.urlPattern)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if site.useRegex {
+                            Label("regex", systemImage: "function")
+                                .font(.caption2)
+                                .foregroundStyle(.purple)
+                        }
                         if site.recordMic {
                             Label("Mic", systemImage: "mic.fill")
                                 .font(.caption2)
@@ -216,6 +238,7 @@ struct WebsiteEditSheet: View {
     @State private var name: String
     @State private var urlPattern: String
     @State private var recordMic: Bool
+    @State private var useRegex: Bool
 
     init(website: WatchedWebsite?, onSave: @escaping (WatchedWebsite) -> Void) {
         self.website = website
@@ -223,6 +246,7 @@ struct WebsiteEditSheet: View {
         _name = State(initialValue: website?.name ?? "")
         _urlPattern = State(initialValue: website?.urlPattern ?? "")
         _recordMic = State(initialValue: website?.recordMic ?? false)
+        _useRegex = State(initialValue: website?.useRegex ?? false)
     }
 
     private var isValid: Bool {
@@ -238,13 +262,14 @@ struct WebsiteEditSheet: View {
             Form {
                 TextField("Name", text: $name)
                     .textFieldStyle(.roundedBorder)
-                TextField("URL or domain (e.g. youtube.com)", text: $urlPattern)
+                TextField(useRegex ? "Regex pattern (e.g. meet\\.google\\.com)" : "URL or domain (e.g. youtube.com)", text: $urlPattern)
                     .textFieldStyle(.roundedBorder)
+                Toggle("Use Regular Expression", isOn: $useRegex)
                 Toggle("Record microphone", isOn: $recordMic)
             }
             .formStyle(.columns)
 
-            Text("Recording starts when any open tab URL contains this text.")
+            Text(useRegex ? "Recording starts when any open tab URL matches this regex." : "Recording starts when any open tab URL contains this text.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -259,6 +284,7 @@ struct WebsiteEditSheet: View {
                         urlPattern: urlPattern.trimmingCharacters(in: .whitespaces),
                         enabled: website?.enabled ?? true,
                         recordMic: recordMic,
+                        useRegex: useRegex,
                     )
                     onSave(saved)
                     dismiss()

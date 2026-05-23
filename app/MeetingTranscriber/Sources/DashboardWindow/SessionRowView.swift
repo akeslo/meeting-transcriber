@@ -1,9 +1,41 @@
+import AppKit
 import SwiftUI
+
+/// Shows an NSAlert with a text field, calls `completion` with trimmed non-empty result.
+@MainActor
+private func promptText(
+    title: String,
+    message: String,
+    placeholder: String,
+    initial: String,
+    completion: @escaping (String) -> Void
+) {
+    let alert = NSAlert()
+    alert.messageText = title
+    alert.informativeText = message
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "Cancel")
+    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+    field.stringValue = initial
+    field.placeholderString = placeholder
+    alert.accessoryView = field
+    alert.window.initialFirstResponder = field
+    if alert.runModal() == .alertFirstButtonReturn {
+        let trimmed = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        completion(trimmed)
+    }
+}
 
 struct SessionRowView: View {
     let session: RecordingSession
     let isSelected: Bool
     let onDelete: () -> Void
+    var allTags: [String] = []
+    var allFolders: [String] = []
+    var onRename: ((String) -> Void)? = nil
+    var onAddTag: ((String) -> Void)? = nil
+    var onSetFolder: ((String) -> Void)? = nil
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -56,6 +88,65 @@ struct SessionRowView: View {
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
         .contextMenu {
+            // Rename
+            if let onRename {
+                Button {
+                    promptText(
+                        title: "Rename Recording",
+                        message: "Enter a new name:",
+                        placeholder: session.title,
+                        initial: session.title
+                    ) { onRename($0) }
+                } label: {
+                    Label("Rename…", systemImage: "pencil")
+                }
+            }
+
+            // Add Tag
+            if let onAddTag {
+                Button {
+                    promptText(
+                        title: "Add Tag",
+                        message: "Enter a tag name:",
+                        placeholder: "tag name",
+                        initial: ""
+                    ) { onAddTag($0) }
+                } label: {
+                    Label("Add Tag…", systemImage: "tag")
+                }
+            }
+
+            // Folder submenu
+            if let onSetFolder {
+                Menu {
+                    if !session.folderGroup.isEmpty {
+                        Button {
+                            onSetFolder("")
+                        } label: {
+                            Label("Remove from Folder", systemImage: "folder.badge.minus")
+                        }
+                        Divider()
+                    }
+                    ForEach(allFolders.filter { $0 != session.folderGroup }, id: \.self) { folder in
+                        Button(folder) { onSetFolder(folder) }
+                    }
+                    Button {
+                        promptText(
+                            title: "New Folder",
+                            message: "Enter folder name:",
+                            placeholder: "folder name",
+                            initial: ""
+                        ) { onSetFolder($0) }
+                    } label: {
+                        Label("New Folder…", systemImage: "folder.badge.plus")
+                    }
+                } label: {
+                    Label("Move to Folder", systemImage: "folder")
+                }
+            }
+
+            Divider()
+
             Button(role: .destructive, action: onDelete) {
                 Label("Move to Trash", systemImage: "trash")
             }

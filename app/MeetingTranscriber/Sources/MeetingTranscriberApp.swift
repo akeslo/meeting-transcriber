@@ -54,8 +54,17 @@ struct MeetingTranscriberApp: App {
         // Migrate library.sqlite from old Documents location before opening the store.
         AppPaths.migrateIfNeeded()
         let config = ModelConfiguration(url: AppPaths.libraryStore)
-        // swiftlint:disable:next force_try
-        return try! ModelContainer(for: RecordingSession.self, configurations: config)
+        do {
+            return try ModelContainer(for: RecordingSession.self, configurations: config)
+        } catch {
+            // Schema changed — delete old store and recreate (sessions will be re-imported from disk).
+            let storeURL = AppPaths.libraryStore
+            for suffix in ["", "-shm", "-wal"] {
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+            }
+            // swiftlint:disable:next force_try
+            return try! ModelContainer(for: RecordingSession.self, configurations: config)
+        }
     }()
     @Environment(\.openWindow)
     private var openWindow
@@ -158,6 +167,9 @@ struct MeetingTranscriberApp: App {
                 }
             }
             .task {
+                appState.modelContext = modelContainer.mainContext
+            }
+            .task {
                 appState.updateChecker.startPeriodicChecks(settings: appState.settings)
             }
             .task {
@@ -244,9 +256,12 @@ struct MeetingTranscriberApp: App {
                 enrollmentDiarizerFactory: { FluidDiarizer(mode: appState.settings.diarizerMode) },
                 namingDialogActive: appState.pipelineQueue.pendingSpeakerNaming != nil,
                 pipelineBusy: appState.pipelineQueue.isProcessing,
-                onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames
+                onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames,
+                onRunDetectionTest: appState.runDetectionTest
             )
             .modelContainer(modelContainer)
+            .onAppear { NSApp.setActivationPolicy(.regular) }
+            .onDisappear { NSApp.setActivationPolicy(.accessory) }
         }
         .defaultSize(width: 1200, height: 700)
         .defaultPosition(.center)

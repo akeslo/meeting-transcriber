@@ -34,6 +34,31 @@ enum TranscriptionEngineSetting: String, CaseIterable, Codable {
     }
 }
 
+enum VadPreset: String, CaseIterable, Codable {
+    case quiet
+    case balanced
+    case aggressive
+    case custom
+
+    var label: String {
+        switch self {
+        case .quiet: "Quiet Room"
+        case .balanced: "Balanced"
+        case .aggressive: "Noisy Environment"
+        case .custom: "Custom"
+        }
+    }
+
+    var threshold: Float? {
+        switch self {
+        case .quiet: 0.3
+        case .balanced: 0.5
+        case .aggressive: 0.75
+        case .custom: nil
+        }
+    }
+}
+
 enum DiarizerMode: String, CaseIterable {
     case offline
     case sortformer
@@ -214,6 +239,19 @@ final class AppSettings {
         didSet { defaults.set(vadThreshold, forKey: "vadThreshold") }
     }
 
+    var vadPreset: VadPreset {
+        didSet {
+            defaults.set(vadPreset.rawValue, forKey: "vadPreset")
+            if let t = vadPreset.threshold { vadThreshold = t }
+        }
+    }
+
+    /// When true, replace known speaker names with [Speaker A], [Speaker B] before
+    /// sending the transcript to the LLM for protocol generation.
+    var anonymizeTranscript: Bool {
+        didSet { defaults.set(anonymizeTranscript, forKey: "anonymizeTranscript") }
+    }
+
     var diarizerMode: DiarizerMode {
         didSet { defaults.set(diarizerMode.rawValue, forKey: "diarizerMode") }
     }
@@ -251,6 +289,10 @@ final class AppSettings {
     #if !APPSTORE
         var claudeBin: String {
             didSet { defaults.set(claudeBin, forKey: "claudeBin") }
+        }
+
+        var claudeModel: String {
+            didSet { defaults.set(claudeModel, forKey: "claudeModel") }
         }
     #endif
 
@@ -422,6 +464,8 @@ final class AppSettings {
         diarize = defaults.object(forKey: "diarize") as? Bool ?? true
         vadEnabled = defaults.object(forKey: "vadEnabled") as? Bool ?? false
         vadThreshold = defaults.object(forKey: "vadThreshold") as? Float ?? 0.5
+        vadPreset = (defaults.string(forKey: "vadPreset").flatMap(VadPreset.init(rawValue:))) ?? .balanced
+        anonymizeTranscript = defaults.object(forKey: "anonymizeTranscript") as? Bool ?? false
         diarizerMode = (defaults.string(forKey: "diarizerMode")
             .flatMap(DiarizerMode.init(rawValue:))) ?? .offline
         numSpeakers = defaults.object(forKey: "numSpeakers") as? Int ?? 0
@@ -433,6 +477,7 @@ final class AppSettings {
         #else
             protocolProvider = storedProvider ?? .claudeCLI
             claudeBin = defaults.object(forKey: "claudeBin") as? String ?? "claude"
+            claudeModel = defaults.object(forKey: "claudeModel") as? String ?? "sonnet"
         #endif
         protocolLanguage = defaults.string(forKey: "protocolLanguage") ?? "English"
 

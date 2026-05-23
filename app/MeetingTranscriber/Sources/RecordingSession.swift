@@ -21,6 +21,9 @@ final class RecordingSession {
     var status: String
     var errorMessage: String?
     var warnings: [String]
+    var tags: [String]
+    /// User-assigned folder/group name. Empty string = no folder.
+    var folderGroup: String
 
     init(
         id: UUID = UUID(),
@@ -36,7 +39,9 @@ final class RecordingSession {
         engine: String,
         status: String,
         errorMessage: String? = nil,
-        warnings: [String] = []
+        warnings: [String] = [],
+        tags: [String] = [],
+        folderGroup: String = ""
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -52,6 +57,8 @@ final class RecordingSession {
         self.status = status
         self.errorMessage = errorMessage
         self.warnings = warnings
+        self.tags = tags
+        self.folderGroup = folderGroup
     }
 }
 

@@ -19,6 +19,7 @@ struct DashboardWindowContent: View {
     var namingDialogActive: Bool
     var pipelineBusy: Bool
     var onSpeakerMutate: (() -> Void)?
+    var onRunDetectionTest: (() -> String)? = nil
 
     @State private var selectedNav: NavItem = .library
     @State private var selectedSessionID: UUID?
@@ -78,8 +79,15 @@ struct DashboardWindowContent: View {
 
             Divider()
 
-            DetailPaneView(session: selectedSession, job: selectedJob, settings: settings)
-                .frame(width: 360)
+            DetailPaneView(
+                session: selectedSession,
+                job: selectedJob,
+                settings: settings,
+                onRetry: { session in
+                    pipelineQueue.retrySession(session, outputDir: settings.effectiveOutputDir)
+                }
+            )
+            .frame(width: 360)
         }
         .frame(minWidth: 900, minHeight: 600)
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
@@ -119,6 +127,8 @@ struct DashboardWindowContent: View {
                 selectedNav: $selectedNav,
                 selectedSessionID: $selectedSessionID
             )
+        case .stats:
+            StatsView()
         case .settings:
             SettingsContentView(
                 settings: settings,
@@ -130,7 +140,8 @@ struct DashboardWindowContent: View {
                 enrollmentDiarizerFactory: enrollmentDiarizerFactory,
                 namingDialogActive: namingDialogActive,
                 pipelineBusy: pipelineBusy,
-                onSpeakerMutate: onSpeakerMutate
+                onSpeakerMutate: onSpeakerMutate,
+                onRunDetectionTest: onRunDetectionTest
             )
         }
     }

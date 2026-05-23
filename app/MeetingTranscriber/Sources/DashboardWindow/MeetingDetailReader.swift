@@ -3,10 +3,13 @@ import AVFoundation
 
 // MARK: - Tab enum
 
-enum DetailTab: String, CaseIterable {
-    case transcript = "Transcript"
-    case protocol_  = "Protocol"
-    case split      = "Split"
+enum DetailTab: String, CaseIterable, Identifiable {
+    case transcript   = "Transcript"
+    case protocol_    = "Summary"
+    case actionItems  = "Actions"
+    case split        = "Split"
+
+    var id: String { rawValue }
 }
 
 // MARK: - MeetingDetailReader
@@ -15,7 +18,7 @@ struct MeetingDetailReader: View {
     let session: RecordingSession
     let settings: AppSettings
 
-    @State private var activeTab: DetailTab = .transcript
+    @Binding var activeTab: DetailTab
     @State private var segments: [TranscriptSegment] = []
     @State private var protocolContent: String = ""
     @State private var selectedSegmentID: UUID?
@@ -42,6 +45,8 @@ struct MeetingDetailReader: View {
                     transcriptTab
                 case .protocol_:
                     protocolTab
+                case .actionItems:
+                    actionItemsTab
                 case .split:
                     splitTab
                 }
@@ -94,7 +99,7 @@ struct MeetingDetailReader: View {
             VStack(spacing: 6) {
                 Text(tab.rawValue)
                     .font(.system(size: 13, weight: isActive ? .semibold : .regular))
-                    .foregroundStyle(isActive ? spaceIndigo : Color.secondary)
+                    .foregroundStyle(isActive ? Color.primary : Color.secondary)
                     .padding(.horizontal, 4)
 
                 Rectangle()
@@ -137,32 +142,80 @@ struct MeetingDetailReader: View {
 
     private var protocolTab: some View {
         ScrollView {
-            Text(protocolAttributedString)
-                .textSelection(.enabled)
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if protocolContent.isEmpty {
+                Text("No summary generated for this session.")
+                    .foregroundStyle(.secondary)
+                    .padding(20)
+            } else {
+                MarkdownView(content: protocolContent)
+                    .padding(20)
+            }
         }
     }
 
-    private var protocolAttributedString: AttributedString {
-        guard !protocolContent.isEmpty else {
-            return AttributedString("No protocol generated for this session.")
-        }
-        guard var attributed = try? AttributedString(
-            markdown: protocolContent,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) else {
-            return AttributedString(protocolContent)
-        }
-        // Tint heading/strong runs with Space Indigo
-        let headingColor = Color(red: 0.082, green: 0.114, blue: 0.208)
-        for run in attributed.runs {
-            if let intent = run.inlinePresentationIntent,
-               intent.contains(.stronglyEmphasized) {
-                attributed[run.range].foregroundColor = headingColor
+    // MARK: - Action items tab
+
+    private var actionItemsTab: some View {
+        let items = Self.extractActionItems(from: protocolContent)
+        return ScrollView {
+            if items.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer(minLength: 40)
+                    Image(systemName: "checkmark.square")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+                    Text(protocolContent.isEmpty ? "No summary generated yet." : "No action items found in this summary.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Spacer(minLength: 40)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(items.count) action item\(items.count == 1 ? "" : "s")")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "square")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 1)
+                            Text(item)
+                                .font(.system(size: 13))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                        Divider()
+                    }
+                }
+                .padding(20)
             }
         }
-        return attributed
+    }
+
+    static func extractActionItems(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        var items: [String] = []
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("- [ ]") {
+                items.append(String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+            } else if trimmed.hasPrefix("* [ ]") {
+                items.append(String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+            } else if let range = trimmed.range(of: "^[|]\\s*([^|]+)\\s*[|]", options: .regularExpression),
+                      text.contains("## Tasks") || text.contains("## Aufgaben") || text.contains("## Tâches") {
+                let cell = trimmed.components(separatedBy: "|").dropFirst().first ?? ""
+                let clean = cell.trimmingCharacters(in: .whitespaces)
+                if !clean.isEmpty, !clean.hasPrefix("Task"), !clean.hasPrefix("Aufgabe"),
+                   !clean.hasPrefix("---"), !clean.hasPrefix("Tâche"), !clean.hasPrefix("Beschreibung") {
+                    _ = range
+                    items.append(clean)
+                }
+            }
+        }
+        return items
     }
 
     // MARK: - Split tab
@@ -183,10 +236,8 @@ struct MeetingDetailReader: View {
             Divider()
 
             ScrollView {
-                Text(protocolAttributedString)
-                    .textSelection(.enabled)
+                MarkdownView(content: protocolContent)
                     .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity)
         }
@@ -321,7 +372,7 @@ struct TranscriptSegmentView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(segment.speaker)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(spaceIndigo)
+                    .foregroundStyle(Color.accentColor)
                 Text(timestampLabel)
                     .font(.system(size: 11))
                     .foregroundStyle(Color.secondary)
@@ -333,5 +384,44 @@ struct TranscriptSegmentView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - MeetingDetailReaderSheet
+
+struct MeetingDetailReaderSheet: View {
+    let session: RecordingSession
+    let settings: AppSettings
+    let initialTab: DetailTab
+
+    @State private var activeTab: DetailTab
+    @Environment(\.dismiss) private var dismiss
+
+    init(session: RecordingSession, settings: AppSettings, initialTab: DetailTab) {
+        self.session = session
+        self.settings = settings
+        self.initialTab = initialTab
+        _activeTab = State(initialValue: initialTab)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(session.title.isEmpty ? "Untitled Recording" : session.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.escape, modifiers: [])
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color(nsColor: .windowBackgroundColor))
+
+            Divider()
+
+            MeetingDetailReader(session: session, settings: settings, activeTab: $activeTab)
+        }
+        .frame(minWidth: 700, minHeight: 500)
     }
 }

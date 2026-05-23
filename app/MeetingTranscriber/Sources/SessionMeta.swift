@@ -71,4 +71,33 @@ struct SessionMeta: Codable {
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(SessionMeta.self, from: data)
     }
+
+    /// Patch arbitrary top-level keys in `meta.json` without a full round-trip decode.
+    /// Safe against unknown fields — edits only the provided keys.
+    static func updateFields(
+        in dir: URL,
+        title: String? = nil,
+        tags: [String]? = nil,
+        folderGroup: String? = nil,
+        removeFileKey: String? = nil
+    ) throws {
+        let url = dir.appendingPathComponent(filename)
+        guard var dict = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: url)
+        ) as? [String: Any] else { return }
+        if let t = title { dict["title"] = t }
+        if let t = tags { dict["tags"] = t }
+        if let f = folderGroup { dict["folderGroup"] = f }
+        if let key = removeFileKey {
+            if var files = dict["files"] as? [String: Any] {
+                files.removeValue(forKey: key)
+                dict["files"] = files
+            }
+        }
+        let data = try JSONSerialization.data(
+            withJSONObject: dict,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: url, options: .atomic)
+    }
 }

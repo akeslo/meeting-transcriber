@@ -37,6 +37,7 @@ struct SettingsContentView: View {
     let namingDialogActive: Bool
     let pipelineBusy: Bool
     let onSpeakerMutate: (() -> Void)?
+    var onRunDetectionTest: (() -> String)? = nil
 
     @State private var selectedSection: SettingsSection = .detection
 
@@ -116,7 +117,7 @@ struct SettingsContentView: View {
             VStack(alignment: .leading, spacing: 0) {
                 switch selectedSection {
                 case .detection:
-                    GeneralSettingsView(settings: settings, updateChecker: updateChecker)
+                    GeneralSettingsView(settings: settings, updateChecker: updateChecker, onRunDetectionTest: onRunDetectionTest)
                 case .audio:
                     AudioSettingsView(settings: settings)
                 case .transcription:

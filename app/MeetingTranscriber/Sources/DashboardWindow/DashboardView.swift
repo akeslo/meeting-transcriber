@@ -172,7 +172,7 @@ private struct QuickControlsCard: View {
                 .toggleStyle(.switch)
                 .font(.system(size: 13))
 
-            Toggle("Overlap-aware Diarizer", isOn: sortformerBinding)
+            Toggle("Sortformer (Overlap-aware)", isOn: sortformerBinding)
                 .toggleStyle(.switch)
                 .font(.system(size: 13))
 

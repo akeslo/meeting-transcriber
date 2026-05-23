@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import Observation
 import os.log
+import SwiftData
 
 // MARK: - AppNotifying
 
@@ -47,6 +48,14 @@ final class AppState { // swiftlint:disable:this type_body_length
     var updateChecker: UpdateChecker
     var selectedNamingJobID: UUID?
     var permissionHealth: HealthCheckResult?
+    /// Injected from the ModelContainer at app launch so pipeline jobs are persisted
+    /// to SwiftData even when the dashboard window is closed.
+    var modelContext: ModelContext? {
+        didSet {
+            pipelineQueue.modelContext = modelContext
+            importExistingSessionsIfNeeded()
+        }
+    }
 
     /// True while the **mic** channel is silent and the app channel is carrying
     /// speech continuously for `settings.asymmetricSilenceWarningSeconds`. Drives
@@ -145,6 +154,7 @@ final class AppState { // swiftlint:disable:this type_body_length
         // start observing for runtime changes.
         syncLanguageSettings()
         observeEngineSettings()
+        startDockBadgeUpdater()
 
         #if !APPSTORE
             // Env var force-enables at launch only — preserves back-compat with
@@ -773,6 +783,8 @@ final class AppState { // swiftlint:disable:this type_body_length
             vadConfig: settings.vadEnabled ? VADConfig(threshold: settings.vadThreshold) : nil,
             recognitionStatsLog: RecognitionStatsLog(),
         )
+        queue.modelContext = modelContext
+        queue.anonymizeTranscript = settings.anonymizeTranscript
         queue.loadSnapshot()
         // Fire-and-forget: dir scan + per-file attr probes run off-main so
         // app startup (and the first call to `enqueueFiles`) isn't blocked
@@ -787,7 +799,7 @@ final class AppState { // swiftlint:disable:this type_body_length
         switch settings.protocolProvider {
         #if !APPSTORE
             case .claudeCLI:
-                ClaudeCLIProtocolGenerator(claudeBin: settings.claudeBin, language: settings.protocolLanguage)
+                ClaudeCLIProtocolGenerator(claudeBin: settings.claudeBin, language: settings.protocolLanguage, model: settings.claudeModel)
         #endif
 
         case .openAICompatible:
@@ -821,6 +833,95 @@ final class AppState { // swiftlint:disable:this type_body_length
                 break
             }
         }
+    }
+
+    // MARK: - Output folder import
+
+    /// Scan `<outputDir>/recordings/` for session folders that have a `meta.json`
+    /// and insert any that are missing from the SwiftData library. Idempotent —
+    /// folders already tracked by `folderPath` are skipped.
+    func importExistingSessionsIfNeeded() {
+        guard let ctx = modelContext else { return }
+        let outputDir = settings.effectiveOutputDir
+        Task { @MainActor in
+            await Self.importSessionFolders(outputDir: outputDir, context: ctx)
+        }
+    }
+
+    private static func importSessionFolders(outputDir: URL, context: ModelContext) async {
+        let existingPaths: Set<String>
+        do {
+            existingPaths = Set(try context.fetch(FetchDescriptor<RecordingSession>()).map(\.folderPath))
+        } catch {
+            return
+        }
+
+        let recordingsDir = outputDir.appendingPathComponent("recordings")
+
+        let discovered: [(relPath: String, meta: SessionMeta)] = await Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            guard let entries = try? fm.contentsOfDirectory(
+                at: recordingsDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: .skipsHiddenFiles
+            ) else { return [] }
+            return entries.compactMap { url in
+                guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+                      let meta = try? SessionMeta.read(from: url)
+                else { return nil }
+                return (relPath: "recordings/" + url.lastPathComponent, meta: meta)
+            }
+        }.value
+
+        var inserted = 0
+        for item in discovered {
+            guard !existingPaths.contains(item.relPath) else { continue }
+            let m = item.meta
+            let audioFiles = [m.files.app, m.files.mic, m.files.mix].compactMap { $0 }
+            let status = (m.engine == "record-only") ? SessionStatus.saved : SessionStatus.done
+            let session = RecordingSession(
+                createdAt: m.startedAt,
+                title: m.title,
+                appName: m.appName,
+                folderPath: item.relPath,
+                duration: m.duration,
+                participantNames: m.participants,
+                hasTranscript: m.files.transcript != nil,
+                hasProtocol: m.files.protocol_ != nil,
+                audioFiles: audioFiles,
+                engine: m.engine,
+                status: status
+            )
+            context.insert(session)
+            inserted += 1
+        }
+        guard inserted > 0 else { return }
+        try? context.save()
+    }
+
+    // MARK: - Detection dry-run
+
+    func runDetectionTest() -> String {
+        guard let watchLoop else { return "Watch loop not started — enable 'Watch for Meetings' first." }
+        return watchLoop.runDetectionTest()
+    }
+
+    // MARK: - Dock badge
+
+    private func startDockBadgeUpdater() {
+        Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.refreshDockBadge()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    func refreshDockBadge() {
+        guard NSApp != nil else { return }
+        let activeStates: Set<JobState> = [.waiting, .transcribing, .diarizing, .generatingProtocol]
+        let count = pipelineQueue.jobs.filter { activeStates.contains($0.state) }.count
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
     }
 }
 

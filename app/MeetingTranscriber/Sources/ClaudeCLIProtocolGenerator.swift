@@ -9,6 +9,7 @@
     struct ClaudeCLIProtocolGenerator: ProtocolGenerating {
         let claudeBin: String
         let language: String
+        let model: String
 
         static let timeoutSeconds: TimeInterval = 600
 
@@ -22,13 +23,34 @@
 
         // MARK: - ProtocolGenerating
 
-        func generate(transcript: String, title _: String, diarized: Bool) async throws -> String {
+        func generate(transcript: String, title: String, diarized: Bool) async throws -> String {
+            var lastError: any Error = ProtocolError.connectionFailed("No attempts")
+            for attempt in 1 ... 3 {
+                do {
+                    return try await generateOnce(transcript: transcript, title: title, diarized: diarized)
+                } catch ProtocolError.timeout {
+                    lastError = ProtocolError.timeout
+                } catch ProtocolError.connectionFailed(let msg) {
+                    lastError = ProtocolError.connectionFailed(msg)
+                } catch {
+                    throw error
+                }
+                if attempt < 3 {
+                    let delay = Double(attempt * attempt) * 2.0
+                    logger.warning("claude_cli_retry attempt=\(attempt) delay=\(delay)s")
+                    try? await Task.sleep(for: .seconds(delay))
+                }
+            }
+            throw lastError
+        }
+
+        private func generateOnce(transcript: String, title _: String, diarized: Bool) async throws -> String {
             let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language) + transcript
 
             let process = Process()
             let resolvedBin = Self.resolveClaudePath(claudeBin)
             process.executableURL = URL(fileURLWithPath: resolvedBin)
-            process.arguments = Self.buildSubprocessArgs(claudeBin: claudeBin, resolvedBin: resolvedBin)
+            process.arguments = Self.buildSubprocessArgs(claudeBin: claudeBin, resolvedBin: resolvedBin, model: model)
             process.environment = Self.buildEnvironment(
                 baseEnvironment: ProcessInfo.processInfo.environment,
                 searchPaths: Self.searchPaths,
@@ -228,8 +250,8 @@
         /// Build the CLI argument vector. When `resolvedBin` is the
         /// `/usr/bin/env` fallback, prepend `claudeBin` so env can resolve
         /// it from PATH.
-        static func buildSubprocessArgs(claudeBin: String, resolvedBin: String) -> [String] {
-            var args = ["-p", "-", "--output-format", "stream-json", "--verbose", "--model", "sonnet"]
+        static func buildSubprocessArgs(claudeBin: String, resolvedBin: String, model: String = "sonnet") -> [String] {
+            var args = ["-p", "-", "--output-format", "stream-json", "--verbose", "--model", model]
             if resolvedBin == "/usr/bin/env" {
                 args.insert(claudeBin, at: 0)
             }

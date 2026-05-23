@@ -243,7 +243,19 @@ struct KnownVoicesView: View {
             }
             TableColumn("Last used") { Text(KnownVoicesFormatting.lastUsedLabel($0.lastUsed)) }
             TableColumn("Uses") { Text("\($0.useCount)") }
-            TableColumn("Samples") { Text("\($0.embeddings.count)") }
+            TableColumn("Confidence") { speaker in
+                HStack(spacing: 2) {
+                    ForEach(0 ..< 3, id: \.self) { i in
+                        Circle()
+                            .fill(speaker.centroidSampleCount > i * 4 ? Color.accentColor : Color.secondary.opacity(0.25))
+                            .frame(width: 8, height: 8)
+                    }
+                    Text("(\(speaker.centroidSampleCount))")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .help("\(speaker.centroidSampleCount) embeddings in voice model")
+            }
         }
     }
 

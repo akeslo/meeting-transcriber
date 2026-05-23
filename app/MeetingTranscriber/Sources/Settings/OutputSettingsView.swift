@@ -41,6 +41,109 @@ struct OutputSettingsView: View {
     @State private var didAttemptConnectionTest = false
     @State private var showResetPromptConfirmation = false
     @State private var hasCustomPrompt = false
+    @State private var showPromptEditor = false
+    @State private var templateToApply: PromptTemplate?
+
+    enum PromptTemplate: String, CaseIterable {
+        case meeting     = "Meeting Notes"
+        case interview   = "Interview Summary"
+        case brainstorm  = "Brainstorming Session"
+        case statusCall  = "Status / Standup"
+
+        var prompt: String {
+            switch self {
+            case .meeting:
+                return ProtocolGenerator.protocolPrompt
+            case .interview:
+                return """
+                You are an expert interview analyst.
+                Summarize the following interview in {LANGUAGE}.
+
+                Return ONLY the finished Markdown document.
+
+                # Interview Summary - [Title]
+                **Date:** [Date]
+                **Interviewer:** [Name]
+                **Interviewee:** [Name]
+
+                ---
+
+                ## Key Themes
+                - [Theme 1]
+
+                ## Notable Quotes
+                > "[Quote]" — [Speaker]
+
+                ## Insights & Highlights
+                [3-5 paragraphs]
+
+                ## Follow-up Questions
+                - [Question]
+
+                ---
+                Transcript:
+                """
+            case .brainstorm:
+                return """
+                You are a creative facilitator and note-taker.
+                Summarize this brainstorming session in {LANGUAGE}.
+
+                Return ONLY the finished Markdown document.
+
+                # Brainstorming Session - [Title]
+                **Date:** [Date]
+
+                ---
+
+                ## Goal
+                [What the session aimed to solve]
+
+                ## Ideas Generated
+                - [Idea 1]
+                - [Idea 2]
+
+                ## Top Ideas (shortlisted)
+                ### [Idea]
+                [Why it stood out]
+
+                ## Next Steps
+                - [ ] [Action]
+
+                ---
+                Transcript:
+                """
+            case .statusCall:
+                return """
+                You are a concise meeting note-taker.
+                Summarize this status or standup call in {LANGUAGE}.
+
+                Return ONLY the finished Markdown document.
+
+                # Status Update - [Date]
+                **Team / Project:** [Name]
+
+                ---
+
+                ## What was completed
+                - [Item]
+
+                ## What's in progress
+                - [Item]
+
+                ## Blockers
+                - [Blocker or "None"]
+
+                ## Decisions & Actions
+                | Action | Owner | Due |
+                |--------|-------|-----|
+                | [Task] | [Name] | [Date] |
+
+                ---
+                Transcript:
+                """
+            }
+        }
+    }
 
     enum ConnectionTestResult {
         case success(String)
@@ -93,6 +196,9 @@ struct OutputSettingsView: View {
                 }
 
                 promptControls
+
+                Toggle("Anonymize transcript before sending to LLM", isOn: $settings.anonymizeTranscript)
+                    .help("Replace speaker names with [Speaker A], [Speaker B] in the transcript before protocol generation")
             }
             .accessibilityIdentifier("protocolSection")
             .recordOnlyDisabled(settings.recordOnly)
@@ -115,6 +221,11 @@ struct OutputSettingsView: View {
                     ForEach(claudeBinaries, id: \.self) { bin in
                         Text(bin).tag(bin)
                     }
+                }
+                Picker("Model", selection: $settings.claudeModel) {
+                    Text("Haiku (fastest)").tag("haiku")
+                    Text("Sonnet (balanced)").tag("sonnet")
+                    Text("Opus (most capable)").tag("opus")
                 }
                 Text("Binary used for protocol generation")
                     .font(.caption)
@@ -202,33 +313,63 @@ struct OutputSettingsView: View {
 
     private var promptControls: some View {
         // swiftlint:disable:next closure_body_length
-        HStack {
-            Button("Edit Prompt") {
-                openCustomPrompt()
-                refreshCustomPromptState()
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button("Edit Prompt") {
+                    showPromptEditor = true
+                }
+                .sheet(isPresented: $showPromptEditor, onDismiss: refreshCustomPromptState) {
+                    PromptEditorSheet()
+                }
 
-            Button("Import Prompt") {
-                importCustomPrompt()
-                refreshCustomPromptState()
-            }
+                Menu("Load Template") {
+                    ForEach(PromptTemplate.allCases, id: \.self) { template in
+                        Button(template.rawValue) {
+                            templateToApply = template
+                        }
+                    }
+                }
+                .confirmationDialog(
+                    "Replace current prompt with \"\(templateToApply?.rawValue ?? "")\" template?",
+                    isPresented: Binding(
+                        get: { templateToApply != nil },
+                        set: { if !$0 { templateToApply = nil } }
+                    ),
+                    titleVisibility: .visible,
+                ) {
+                    Button("Load Template", role: .destructive) {
+                        if let t = templateToApply {
+                            ensurePromptDirectory()
+                            try? t.prompt.write(to: AppPaths.customPromptFile, atomically: true, encoding: .utf8)
+                            templateToApply = nil
+                            refreshCustomPromptState()
+                        }
+                    }
+                    Button("Cancel", role: .cancel) { templateToApply = nil }
+                }
 
-            Button("Reset to Default") {
-                showResetPromptConfirmation = true
-            }
-            .disabled(!hasCustomPrompt)
-            .confirmationDialog(
-                "Reset protocol prompt to the built-in default?",
-                isPresented: $showResetPromptConfirmation,
-                titleVisibility: .visible,
-            ) {
-                Button("Reset", role: .destructive) {
-                    try? FileManager.default.removeItem(at: AppPaths.customPromptFile)
+                Button("Import Prompt") {
+                    importCustomPrompt()
                     refreshCustomPromptState()
                 }
-            }
 
-            Spacer()
+                Button("Reset to Default") {
+                    showResetPromptConfirmation = true
+                }
+                .disabled(!hasCustomPrompt)
+                .confirmationDialog(
+                    "Reset protocol prompt to the built-in default?",
+                    isPresented: $showResetPromptConfirmation,
+                    titleVisibility: .visible,
+                ) {
+                    Button("Reset", role: .destructive) {
+                        try? FileManager.default.removeItem(at: AppPaths.customPromptFile)
+                        refreshCustomPromptState()
+                    }
+                }
+
+                Spacer()
+            }
 
             if hasCustomPrompt {
                 Label("Custom prompt active", systemImage: "doc.text.fill")

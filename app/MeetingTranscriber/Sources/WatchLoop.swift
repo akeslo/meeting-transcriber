@@ -182,6 +182,15 @@ class WatchLoop {
         }
     }
 
+    /// Run a single detector poll and return a human-readable result string.
+    /// Used by the detection dry-run feature in Settings.
+    func runDetectionTest() -> String {
+        if let meeting = detector.checkOnce() {
+            return "Detected: \"\(meeting.pattern.appName)\" via \(meeting.ownerName)"
+        }
+        return "No meeting detected in current state."
+    }
+
     func stop() {
         watchTask?.cancel()
         watchTask = nil

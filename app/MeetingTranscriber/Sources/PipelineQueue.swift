@@ -22,6 +22,9 @@ class PipelineQueue {
     let micLabel: String
     let speakerMatcherFactory: () -> SpeakerMatcher
     let vadConfig: VADConfig?
+    /// When true, speaker names are replaced with [Speaker A], [Speaker B], etc.
+    /// in the transcript before it is sent to the LLM for protocol generation.
+    var anonymizeTranscript: Bool = false
     /// nil disables JSONL logging. AppState injects a real instance for production;
     /// tests leave it nil unless they explicitly want to assert on the log.
     let recognitionStatsLog: RecognitionStatsLog?
@@ -439,6 +442,48 @@ class PipelineQueue {
         case .done, .error:
             break
         }
+    }
+
+    /// Replace speaker names in a transcript with [Speaker A], [Speaker B], etc.
+    /// Matches lines starting with `[Name]: ` (diarized transcript format).
+    static func anonymize(transcript: String) -> String {
+        let pattern = try? NSRegularExpression(pattern: #"^\[([^\]]+)\]:"#, options: .anchorsMatchLines)
+        var nameMap: [String: String] = [:]
+        let labels = (0 ..< 26).map { i in "Speaker \(String(UnicodeScalar(65 + i)!))" }
+        return transcript.components(separatedBy: "\n").map { line in
+            guard let match = pattern?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                  let nameRange = Range(match.range(at: 1), in: line) else { return line }
+            let name = String(line[nameRange])
+            if nameMap[name] == nil {
+                nameMap[name] = "[\(labels[min(nameMap.count, labels.count - 1)])]"
+            }
+            return line.replacingCharacters(in: line.range(of: "[\(name)]")!, with: nameMap[name]!)
+        }.joined(separator: "\n")
+    }
+
+    /// Re-enqueue a failed session from its existing audio files.
+    func retrySession(_ session: RecordingSession, outputDir: URL) {
+        let folder = outputDir.appendingPathComponent(session.folderPath)
+        func audioURL(_ name: String) -> URL? {
+            let url = folder.appendingPathComponent(name)
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        }
+        let mixPath = session.audioFiles.first(where: { $0.hasSuffix("_mix.wav") }).flatMap(audioURL)
+        let appPath = session.audioFiles.first(where: { $0.hasSuffix("_app.wav") }).flatMap(audioURL)
+        let micPath = session.audioFiles.first(where: { $0.hasSuffix("_mic.wav") }).flatMap(audioURL)
+        guard mixPath != nil || appPath != nil else { return }
+        let job = PipelineJob(
+            meetingTitle: session.title,
+            appName: session.appName,
+            mixPath: mixPath,
+            appPath: appPath,
+            micPath: micPath,
+            micDelay: 0,
+            participants: session.participantNames
+        )
+        session.status = SessionStatus.waiting
+        session.errorMessage = nil
+        enqueue(job)
     }
 
     func updateJobState(id: UUID, to newState: JobState, error: String? = nil) {
@@ -1067,8 +1112,9 @@ class PipelineQueue {
             let diarized = transcript.range(
                 of: #"\[\w[\w\s]*\]"#, options: .regularExpression,
             ) != nil
+            let transcriptForLLM = anonymizeTranscript ? Self.anonymize(transcript: transcript) : transcript
             let protocolMD = try await generator.generate(
-                transcript: transcript, title: title, diarized: diarized,
+                transcript: transcriptForLLM, title: title, diarized: diarized,
             )
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
