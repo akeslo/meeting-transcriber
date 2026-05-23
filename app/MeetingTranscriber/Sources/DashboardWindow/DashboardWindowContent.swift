@@ -74,20 +74,30 @@ struct DashboardWindowContent: View {
 
             Divider()
 
-            contentPane
+            if selectedNav == .library, selectedSession != nil || selectedJob != nil {
+                // Master-detail: narrow recording list on left, detail fills center
+                LibraryView(
+                    pipelineQueue: pipelineQueue,
+                    selectedSessionID: $selectedSessionID,
+                    onDeleteSession: deleteSession
+                )
+                .frame(width: 280)
+
+                Divider()
+
+                DetailPaneView(
+                    session: selectedSession,
+                    job: selectedJob,
+                    settings: settings,
+                    onRetry: { session in
+                        pipelineQueue.retrySession(session, outputDir: settings.effectiveOutputDir)
+                    }
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            DetailPaneView(
-                session: selectedSession,
-                job: selectedJob,
-                settings: settings,
-                onRetry: { session in
-                    pipelineQueue.retrySession(session, outputDir: settings.effectiveOutputDir)
-                }
-            )
-            .frame(width: 360)
+            } else {
+                contentPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .frame(minWidth: 900, minHeight: 600)
         .onReceive(NotificationCenter.default.publisher(for: .showSettings)) { _ in
@@ -127,8 +137,6 @@ struct DashboardWindowContent: View {
                 selectedNav: $selectedNav,
                 selectedSessionID: $selectedSessionID
             )
-        case .stats:
-            StatsView()
         case .settings:
             SettingsContentView(
                 settings: settings,

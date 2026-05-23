@@ -5,7 +5,6 @@ import SwiftUI
 enum NavItem: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case library   = "Library"
-    case stats     = "Stats"
     case settings  = "Settings"
 
     var id: String { rawValue }
@@ -14,7 +13,6 @@ enum NavItem: String, CaseIterable, Identifiable {
         switch self {
         case .dashboard: return "square.grid.2x2"
         case .library:   return "folder"
-        case .stats:     return "chart.bar"
         case .settings:  return "gearshape"
         }
     }
