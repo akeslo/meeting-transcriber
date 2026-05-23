@@ -167,9 +167,7 @@ class BrowserTabDetector: MeetingDetecting {
                 try
                     repeat with t in every tab of w
                         try
-                            if audible of t then
-                                set end of allURLs to URL of t
-                            end if
+                            set end of allURLs to URL of t
                         end try
                     end repeat
                 end try
@@ -187,10 +185,7 @@ class BrowserTabDetector: MeetingDetecting {
                 try
                     repeat with t in every tab of w
                         try
-                            set isPlaying to do JavaScript "document.querySelectorAll('audio:not([paused]),video:not([paused])').length > 0" in t
-                            if isPlaying then
-                                set end of allURLs to URL of t
-                            end if
+                            set end of allURLs to URL of t
                         end try
                     end repeat
                 end try
