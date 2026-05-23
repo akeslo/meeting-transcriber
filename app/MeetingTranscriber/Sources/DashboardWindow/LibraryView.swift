@@ -442,7 +442,28 @@ struct LibraryView: View {
                 SessionGridCardView(
                     session: session,
                     isSelected: selectedSessionID == session.id,
-                    onDelete: { onDeleteSession(session) }
+                    onDelete: { onDeleteSession(session) },
+                    allTags: allTags,
+                    allFolders: allFolders,
+                    onRename: { newTitle in
+                        session.title = newTitle
+                        try? modelContext.save()
+                        let dir = AppPaths.transcriberRoot.appendingPathComponent(session.folderPath)
+                        try? SessionMeta.updateFields(in: dir, title: newTitle)
+                    },
+                    onAddTag: { tag in
+                        guard !session.tags.contains(tag) else { return }
+                        session.tags.append(tag)
+                        try? modelContext.save()
+                        let dir = AppPaths.transcriberRoot.appendingPathComponent(session.folderPath)
+                        try? SessionMeta.updateFields(in: dir, tags: session.tags)
+                    },
+                    onSetFolder: { folder in
+                        session.folderGroup = folder
+                        try? modelContext.save()
+                        let dir = AppPaths.transcriberRoot.appendingPathComponent(session.folderPath)
+                        try? SessionMeta.updateFields(in: dir, folderGroup: folder)
+                    }
                 )
                 .onTapGesture { selectedSessionID = session.id }
             }

@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Shows an NSAlert with a text field, calls `completion` with trimmed non-empty result.
 @MainActor
-private func promptText(
+func promptText(
     title: String,
     message: String,
     placeholder: String,

@@ -1,9 +1,15 @@
+import AppKit
 import SwiftUI
 
 struct SessionGridCardView: View {
     let session: RecordingSession
     let isSelected: Bool
     let onDelete: () -> Void
+    var allTags: [String] = []
+    var allFolders: [String] = []
+    var onRename: ((String) -> Void)? = nil
+    var onAddTag: ((String) -> Void)? = nil
+    var onSetFolder: ((String) -> Void)? = nil
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -77,6 +83,62 @@ struct SessionGridCardView: View {
                 )
         )
         .contextMenu {
+            if let onRename {
+                Button {
+                    promptText(
+                        title: "Rename Recording",
+                        message: "Enter a new name:",
+                        placeholder: session.title,
+                        initial: session.title
+                    ) { onRename($0) }
+                } label: {
+                    Label("Rename…", systemImage: "pencil")
+                }
+            }
+
+            if let onAddTag {
+                Button {
+                    promptText(
+                        title: "Add Tag",
+                        message: "Enter a tag name:",
+                        placeholder: "tag name",
+                        initial: ""
+                    ) { onAddTag($0) }
+                } label: {
+                    Label("Add Tag…", systemImage: "tag")
+                }
+            }
+
+            if let onSetFolder {
+                Menu {
+                    if !session.folderGroup.isEmpty {
+                        Button {
+                            onSetFolder("")
+                        } label: {
+                            Label("Remove from Folder", systemImage: "folder.badge.minus")
+                        }
+                        Divider()
+                    }
+                    ForEach(allFolders.filter { $0 != session.folderGroup }, id: \.self) { folder in
+                        Button(folder) { onSetFolder(folder) }
+                    }
+                    Button {
+                        promptText(
+                            title: "New Folder",
+                            message: "Enter folder name:",
+                            placeholder: "folder name",
+                            initial: ""
+                        ) { onSetFolder($0) }
+                    } label: {
+                        Label("New Folder…", systemImage: "folder.badge.plus")
+                    }
+                } label: {
+                    Label("Move to Folder", systemImage: "folder")
+                }
+            }
+
+            Divider()
+
             Button(role: .destructive, action: onDelete) {
                 Label("Move to Trash", systemImage: "trash")
             }

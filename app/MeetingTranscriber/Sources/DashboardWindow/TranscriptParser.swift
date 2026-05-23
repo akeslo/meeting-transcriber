@@ -9,6 +9,11 @@ struct TranscriptSegment: Identifiable {
 
 enum TranscriptParser {
     static func parse(markdown: String) -> [TranscriptSegment] {
+        let result = parseBlockFormat(markdown: markdown)
+        return result.isEmpty ? parseInline(markdown: markdown) : result
+    }
+
+    private static func parseBlockFormat(markdown: String) -> [TranscriptSegment] {
         // Matches: **Speaker Name** [HH:MM:SS] or **Speaker Name** [MM:SS]
         let headerPattern = #/^\*\*(.+?)\*\*\s+\[(\d+):(\d{2})(?::(\d{2}))?\]/#
         let lines = markdown.components(separatedBy: "\n")

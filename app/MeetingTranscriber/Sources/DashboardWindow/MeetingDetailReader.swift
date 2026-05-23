@@ -22,6 +22,7 @@ struct MeetingDetailReader: View {
     @State private var segments: [TranscriptSegment] = []
     @State private var protocolContent: String = ""
     @State private var selectedSegmentID: UUID?
+    @State private var checkedActionItems: Set<Int> = []
 
     @State private var player: AVAudioPlayer?
     @State private var isPlaying: Bool = false
@@ -172,21 +173,64 @@ struct MeetingDetailReader: View {
                 .frame(maxWidth: .infinity)
                 .padding(20)
             } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("\(items.count) action item\(items.count == 1 ? "" : "s")")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "square")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 1)
-                            Text(item)
-                                .font(.system(size: 13))
-                                .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("\(items.count) action item\(items.count == 1 ? "" : "s")")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            let text = items.enumerated().map { i, item in
+                                let prefix = checkedActionItems.contains(i) ? "- [x] " : "- [ ] "
+                                return prefix + item
+                            }.joined(separator: "\n")
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(text, forType: .string)
+                        } label: {
+                            Label("Copy All", systemImage: "doc.on.doc")
+                                .font(.system(size: 11))
                         }
-                        .padding(.vertical, 4)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .padding(.bottom, 10)
+
+                    ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                        let isChecked = checkedActionItems.contains(idx)
+                        Button {
+                            if isChecked {
+                                checkedActionItems.remove(idx)
+                            } else {
+                                checkedActionItems.insert(idx)
+                            }
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(isChecked ? Color.accentColor : Color.secondary)
+                                    .padding(.top, 1)
+                                Text(item)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(isChecked ? Color.secondary : Color.primary)
+                                    .strikethrough(isChecked)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .multilineTextAlignment(.leading)
+                                Spacer()
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(item, forType: .string)
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Color.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Copy to clipboard")
+                            }
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                         Divider()
                     }
                 }
