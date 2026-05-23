@@ -73,6 +73,18 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showAddWebsite) {
+            WebsiteEditSheet(website: nil) { site in
+                settings.watchedWebsites.append(site)
+            }
+        }
+        .sheet(item: $editingWebsite) { site in
+            WebsiteEditSheet(website: site) { updated in
+                if let i = settings.watchedWebsites.firstIndex(where: { $0.id == updated.id }) {
+                    settings.watchedWebsites[i] = updated
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -94,18 +106,6 @@ struct GeneralSettingsView: View {
             Button("Add Website") { showAddWebsite = true }
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
-        }
-        .sheet(isPresented: $showAddWebsite) {
-            WebsiteEditSheet(website: nil) { site in
-                settings.watchedWebsites.append(site)
-            }
-        }
-        .sheet(item: $editingWebsite) { site in
-            WebsiteEditSheet(website: site) { updated in
-                if let i = settings.watchedWebsites.firstIndex(where: { $0.id == updated.id }) {
-                    settings.watchedWebsites[i] = updated
-                }
-            }
         }
     }
 
@@ -259,15 +259,30 @@ struct WebsiteEditSheet: View {
             Text(website == nil ? "Add Website" : "Edit Website")
                 .font(.headline)
 
-            Form {
-                TextField("Name", text: $name)
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("Name")
+                        .gridColumnAlignment(.trailing)
+                    TextField("", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text(useRegex ? "Regex pattern" : "URL or domain")
+                        .gridColumnAlignment(.trailing)
+                    TextField(
+                        useRegex ? "e.g. meet\\.google\\.com" : "e.g. youtube.com",
+                        text: $urlPattern,
+                    )
                     .textFieldStyle(.roundedBorder)
-                TextField(useRegex ? "Regex pattern (e.g. meet\\.google\\.com)" : "URL or domain (e.g. youtube.com)", text: $urlPattern)
-                    .textFieldStyle(.roundedBorder)
-                Toggle("Use Regular Expression", isOn: $useRegex)
-                Toggle("Record microphone", isOn: $recordMic)
+                }
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Use Regular Expression", isOn: $useRegex)
+                        Toggle("Record microphone", isOn: $recordMic)
+                    }
+                }
             }
-            .formStyle(.columns)
 
             Text(useRegex ? "Recording starts when any open tab URL matches this regex." : "Recording starts when any open tab URL contains this text.")
                 .font(.caption)
@@ -294,6 +309,6 @@ struct WebsiteEditSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: 400)
     }
 }

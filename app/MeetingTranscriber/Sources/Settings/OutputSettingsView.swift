@@ -49,6 +49,7 @@ struct OutputSettingsView: View {
         case interview   = "Interview Summary"
         case brainstorm  = "Brainstorming Session"
         case statusCall  = "Status / Standup"
+        case youTube     = "YouTube Video Summary"
 
         var prompt: String {
             switch self {
@@ -137,6 +138,43 @@ struct OutputSettingsView: View {
                 | Action | Owner | Due |
                 |--------|-------|-----|
                 | [Task] | [Name] | [Date] |
+
+                ---
+                Transcript:
+                """
+            case .youTube:
+                return """
+                You are an expert content summarizer.
+                Summarize the following YouTube video transcript in {LANGUAGE}.
+
+                Return ONLY the finished Markdown document.
+
+                # Video Summary - [Video Title]
+                **Channel:** [Channel Name if mentioned]
+                **Date:** [Date if mentioned]
+
+                ---
+
+                ## TL;DR
+                [2-3 sentence overview of the video]
+
+                ## Key Points
+                - [Key point 1]
+                - [Key point 2]
+                - [Key point 3]
+
+                ## Main Sections
+                ### [Section / Topic 1]
+                [What was covered, key insights]
+
+                ### [Section / Topic 2]
+                [What was covered, key insights]
+
+                ## Notable Quotes
+                > "[Quote]"
+
+                ## Takeaways & Action Items
+                - [Practical takeaway or action]
 
                 ---
                 Transcript:
@@ -324,7 +362,7 @@ struct OutputSettingsView: View {
 
                 Menu("Load Template") {
                     ForEach(PromptTemplate.allCases, id: \.self) { template in
-                        Button(template.rawValue) {
+                        Button(template == .meeting ? "\(template.rawValue) (Default)" : template.rawValue) {
                             templateToApply = template
                         }
                     }
@@ -376,7 +414,7 @@ struct OutputSettingsView: View {
                     .foregroundStyle(.blue)
                     .font(.caption)
             } else {
-                Label("Using default prompt", systemImage: "doc.text")
+                Label("Using default prompt (Meeting Notes)", systemImage: "doc.text")
                     .foregroundStyle(.secondary)
                     .font(.caption)
             }
