@@ -198,19 +198,27 @@ struct MeetingDetailReader: View {
     static func extractActionItems(from text: String) -> [String] {
         guard !text.isEmpty else { return [] }
         var items: [String] = []
+        let taskHeadings: Set<String> = ["## Tasks", "## Aufgaben", "## Tâches", "## Tareas", "## Compiti"]
+        var inTasksSection = false
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            // Track section entry/exit via heading depth
+            if trimmed.hasPrefix("## ") {
+                inTasksSection = taskHeadings.contains(trimmed)
+            } else if trimmed.hasPrefix("# ") {
+                inTasksSection = false
+            }
             if trimmed.hasPrefix("- [ ]") {
                 items.append(String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces))
             } else if trimmed.hasPrefix("* [ ]") {
                 items.append(String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespaces))
-            } else if let range = trimmed.range(of: "^[|]\\s*([^|]+)\\s*[|]", options: .regularExpression),
-                      text.contains("## Tasks") || text.contains("## Aufgaben") || text.contains("## Tâches") {
+            } else if inTasksSection,
+                      trimmed.hasPrefix("|"),
+                      trimmed.range(of: "^[|]\\s*([^|]+)\\s*[|]", options: .regularExpression) != nil {
                 let cell = trimmed.components(separatedBy: "|").dropFirst().first ?? ""
                 let clean = cell.trimmingCharacters(in: .whitespaces)
-                if !clean.isEmpty, !clean.hasPrefix("Task"), !clean.hasPrefix("Aufgabe"),
-                   !clean.hasPrefix("---"), !clean.hasPrefix("Tâche"), !clean.hasPrefix("Beschreibung") {
-                    _ = range
+                let headerPrefixes = ["Task", "Aufgabe", "Tâche", "Tarea", "Compito", "---", "Beschreibung"]
+                if !clean.isEmpty, !headerPrefixes.contains(where: { clean.hasPrefix($0) }) {
                     items.append(clean)
                 }
             }

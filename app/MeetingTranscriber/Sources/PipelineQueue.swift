@@ -457,7 +457,8 @@ class PipelineQueue {
             if nameMap[name] == nil {
                 nameMap[name] = "[\(labels[min(nameMap.count, labels.count - 1)])]"
             }
-            return line.replacingCharacters(in: line.range(of: "[\(name)]")!, with: nameMap[name]!)
+            guard let replaceRange = line.range(of: "[\(name)]") else { return line }
+            return line.replacingCharacters(in: replaceRange, with: nameMap[name]!)
         }.joined(separator: "\n")
     }
 
@@ -471,7 +472,7 @@ class PipelineQueue {
         let mixPath = session.audioFiles.first(where: { $0.hasSuffix("_mix.wav") }).flatMap(audioURL)
         let appPath = session.audioFiles.first(where: { $0.hasSuffix("_app.wav") }).flatMap(audioURL)
         let micPath = session.audioFiles.first(where: { $0.hasSuffix("_mic.wav") }).flatMap(audioURL)
-        guard mixPath != nil || appPath != nil else { return }
+        guard mixPath != nil || appPath != nil || micPath != nil else { return }
         let job = PipelineJob(
             meetingTitle: session.title,
             appName: session.appName,

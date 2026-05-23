@@ -74,9 +74,7 @@ private struct MicTestSection: View {
     @State private var recorder: AVAudioRecorder?
     @State private var player: AVAudioPlayer?
     @State private var errorMessage: String?
-
-    private static let testURL = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("mic_test.wav")
+    @State private var micTestTask: Task<Void, Never>?
 
     var body: some View {
         Section("Microphone Test") {
@@ -126,9 +124,11 @@ private struct MicTestSection: View {
     }
 
     private func run() {
+        micTestTask?.cancel()
         errorMessage = nil
         phase = .recording
-        let url = Self.testURL
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("mic_test_\(UUID().uuidString).wav")
         let recSettings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatLinearPCM),
             AVSampleRateKey: 44100,
@@ -143,8 +143,9 @@ private struct MicTestSection: View {
             errorMessage = "Cannot start recording: \(error.localizedDescription)"
             return
         }
-        Task {
+        micTestTask = Task {
             try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
             recorder?.stop()
             phase = .playing
             do {
@@ -152,14 +153,18 @@ private struct MicTestSection: View {
                 player = p
                 p.play()
                 try? await Task.sleep(for: .seconds(p.duration + 0.3))
-                phase = .done
+                if !Task.isCancelled { phase = .done }
             } catch {
-                phase = .idle
-                errorMessage = "Playback failed: \(error.localizedDescription)"
+                if !Task.isCancelled {
+                    phase = .idle
+                    errorMessage = "Playback failed: \(error.localizedDescription)"
+                }
             }
+            try? FileManager.default.removeItem(at: url)
         }
     }
 }
+
 
 private struct PerChannelIndicatorSection: View {
     @Bindable var settings: AppSettings

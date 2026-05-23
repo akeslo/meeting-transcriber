@@ -522,10 +522,12 @@ struct LibraryView: View {
                     try? fm.createDirectory(at: targetDir, withIntermediateDirectories: true)
                     for name in ["transcript.txt", "protocol.md"] {
                         let src = srcDir.appendingPathComponent(name)
-                        if fm.fileExists(atPath: src.path) {
-                            let dst = targetDir.appendingPathComponent(name)
-                            _ = try? fm.replaceItemAt(dst, withItemAt: src)
+                        guard fm.fileExists(atPath: src.path) else { continue }
+                        let dst = targetDir.appendingPathComponent(name)
+                        if fm.fileExists(atPath: dst.path) {
+                            try? fm.removeItem(at: dst)
                         }
+                        try? fm.copyItem(at: src, to: dst)
                     }
                 }
                 return dest
@@ -544,6 +546,7 @@ struct LibraryView: View {
         // Capture value types only before leaving the main actor.
         let paths: [(id: UUID, folderPath: String)] = sessions.map { (id: $0.id, folderPath: $0.folderPath) }
         let root = outputDir ?? AppPaths.transcriberRoot
+        let capturedQuery = query
         Task {
             let matches = await Task.detached(priority: .userInitiated) {
                 var found = Set<UUID>()
@@ -552,12 +555,13 @@ struct LibraryView: View {
                         .appendingPathComponent(item.folderPath)
                         .appendingPathComponent("transcript.txt")
                     if let text = try? String(contentsOf: url, encoding: .utf8),
-                       text.localizedCaseInsensitiveContains(query) {
+                       text.localizedCaseInsensitiveContains(capturedQuery) {
                         found.insert(item.id)
                     }
                 }
                 return found
             }.value
+            guard searchText == capturedQuery else { return }
             fullTextMatches = matches
             isSearchingFullText = false
         }
