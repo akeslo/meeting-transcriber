@@ -426,6 +426,7 @@ class WatchLoop {
 
     func waitForMeetingEnd(_ meeting: DetectedMeeting) async throws {
         var graceStart: Date?
+        var silenceStart: Date?
         let startTime = nowProvider()
         let config = WatchLoopEndConfig(
             maxDuration: maxDuration,
@@ -451,6 +452,26 @@ class WatchLoop {
             case let .continuePolling(newGraceStart):
                 graceStart = newGraceStart
             }
+
+            if meeting.audioSilenceStopEnabled {
+                let rec = activeRecorder
+                let appSilent = (rec?.appLevelDBFS ?? -120) <= -60
+                let micSilent = (rec?.micLevelDBFS ?? -120) <= -60
+                let audioSilent = meeting.noMicOverride == true ? appSilent : (appSilent && micSilent)
+                let result = AudioSilencePolicy.step(
+                    enabled: true,
+                    audioSilent: audioSilent,
+                    silenceStart: silenceStart,
+                    silenceStopSeconds: silenceStopSecondsProvider(),
+                    now: nowProvider(),
+                )
+                silenceStart = result.newSilenceStart
+                if result.stop {
+                    logger.info("audio_silence_stop meeting=\(meeting.pattern.appName, privacy: .public)")
+                    return
+                }
+            }
+
             try await sleepProvider(pollInterval)
         }
     }

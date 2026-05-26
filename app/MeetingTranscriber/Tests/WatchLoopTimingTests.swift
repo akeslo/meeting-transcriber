@@ -113,4 +113,127 @@ final class WatchLoopTimingTests: XCTestCase {
                 + "grace window had elapsed.",
         )
     }
+
+    // MARK: - Silence-stop
+
+    func testWaitForMeetingEndStopsOnAppAudioSilence_noMicRecording() async throws {
+        let detector = PowerAssertionDetector()
+        detector.assertionProvider = {
+            [1234: [["Process Name": "zoom.us", "AssertName": "Zoom video call active"]]]
+        }
+        let clock = TestClock()
+        let recorder = MockRecorder()
+        recorder.appLevelDBFS = -120  // silent
+        let loop = WatchLoop(
+            detector: detector,
+            pollInterval: 0.05,
+            maxDuration: 100,
+            silenceStopSecondsProvider: { 0.15 },
+            nowProvider: { clock.now },
+            sleepProvider: { await clock.sleep(for: $0) },
+        )
+        let meeting = DetectedMeeting(
+            pattern: .zoom,
+            windowTitle: "Zoom Meeting",
+            ownerName: "zoom.us",
+            windowPID: 1234,
+            noMicOverride: true,
+            audioSilenceStopEnabled: true,
+        )
+        loop.activeRecorder = recorder
+        let virtualStart = clock.now
+        try await loop.waitForMeetingEnd(meeting)
+        let elapsed = clock.now.timeIntervalSince(virtualStart)
+        XCTAssertGreaterThanOrEqual(elapsed, 0.15, "should wait at least silenceStopSeconds")
+        XCTAssertLessThan(elapsed, 100, "should stop before maxDuration")
+    }
+
+    func testWaitForMeetingEndStopsWhenBothChannelsSilent_micEnabled() async throws {
+        let detector = PowerAssertionDetector()
+        detector.assertionProvider = {
+            [1234: [["Process Name": "zoom.us", "AssertName": "Zoom video call active"]]]
+        }
+        let clock = TestClock()
+        let recorder = MockRecorder()
+        recorder.appLevelDBFS = -120
+        recorder.micLevelDBFS = -120
+        let loop = WatchLoop(
+            detector: detector,
+            pollInterval: 0.05,
+            maxDuration: 100,
+            silenceStopSecondsProvider: { 0.15 },
+            nowProvider: { clock.now },
+            sleepProvider: { await clock.sleep(for: $0) },
+        )
+        let meeting = DetectedMeeting(
+            pattern: .zoom,
+            windowTitle: "Zoom Meeting",
+            ownerName: "zoom.us",
+            windowPID: 1234,
+            noMicOverride: false,
+            audioSilenceStopEnabled: true,
+        )
+        loop.activeRecorder = recorder
+        let virtualStart = clock.now
+        try await loop.waitForMeetingEnd(meeting)
+        XCTAssertGreaterThanOrEqual(clock.now.timeIntervalSince(virtualStart), 0.15)
+    }
+
+    func testSilenceStopDoesNotFireWhenOnlyOneChannelSilent_micEnabled() async throws {
+        let detector = PowerAssertionDetector()
+        detector.assertionProvider = { [:] }
+        let clock = TestClock()
+        let recorder = MockRecorder()
+        recorder.appLevelDBFS = -120
+        recorder.micLevelDBFS = -40   // audible mic
+        let loop = WatchLoop(
+            detector: detector,
+            pollInterval: 0.05,
+            endGracePeriod: 0.1,
+            maxDuration: 100,
+            silenceStopSecondsProvider: { 999 },
+            nowProvider: { clock.now },
+            sleepProvider: { await clock.sleep(for: $0) },
+        )
+        let meeting = DetectedMeeting(
+            pattern: .zoom,
+            windowTitle: "Zoom Meeting",
+            ownerName: "zoom.us",
+            windowPID: 1234,
+            noMicOverride: false,
+            audioSilenceStopEnabled: true,
+        )
+        loop.activeRecorder = recorder
+        let virtualStart = clock.now
+        try await loop.waitForMeetingEnd(meeting)
+        let elapsed = clock.now.timeIntervalSince(virtualStart)
+        XCTAssertLessThan(elapsed, 1, "should stop via grace (0.1s), not silence-stop (999s)")
+    }
+
+    func testSilenceStopDisabledWhenFlagFalse() async throws {
+        let detector = PowerAssertionDetector()
+        detector.assertionProvider = { [:] }
+        let clock = TestClock()
+        let recorder = MockRecorder()
+        recorder.appLevelDBFS = -120
+        let loop = WatchLoop(
+            detector: detector,
+            pollInterval: 0.05,
+            endGracePeriod: 0.1,
+            maxDuration: 100,
+            silenceStopSecondsProvider: { 0.01 },
+            nowProvider: { clock.now },
+            sleepProvider: { await clock.sleep(for: $0) },
+        )
+        let meeting = DetectedMeeting(
+            pattern: .zoom,
+            windowTitle: "Zoom Meeting",
+            ownerName: "zoom.us",
+            windowPID: 1234,
+            audioSilenceStopEnabled: false,
+        )
+        loop.activeRecorder = recorder
+        try await loop.waitForMeetingEnd(meeting)
+        XCTAssert(true, "completed without error")
+    }
 }
