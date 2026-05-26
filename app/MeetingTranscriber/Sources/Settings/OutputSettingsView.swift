@@ -402,9 +402,22 @@ struct OutputSettingsView: View {
                 }
             }
 
-            Button("Add Prompt") { showAddPrompt = true }
+            HStack(spacing: 16) {
+                Button("Add Prompt") { showAddPrompt = true }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+
+                Menu("Add from Template") {
+                    ForEach(PromptTemplate.allCases, id: \.self) { template in
+                        Button(template.rawValue) {
+                            let newPrompt = NamedPrompt(name: template.rawValue, content: template.prompt)
+                            settings.namedPrompts.append(newPrompt)
+                        }
+                    }
+                }
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
+            }
         }
         .confirmationDialog(
             "Replace prompt content with \"\(templateToApply?.0.rawValue ?? "")\" template?",
