@@ -423,6 +423,7 @@ final class AppState { // swiftlint:disable:this type_body_length
                         .production(parent: settings.effectiveOutputDir)
                     },
                     notifier: notifier,
+                    silenceStopSecondsProvider: { [settings] in settings.asymmetricSilenceWarningSeconds },
                 )
 
                 loop.promptIDResolver = { [settings] appName in settings.promptID(forAppNamed: appName) }
@@ -465,6 +466,7 @@ final class AppState { // swiftlint:disable:this type_body_length
                     .production(parent: settings.effectiveOutputDir)
                 },
                 notifier: notifier,
+                silenceStopSecondsProvider: { [settings] in settings.asymmetricSilenceWarningSeconds },
             )
             watchLoop = loop
 
