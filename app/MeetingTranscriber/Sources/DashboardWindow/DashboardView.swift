@@ -113,6 +113,7 @@ struct DashboardView: View {
             .padding(24)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .environment(\.colorScheme, .light)
     }
 
     // MARK: - Stat helpers
