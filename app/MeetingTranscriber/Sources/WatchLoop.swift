@@ -15,7 +15,9 @@ struct PendingTitleEntry: Equatable {
     let appName: String
     let recording: RecordingResult
     let participants: [String]
-    /// Pre-assigned prompt text from the app/website configuration. nil for manual recordings.
+    /// Pre-assigned prompt ID from the app/website configuration. nil for manual recordings.
+    let suggestedPromptID: UUID?
+    /// Resolved content for suggestedPromptID. nil when no prompt is assigned.
     let suggestedPromptText: String?
 
     static func == (lhs: PendingTitleEntry, rhs: PendingTitleEntry) -> Bool {
@@ -106,7 +108,8 @@ class WatchLoop {
 
     var onManualRecordingCompleted: (() -> Void)?
 
-    /// Resolves a prompt text for an auto-detected app/website name. Injected by AppState.
+    /// Resolves a prompt ID and text for an auto-detected app/website name. Injected by AppState.
+    var promptIDResolver: (String) -> UUID? = { _ in nil }
     var promptTextResolver: (String) -> String? = { _ in nil }
 
     init(
@@ -206,7 +209,8 @@ class WatchLoop {
                 title: entry.suggestedTitle,
                 appName: entry.appName,
                 recording: entry.recording,
-                participants: entry.participants
+                participants: entry.participants,
+                promptText: entry.suggestedPromptText
             )
             pendingTitle = nil
         }
@@ -391,12 +395,14 @@ class WatchLoop {
         // Stop recording
         let recording = try recorder.stop()
 
+        let appName = meeting.pattern.appName
         setPending(
             suggestedTitle: title,
-            appName: meeting.pattern.appName,
+            appName: appName,
             recording: recording,
             participants: participants,
-            suggestedPromptText: promptTextResolver(meeting.pattern.appName)
+            suggestedPromptID: promptIDResolver(appName),
+            suggestedPromptText: promptTextResolver(appName)
         )
         NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
     }
@@ -443,6 +449,7 @@ class WatchLoop {
         appName: String,
         recording: RecordingResult,
         participants: [String],
+        suggestedPromptID: UUID? = nil,
         suggestedPromptText: String? = nil
     ) {
         if let existing = pendingTitle {
@@ -460,6 +467,7 @@ class WatchLoop {
             appName: appName,
             recording: recording,
             participants: participants,
+            suggestedPromptID: suggestedPromptID,
             suggestedPromptText: suggestedPromptText
         )
     }
