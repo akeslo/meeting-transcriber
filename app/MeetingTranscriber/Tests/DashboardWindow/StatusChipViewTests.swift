@@ -67,4 +67,10 @@ final class StatusChipViewTests: XCTestCase {
     func test_chipLabel_unknown_capitalizesFirst() {
         XCTAssertEqual(StatusChipView.chipLabel(for: "pending"), "Pending")
     }
+
+    func test_chipLabel_summarized_isSingleWord() {
+        XCTAssertEqual(StatusChipView.chipLabel(for: "summarized"), "Summarized")
+        // Ensure no spaces that would force wrap in narrow containers
+        XCTAssertFalse(StatusChipView.chipLabel(for: "summarized").contains(" "))
+    }
 }

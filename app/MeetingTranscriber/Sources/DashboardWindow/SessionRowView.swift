@@ -64,31 +64,27 @@ struct SessionRowView: View {
                 .background(Color.secondary.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(session.title.isEmpty ? "Untitled Recording" : session.title)
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
 
-                Text(dateString)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 0) {
+                    Text("\(dateString) · \(durationString)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    StatusChipView(status: session.displayStatus)
+                }
             }
-
-            Spacer()
-
-            Text(durationString)
-                .font(.system(size: 11).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 40, alignment: .trailing)
-
-            StatusChipView(status: session.displayStatus)
         }
         .padding(.horizontal, 16)
-        .frame(height: 48)
+        .padding(.vertical, 10)
+        .frame(minHeight: 60)
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
         .contextMenu {
-            // Rename
             if let onRename {
                 Button {
                     promptText(
@@ -101,8 +97,6 @@ struct SessionRowView: View {
                     Label("Rename…", systemImage: "pencil")
                 }
             }
-
-            // Add Tag
             if let onAddTag {
                 Button {
                     promptText(
@@ -115,8 +109,6 @@ struct SessionRowView: View {
                     Label("Add Tag…", systemImage: "tag")
                 }
             }
-
-            // Folder submenu
             if let onSetFolder {
                 Menu {
                     if !session.folderGroup.isEmpty {
@@ -144,9 +136,7 @@ struct SessionRowView: View {
                     Label("Move to Folder", systemImage: "folder")
                 }
             }
-
             Divider()
-
             Button(role: .destructive, action: onDelete) {
                 Label("Move to Trash", systemImage: "trash")
             }
@@ -199,30 +189,31 @@ struct InFlightRowView: View {
                 .background(Color.secondary.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 7))
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(job.meetingTitle.isEmpty ? "Recording…" : job.meetingTitle)
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
 
-                if let startedAt = job.startedAt {
-                    Text(Self.dateFormatter.string(from: startedAt))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if let startedAt = job.startedAt {
+                        Text(Self.dateFormatter.string(from: startedAt))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    if job.progress > 0 && job.progress < 1 {
+                        ProgressView(value: job.progress)
+                            .frame(width: 50)
+                            .tint(Color(red: 0.969, green: 0.773, blue: 0.624))
+                    }
+                    StatusChipView(status: jobStatusString)
                 }
             }
-
-            Spacer()
-
-            if job.progress > 0 && job.progress < 1 {
-                ProgressView(value: job.progress)
-                    .frame(width: 60)
-                    .tint(Color(red: 0.969, green: 0.773, blue: 0.624))
-            }
-
-            StatusChipView(status: jobStatusString)
         }
         .padding(.horizontal, 16)
-        .frame(height: 48)
+        .padding(.vertical, 10)
+        .frame(minHeight: 60)
         .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
     }
