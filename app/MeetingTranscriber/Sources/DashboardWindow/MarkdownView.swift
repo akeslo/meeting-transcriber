@@ -1,7 +1,9 @@
 import SwiftUI
 
 /// Block-level markdown renderer. Handles headings, bullets, numbered lists,
-/// bold/italic inline formatting, horizontal rules, and paragraphs.
+/// bold/italic inline formatting, horizontal rules, tables, and paragraphs.
+/// Timestamp lines (`[MM:SS] Speaker: ...`) are kept as individual blocks
+/// rather than merged into a single paragraph.
 struct MarkdownView: View {
     let content: String
 
@@ -25,6 +27,7 @@ struct MarkdownView: View {
         case numbered(String)
         case rule
         case paragraph(String)
+        case table([[String]])   // rows of parsed cells; first row is header
         case spacer
     }
 
@@ -54,8 +57,29 @@ struct MarkdownView: View {
                 result.append(.bullet(String(trimmed.dropFirst(2))))
             } else if isNumberedListItem(trimmed) {
                 result.append(.numbered(trimmed))
+            } else if trimmed.hasPrefix("|") {
+                // Accumulate all consecutive pipe-prefixed lines as a table
+                var tableLines = [trimmed]
+                while i + 1 < lines.count {
+                    let next = lines[i + 1].trimmingCharacters(in: .whitespaces)
+                    guard next.hasPrefix("|") else { break }
+                    tableLines.append(next)
+                    i += 1
+                }
+                // Drop separator rows (cells contain only dashes/colons/spaces)
+                let rows = tableLines
+                    .filter { !isSeparatorRow($0) }
+                    .map { parseCells($0) }
+                    .filter { !$0.isEmpty }
+                if !rows.isEmpty {
+                    result.append(.table(rows))
+                }
+            } else if isTimestampLine(trimmed) {
+                // Transcript timestamp lines stay as individual blocks
+                result.append(.paragraph(trimmed))
             } else {
-                // Merge consecutive plain lines into one paragraph
+                // Merge consecutive plain lines into one paragraph,
+                // stopping before any line that starts a new structural element.
                 var para = trimmed
                 while i + 1 < lines.count {
                     let next = lines[i + 1].trimmingCharacters(in: .whitespaces)
@@ -63,6 +87,8 @@ struct MarkdownView: View {
                     if next.hasPrefix("#") || next.hasPrefix("-") || next.hasPrefix("*") { break }
                     if next == "---" || next == "***" || next == "___" { break }
                     if isNumberedListItem(next) { break }
+                    if next.hasPrefix("|") { break }
+                    if isTimestampLine(next) { break }
                     para += " " + next
                     i += 1
                 }
@@ -82,6 +108,32 @@ struct MarkdownView: View {
         guard let dot = s.firstIndex(of: "."), dot != s.startIndex else { return false }
         let prefix = s[s.startIndex..<dot]
         return prefix.allSatisfy(\.isNumber) && !prefix.isEmpty
+    }
+
+    /// True when the line is a markdown table separator (`|---|---|`).
+    private func isSeparatorRow(_ s: String) -> Bool {
+        let stripped = s.replacingOccurrences(of: "|", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        return stripped.isEmpty
+    }
+
+    /// Split a `| cell | cell |` row into trimmed cell strings.
+    private func parseCells(_ row: String) -> [String] {
+        var s = row
+        if s.hasPrefix("|") { s = String(s.dropFirst()) }
+        if s.hasSuffix("|") { s = String(s.dropLast()) }
+        return s.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// True when a line starts with a `[MM:SS]` or `[H:MM:SS]` timestamp prefix,
+    /// as emitted by the transcript formatter in the protocol output.
+    private func isTimestampLine(_ s: String) -> Bool {
+        guard s.hasPrefix("[") else { return false }
+        guard let close = s.firstIndex(of: "]"), close != s.startIndex else { return false }
+        let between = s[s.index(after: s.startIndex)..<close]
+        return between.contains(":") && between.allSatisfy { $0.isNumber || $0 == ":" }
     }
 
     // MARK: - Block views
@@ -129,9 +181,38 @@ struct MarkdownView: View {
                 .font(.system(size: 13))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 2)
+        case .table(let rows):
+            tableView(rows)
+                .padding(.vertical, 6)
         case .spacer:
             Color.clear.frame(height: 8)
         }
+    }
+
+    @ViewBuilder
+    private func tableView(_ rows: [[String]]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { rowIdx, cells in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                        inlineText(cell)
+                            .font(.system(size: 12, weight: rowIdx == 0 ? .semibold : .regular))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                    }
+                }
+                .background(rowIdx % 2 == 1 ? Color.primary.opacity(0.04) : Color.clear)
+
+                if rowIdx < rows.count - 1 {
+                    Divider()
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+        )
     }
 
     // MARK: - Inline formatting (bold/italic via AttributedString)
