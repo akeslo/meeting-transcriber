@@ -112,6 +112,21 @@ final class AppSettings {
         didSet { defaults.set(watchWebex, forKey: "watchWebex") }
     }
 
+    /// Prompt ID assigned to Microsoft Teams auto-detected recordings. nil = default.
+    var teamsPromptID: UUID? {
+        didSet { defaults.set(teamsPromptID?.uuidString, forKey: "teamsPromptID") }
+    }
+
+    /// Prompt ID assigned to Zoom auto-detected recordings. nil = default.
+    var zoomPromptID: UUID? {
+        didSet { defaults.set(zoomPromptID?.uuidString, forKey: "zoomPromptID") }
+    }
+
+    /// Prompt ID assigned to Webex auto-detected recordings. nil = default.
+    var webexPromptID: UUID? {
+        didSet { defaults.set(webexPromptID?.uuidString, forKey: "webexPromptID") }
+    }
+
     /// Auto-start watching on app launch.
     var autoWatch: Bool {
         didSet { defaults.set(autoWatch, forKey: "autoWatch") }
@@ -413,6 +428,35 @@ final class AppSettings {
         }
     }
 
+    // MARK: - Named Prompts
+
+    /// User-defined prompt library. No built-in default — user creates all prompts.
+    var namedPrompts: [NamedPrompt] {
+        didSet {
+            if let data = try? JSONEncoder().encode(namedPrompts) {
+                defaults.set(data, forKey: "namedPrompts")
+            }
+        }
+    }
+
+    /// Look up the text content of a prompt by ID. Returns nil when ID is nil or not found.
+    func promptText(for id: UUID?) -> String? {
+        guard let id else { return nil }
+        return namedPrompts.first(where: { $0.id == id })?.content
+    }
+
+    /// Look up the assigned prompt text for a given app/website name.
+    func promptText(forAppNamed name: String) -> String? {
+        switch name {
+        case "Microsoft Teams": return promptText(for: teamsPromptID)
+        case "Zoom":            return promptText(for: zoomPromptID)
+        case "Webex":           return promptText(for: webexPromptID)
+        default:
+            let site = watchedWebsites.first(where: { $0.name == name })
+            return promptText(for: site?.promptID)
+        }
+    }
+
     // MARK: - Computed
 
     var watchApps: [String] {
@@ -431,8 +475,18 @@ final class AppSettings {
         watchZoom = defaults.object(forKey: "watchZoom") as? Bool ?? true
         watchTeams = defaults.object(forKey: "watchTeams") as? Bool ?? true
         watchWebex = defaults.object(forKey: "watchWebex") as? Bool ?? true
+        teamsPromptID = defaults.string(forKey: "teamsPromptID").flatMap(UUID.init)
+        zoomPromptID = defaults.string(forKey: "zoomPromptID").flatMap(UUID.init)
+        webexPromptID = defaults.string(forKey: "webexPromptID").flatMap(UUID.init)
         autoWatch = defaults.object(forKey: "autoWatch") as? Bool ?? false
         watchedBrowser = defaults.string(forKey: "watchedBrowser") ?? ""
+
+        if let data = defaults.data(forKey: "namedPrompts"),
+           let prompts = try? JSONDecoder().decode([NamedPrompt].self, from: data) {
+            namedPrompts = prompts
+        } else {
+            namedPrompts = []
+        }
 
         if let data = defaults.data(forKey: "watchedWebsites"),
            let sites = try? JSONDecoder().decode([WatchedWebsite].self, from: data) {

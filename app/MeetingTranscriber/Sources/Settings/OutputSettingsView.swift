@@ -39,10 +39,9 @@ struct OutputSettingsView: View {
     @State private var connectionTestResult: ConnectionTestResult?
     @State private var availableModels: [String] = []
     @State private var didAttemptConnectionTest = false
-    @State private var showResetPromptConfirmation = false
-    @State private var hasCustomPrompt = false
-    @State private var showPromptEditor = false
-    @State private var templateToApply: PromptTemplate?
+    @State private var showAddPrompt = false
+    @State private var editingPrompt: NamedPrompt?
+    @State private var templateToApply: (PromptTemplate, NamedPrompt.ID?)?
 
     enum PromptTemplate: String, CaseIterable {
         case meeting     = "Meeting Notes"
@@ -233,20 +232,31 @@ struct OutputSettingsView: View {
                     }
                 }
 
-                promptControls
-
                 Toggle("Anonymize transcript before sending to LLM", isOn: $settings.anonymizeTranscript)
                     .help("Replace speaker names with [Speaker A], [Speaker B] in the transcript before protocol generation")
             }
             .accessibilityIdentifier("protocolSection")
             .recordOnlyDisabled(settings.recordOnly)
+
+            namedPromptsSection
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showAddPrompt) {
+            NamedPromptEditSheet(prompt: nil) { newPrompt in
+                settings.namedPrompts.append(newPrompt)
+            }
+        }
+        .sheet(item: $editingPrompt) { prompt in
+            NamedPromptEditSheet(prompt: prompt) { updated in
+                if let i = settings.namedPrompts.firstIndex(where: { $0.id == updated.id }) {
+                    settings.namedPrompts[i] = updated
+                }
+            }
+        }
         .onAppear {
             #if !APPSTORE
                 claudeBinaries = ClaudeCLIProtocolGenerator.availableClaudeBinaries()
             #endif
-            refreshCustomPromptState()
         }
     }
 
@@ -349,83 +359,73 @@ struct OutputSettingsView: View {
         }
     }
 
-    private var promptControls: some View {
-        // swiftlint:disable:next closure_body_length
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button("Edit Prompt") {
-                    showPromptEditor = true
-                }
-                .sheet(isPresented: $showPromptEditor, onDismiss: refreshCustomPromptState) {
-                    PromptEditorSheet()
-                }
+    // MARK: - Named Prompts Section
 
-                Menu("Load Template") {
-                    ForEach(PromptTemplate.allCases, id: \.self) { template in
-                        Button(template == .meeting ? "\(template.rawValue) (Default)" : template.rawValue) {
-                            templateToApply = template
-                        }
-                    }
-                }
-                .confirmationDialog(
-                    "Replace current prompt with \"\(templateToApply?.rawValue ?? "")\" template?",
-                    isPresented: Binding(
-                        get: { templateToApply != nil },
-                        set: { if !$0 { templateToApply = nil } }
-                    ),
-                    titleVisibility: .visible,
-                ) {
-                    Button("Load Template", role: .destructive) {
-                        if let t = templateToApply {
-                            ensurePromptDirectory()
-                            try? t.prompt.write(to: AppPaths.customPromptFile, atomically: true, encoding: .utf8)
-                            templateToApply = nil
-                            refreshCustomPromptState()
-                        }
-                    }
-                    Button("Cancel", role: .cancel) { templateToApply = nil }
-                }
-
-                Button("Import Prompt") {
-                    importCustomPrompt()
-                    refreshCustomPromptState()
-                }
-
-                Button("Reset to Default") {
-                    showResetPromptConfirmation = true
-                }
-                .disabled(!hasCustomPrompt)
-                .confirmationDialog(
-                    "Reset protocol prompt to the built-in default?",
-                    isPresented: $showResetPromptConfirmation,
-                    titleVisibility: .visible,
-                ) {
-                    Button("Reset", role: .destructive) {
-                        try? FileManager.default.removeItem(at: AppPaths.customPromptFile)
-                        refreshCustomPromptState()
-                    }
-                }
-
-                Spacer()
-            }
-
-            if hasCustomPrompt {
-                Label("Custom prompt active", systemImage: "doc.text.fill")
-                    .foregroundStyle(.blue)
+    @ViewBuilder
+    private var namedPromptsSection: some View {
+        Section("Prompts") {
+            if settings.namedPrompts.isEmpty {
+                Text("No prompts yet. Add one to assign it to apps or websites.")
                     .font(.caption)
-            } else {
-                Label("Using default prompt (Meeting Notes)", systemImage: "doc.text")
                     .foregroundStyle(.secondary)
-                    .font(.caption)
+            } else {
+                ForEach($settings.namedPrompts) { $prompt in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(prompt.name)
+                            Text(prompt.content.prefix(60) + (prompt.content.count > 60 ? "…" : ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Menu {
+                            Button("Edit") { editingPrompt = prompt }
+                            Menu("Load Template") {
+                                ForEach(PromptTemplate.allCases, id: \.self) { template in
+                                    Button(template.rawValue) {
+                                        templateToApply = (template, prompt.id)
+                                    }
+                                }
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                settings.namedPrompts.removeAll { $0.id == prompt.id }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
             }
+
+            Button("Add Prompt") { showAddPrompt = true }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+        }
+        .confirmationDialog(
+            "Replace prompt content with \"\(templateToApply?.0.rawValue ?? "")\" template?",
+            isPresented: Binding(
+                get: { templateToApply != nil },
+                set: { if !$0 { templateToApply = nil } }
+            ),
+            titleVisibility: .visible,
+        ) {
+            Button("Load Template", role: .destructive) {
+                if let (template, promptID) = templateToApply,
+                   let i = settings.namedPrompts.firstIndex(where: { $0.id == promptID }) {
+                    settings.namedPrompts[i].content = template.prompt
+                }
+                templateToApply = nil
+            }
+            Button("Cancel", role: .cancel) { templateToApply = nil }
         }
     }
 
     // MARK: - Helpers
-
-    private func refreshCustomPromptState() {
-        hasCustomPrompt = FileManager.default.fileExists(atPath: AppPaths.customPromptFile.path)
-    }
 
     func testConnection() {
         testingConnection = true
@@ -460,38 +460,6 @@ struct OutputSettingsView: View {
 
     private var modelPickerOptions: [String] {
         OutputSettingsLogic.mergePickerOptions(available: availableModels, selected: settings.openAIModel)
-    }
-
-    private func ensurePromptDirectory() {
-        try? FileManager.default.createDirectory(
-            at: AppPaths.customPromptFile.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-        )
-    }
-
-    private func openCustomPrompt() {
-        let url = AppPaths.customPromptFile
-        if !FileManager.default.fileExists(atPath: url.path) {
-            ensurePromptDirectory()
-            try? ProtocolGenerator.protocolPrompt.write(to: url, atomically: true, encoding: .utf8)
-        }
-        NSWorkspace.shared.open(url)
-    }
-
-    private func importCustomPrompt() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.plainText, .init(filenameExtension: "md")].compactMap(\.self)
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = "Select a prompt file to import"
-        guard panel.runModal() == .OK, let source = panel.url else { return }
-        ensurePromptDirectory()
-        let dest = AppPaths.customPromptFile
-        if FileManager.default.fileExists(atPath: dest.path) {
-            _ = try? FileManager.default.replaceItemAt(dest, withItemAt: source)
-        } else {
-            try? FileManager.default.copyItem(at: source, to: dest)
-        }
     }
 
     private var outputDirDisplay: String {

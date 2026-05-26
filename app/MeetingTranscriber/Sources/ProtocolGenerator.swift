@@ -5,7 +5,14 @@ private let logger = Logger(subsystem: AppPaths.logSubsystem, category: "Protoco
 
 /// Abstraction for protocol generation, enabling mock injection in tests.
 protocol ProtocolGenerating {
-    func generate(transcript: String, title: String, diarized: Bool) async throws -> String
+    func generate(transcript: String, title: String, diarized: Bool, promptText: String?) async throws -> String
+}
+
+extension ProtocolGenerating {
+    /// Backward-compat overload — callers that don't have a custom prompt.
+    func generate(transcript: String, title: String, diarized: Bool) async throws -> String {
+        try await generate(transcript: transcript, title: title, diarized: diarized, promptText: nil)
+    }
 }
 
 /// Shared protocol utilities: prompts, file operations, and error types.
@@ -94,8 +101,9 @@ enum ProtocolGenerator {
     /// Build the localized system prompt: `loadPrompt` + `applyLanguage`
     /// + optional `diarizationNote`. Excludes the transcript itself —
     /// callers append or attach it as they see fit.
-    static func buildSystemPrompt(diarized: Bool, language: String) -> String {
-        var prompt = applyLanguage(loadPrompt(), language: language)
+    static func buildSystemPrompt(promptText: String? = nil, diarized: Bool, language: String) -> String {
+        let base = promptText ?? loadPrompt()
+        var prompt = applyLanguage(base, language: language)
         if diarized { prompt += diarizationNote }
         return prompt
     }

@@ -28,11 +28,11 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         self.session = session
     }
 
-    func generate(transcript: String, title: String, diarized: Bool) async throws -> String {
+    func generate(transcript: String, title: String, diarized: Bool, promptText: String? = nil) async throws -> String {
         var lastError: any Error = ProtocolError.connectionFailed("No attempts")
         for attempt in 1 ... 3 {
             do {
-                return try await generateOnce(transcript: transcript, title: title, diarized: diarized)
+                return try await generateOnce(transcript: transcript, title: title, diarized: diarized, promptText: promptText)
             } catch ProtocolError.connectionFailed(let msg) {
                 lastError = ProtocolError.connectionFailed(msg)
             } catch ProtocolError.timeout {
@@ -49,8 +49,8 @@ struct OpenAIProtocolGenerator: ProtocolGenerating {
         throw lastError
     }
 
-    private func generateOnce(transcript: String, title _: String, diarized: Bool) async throws -> String {
-        let systemPrompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language)
+    private func generateOnce(transcript: String, title _: String, diarized: Bool, promptText: String? = nil) async throws -> String {
+        let systemPrompt = ProtocolGenerator.buildSystemPrompt(promptText: promptText, diarized: diarized, language: language)
 
         let messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt],

@@ -1107,6 +1107,7 @@ class PipelineQueue {
             return
         }
         let shortID = PipelineJob.shortID(for: jobID)
+        let jobPromptText = jobs.first(where: { $0.id == jobID })?.promptText
         do {
             updateJobState(id: jobID, to: .generatingProtocol)
             startElapsedTimer()
@@ -1115,7 +1116,7 @@ class PipelineQueue {
             ) != nil
             let transcriptForLLM = anonymizeTranscript ? Self.anonymize(transcript: transcript) : transcript
             let protocolMD = try await generator.generate(
-                transcript: transcriptForLLM, title: title, diarized: diarized,
+                transcript: transcriptForLLM, title: title, diarized: diarized, promptText: jobPromptText,
             )
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)

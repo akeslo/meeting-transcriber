@@ -7,6 +7,8 @@ struct WatchedWebsite: Codable, Identifiable, Equatable {
     var enabled: Bool
     var recordMic: Bool
     var useRegex: Bool
+    /// ID of the NamedPrompt to use for this website. nil = use default prompt.
+    var promptID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -14,7 +16,8 @@ struct WatchedWebsite: Codable, Identifiable, Equatable {
         urlPattern: String,
         enabled: Bool = true,
         recordMic: Bool = false,
-        useRegex: Bool = false
+        useRegex: Bool = false,
+        promptID: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -22,6 +25,7 @@ struct WatchedWebsite: Codable, Identifiable, Equatable {
         self.enabled = enabled
         self.recordMic = recordMic
         self.useRegex = useRegex
+        self.promptID = promptID
     }
 
     /// Returns true if `url` matches this site's pattern (substring or regex).
