@@ -42,6 +42,8 @@ extension RecordingProvider {
     var micLevelDBFS: Double {
         -120
     }
+
+    func discard() {}
 }
 
 /// Orchestrates app audio capture (via AudioTapLib) + mic recording, then mixes.
@@ -138,6 +140,25 @@ class DualSourceRecorder: RecordingProvider {
     }
 
     /// Stop recording and produce a mixed WAV.
+    func discard() {
+        guard isRecording else { return }
+        guard #available(macOS 14.2, *) else {
+            isRecording = false
+            startTimestamp = nil
+            return
+        }
+        isRecording = false
+        startTimestamp = nil
+        guard let session = captureSession else { return }
+        let result = session.stop()
+        captureSession = nil
+        try? FileManager.default.removeItem(at: result.appAudioFileURL)
+        if let micURL = result.micAudioFileURL {
+            try? FileManager.default.removeItem(at: micURL)
+        }
+        logger.info("Recording discarded — temp files removed")
+    }
+
     func stop() throws -> RecordingResult { // swiftlint:disable:this function_body_length
         guard isRecording else {
             throw RecorderError.notRecording

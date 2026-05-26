@@ -260,6 +260,7 @@ class MockRecorder: RecordingProvider {
     var micPath: URL?
     var startCalled = false
     var stopCalled = false
+    var discardCalled = false
 
     /// Per-channel level overrides for asymmetric-silence tests. Both default to -120
     /// (silence) so existing tests that don't touch these see the same behavior as
@@ -269,6 +270,10 @@ class MockRecorder: RecordingProvider {
 
     func start(appPID _: pid_t, noMic _: Bool, micDeviceUID _: String?, debugLogging _: Bool) {
         startCalled = true
+    }
+
+    func discard() {
+        discardCalled = true
     }
 
     func stop() throws -> RecordingResult {
