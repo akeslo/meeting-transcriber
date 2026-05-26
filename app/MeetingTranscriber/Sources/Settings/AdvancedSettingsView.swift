@@ -18,6 +18,7 @@ private enum PrivacyPane: String {
 
 struct AdvancedSettingsView: View {
     @Bindable var settings: AppSettings
+    @Environment(\.appState) private var appState
 
     @State private var micPermission: AVAuthorizationStatus = .notDetermined
     @State private var screenRecordingOK = false
@@ -67,6 +68,9 @@ struct AdvancedSettingsView: View {
 
             // swiftlint:disable:next closure_body_length
             Section("Diagnostics") {
+                if let state = appState {
+                    LiveAudioLevelView(appState: state)
+                }
                 Toggle("Verbose Diagnostic Logging", isOn: $settings.verboseDiagnostics)
                 Text(
                     "Logs detailed diagnostics across recording, transcription,"
@@ -173,6 +177,8 @@ struct AdvancedSettingsView: View {
         accessibilityOK = AXIsProcessTrusted()
     }
 
+    // MARK: - Level helpers
+
     private func exportDiagnostics() {
         guard !isExportingDiagnostics else { return }
         let stamp = Int(Date().timeIntervalSince1970)
@@ -219,6 +225,75 @@ struct AdvancedSettingsView: View {
                     )
                 }
             }
+        }
+    }
+}
+
+// MARK: - LiveAudioLevelView
+
+private struct LiveAudioLevelView: View {
+    var appState: AppState
+
+    private var isRecording: Bool {
+        appState.appLevelDBFS > -120 || appState.micLevelDBFS > -120
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Live Audio Levels")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+
+            if isRecording {
+                LevelRow(label: "App audio", levelDBFS: appState.appLevelDBFS)
+                LevelRow(label: "Microphone", levelDBFS: appState.micLevelDBFS)
+            } else {
+                Text("Not recording — start a recording to see live levels")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct LevelRow: View {
+    let label: String
+    let levelDBFS: Double
+
+    private var fraction: Double {
+        max(0, min(1, (levelDBFS + 60) / 60))
+    }
+
+    private var barColor: Color {
+        if levelDBFS > -6 { return .red }
+        if levelDBFS > -18 { return .yellow }
+        return .green
+    }
+
+    private var levelLabel: String {
+        levelDBFS <= -119 ? "—" : String(format: "%.1f dBFS", levelDBFS)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .frame(width: 80, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(barColor)
+                        .frame(width: geo.size.width * fraction)
+                }
+            }
+            .frame(height: 10)
+            Text(levelLabel)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .trailing)
         }
     }
 }

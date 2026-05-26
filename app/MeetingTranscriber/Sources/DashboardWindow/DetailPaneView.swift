@@ -8,7 +8,7 @@ struct DetailPaneView: View {
     var onRetry: ((RecordingSession) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
-    @State private var activeDetailTab: DetailTab = .transcript
+    @State private var activeDetailTab: DetailTab = .protocol_
     @State private var titleDraft: String = ""
     @State private var folderDraft: String = ""
     @State private var tagDraft: String = ""
@@ -107,7 +107,7 @@ struct DetailPaneView: View {
                     if !session.appName.isEmpty {
                         metadataChip(icon: "desktopcomputer", label: session.appName)
                     }
-                    StatusChipView(status: session.status)
+                    StatusChipView(status: session.displayStatus)
                 }
 
                 // Folder assignment
@@ -178,6 +178,7 @@ struct DetailPaneView: View {
                 }
             }
             .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .windowBackgroundColor))
 
             Divider()
@@ -185,7 +186,7 @@ struct DetailPaneView: View {
             MeetingDetailReader(session: session, settings: settings, activeTab: $activeDetailTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 360, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     // MARK: - Tags section
@@ -410,7 +411,7 @@ struct DetailPaneView: View {
             Spacer()
         }
         .padding(20)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder

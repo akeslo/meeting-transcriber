@@ -72,3 +72,11 @@ enum SessionStatus {
     static let error = "error"
     static let saved = "saved" // record-only
 }
+
+extension RecordingSession {
+    /// Display status that distinguishes transcribed-only from transcribed+summarized.
+    var displayStatus: String {
+        guard status == SessionStatus.done else { return status }
+        return hasProtocol ? "summarized" : "transcribed"
+    }
+}
