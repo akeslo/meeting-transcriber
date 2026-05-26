@@ -335,6 +335,11 @@ class WatchLoop {
 
     private func watchLoop() async {
         while !Task.isCancelled {
+            // Don't poll for new meetings while already recording.
+            guard state != .recording else {
+                try? await sleepProvider(pollInterval)
+                continue
+            }
             if let meeting = detector.checkOnce() {
                 do {
                     try await handleMeeting(meeting)
