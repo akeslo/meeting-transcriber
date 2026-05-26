@@ -4,8 +4,8 @@ import AVFoundation
 // MARK: - Tab enum
 
 enum DetailTab: String, CaseIterable, Identifiable {
-    case transcript   = "Transcript"
     case protocol_    = "Summary"
+    case transcript   = "Transcript"
     case actionItems  = "Actions"
     case split        = "Split"
 
@@ -23,6 +23,9 @@ struct MeetingDetailReader: View {
     @State private var protocolContent: String = ""
     @State private var selectedSegmentID: UUID?
     @State private var checkedActionItems: Set<Int> = []
+    @State private var speakerAliases: [String: String] = [:]
+    @State private var renamingSpeaker: String?
+    @State private var renameDraft: String = ""
 
     @State private var player: AVAudioPlayer?
     @State private var isPlaying: Bool = false
@@ -30,6 +33,12 @@ struct MeetingDetailReader: View {
     @State private var duration: TimeInterval = 0
 
     private let playbackTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+
+    private var aliasesURL: URL {
+        settings.effectiveOutputDir
+            .appendingPathComponent(session.folderPath)
+            .appendingPathComponent("speaker_aliases.json")
+    }
 
     private let spaceIndigo = Color(red: 0.082, green: 0.114, blue: 0.208)
     private let peachGlow   = Color(red: 0.969, green: 0.773, blue: 0.624)
@@ -117,24 +126,45 @@ struct MeetingDetailReader: View {
     private var transcriptTab: some View {
         ScrollViewReader { proxy in
             List(segments) { segment in
-                TranscriptSegmentView(segment: segment, isSelected: segment.id == selectedSegmentID)
-                    .id(segment.id)
-                    .listRowBackground(segment.id == selectedSegmentID
-                        ? Color(red: 0.882, green: 0.898, blue: 0.933)
-                        : Color.clear)
-                    .onTapGesture {
-                        selectedSegmentID = segment.id
-                        if let player {
-                            player.currentTime = segment.timestamp
-                            playbackPosition = segment.timestamp
-                        }
+                TranscriptSegmentView(
+                    segment: segment,
+                    resolvedSpeaker: resolvedName(segment.speaker),
+                    isSelected: segment.id == selectedSegmentID,
+                    onRenameSpeaker: {
+                        renamingSpeaker = segment.speaker
+                        renameDraft = resolvedName(segment.speaker)
                     }
+                )
+                .id(segment.id)
+                .listRowBackground(segment.id == selectedSegmentID
+                    ? Color(red: 0.882, green: 0.898, blue: 0.933)
+                    : Color.clear)
+                .onTapGesture {
+                    selectedSegmentID = segment.id
+                    if let player {
+                        player.currentTime = segment.timestamp
+                        playbackPosition = segment.timestamp
+                    }
+                }
             }
             .listStyle(.plain)
             .onChange(of: selectedSegmentID) { _, newID in
                 if let id = newID {
                     withAnimation { proxy.scrollTo(id, anchor: .center) }
                 }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { renamingSpeaker != nil },
+            set: { if !$0 { renamingSpeaker = nil } }
+        )) {
+            if let speakerID = renamingSpeaker {
+                SpeakerRenameSheet(
+                    speakerID: speakerID,
+                    draft: $renameDraft,
+                    onSave: { saveAlias(speakerID, name: renameDraft); renamingSpeaker = nil },
+                    onCancel: { renamingSpeaker = nil }
+                )
             }
         }
     }
@@ -275,12 +305,20 @@ struct MeetingDetailReader: View {
     private var splitTab: some View {
         HStack(spacing: 0) {
             List(segments) { segment in
-                TranscriptSegmentView(segment: segment, isSelected: segment.id == selectedSegmentID)
-                    .id(segment.id)
-                    .listRowBackground(segment.id == selectedSegmentID
-                        ? Color(red: 0.882, green: 0.898, blue: 0.933)
-                        : Color.clear)
-                    .onTapGesture { selectedSegmentID = segment.id }
+                TranscriptSegmentView(
+                    segment: segment,
+                    resolvedSpeaker: resolvedName(segment.speaker),
+                    isSelected: segment.id == selectedSegmentID,
+                    onRenameSpeaker: {
+                        renamingSpeaker = segment.speaker
+                        renameDraft = resolvedName(segment.speaker)
+                    }
+                )
+                .id(segment.id)
+                .listRowBackground(segment.id == selectedSegmentID
+                    ? Color(red: 0.882, green: 0.898, blue: 0.933)
+                    : Color.clear)
+                .onTapGesture { selectedSegmentID = segment.id }
             }
             .listStyle(.plain)
             .frame(maxWidth: .infinity)
@@ -306,7 +344,7 @@ struct MeetingDetailReader: View {
                     } label: {
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                             .imageScale(.large)
-                            .foregroundStyle(spaceIndigo)
+                            .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
                     .keyboardShortcut(" ", modifiers: [])
@@ -350,17 +388,43 @@ struct MeetingDetailReader: View {
         let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
         let transcriptURL = folder.appendingPathComponent(RecordingFileSuffix.transcript)
         let protocolURL   = folder.appendingPathComponent(RecordingFileSuffix.protocol_)
+        let aliasesURL    = self.aliasesURL
 
-        let (rawTranscript, rawProtocol) = await Task.detached(priority: .userInitiated) {
+        let (rawTranscript, rawProtocol, rawAliases) = await Task.detached(priority: .userInitiated) {
             let t = try? String(contentsOf: transcriptURL, encoding: .utf8)
             let p = try? String(contentsOf: protocolURL, encoding: .utf8)
-            return (t, p)
+            let a = try? Data(contentsOf: aliasesURL)
+            return (t, p, a)
         }.value
 
         if let rawTranscript {
             segments = TranscriptParser.parse(markdown: rawTranscript)
         }
         protocolContent = rawProtocol ?? ""
+        if let data = rawAliases,
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            speakerAliases = decoded
+        }
+    }
+
+    private func saveAlias(_ speakerID: String, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            speakerAliases.removeValue(forKey: speakerID)
+        } else {
+            speakerAliases[speakerID] = trimmed
+        }
+        let url = aliasesURL
+        let map = speakerAliases
+        Task.detached(priority: .utility) {
+            if let data = try? JSONEncoder().encode(map) {
+                try? data.write(to: url, options: .atomic)
+            }
+        }
+    }
+
+    private func resolvedName(_ speakerID: String) -> String {
+        speakerAliases[speakerID] ?? speakerID
     }
 
     private func loadAudio() {
@@ -404,9 +468,9 @@ struct MeetingDetailReader: View {
 
 struct TranscriptSegmentView: View {
     let segment: TranscriptSegment
+    let resolvedSpeaker: String
     let isSelected: Bool
-
-    private let spaceIndigo = Color(red: 0.082, green: 0.114, blue: 0.208)
+    var onRenameSpeaker: (() -> Void)? = nil
 
     private var timestampLabel: String {
         let s = Int(segment.timestamp)
@@ -422,9 +486,15 @@ struct TranscriptSegmentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(segment.speaker)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.accentColor)
+                Button {
+                    onRenameSpeaker?()
+                } label: {
+                    Text(resolvedSpeaker)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+                .help("Click to rename speaker")
                 Text(timestampLabel)
                     .font(.system(size: 11))
                     .foregroundStyle(Color.secondary)
@@ -436,6 +506,38 @@ struct TranscriptSegmentView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - SpeakerRenameSheet
+
+struct SpeakerRenameSheet: View {
+    let speakerID: String
+    @Binding var draft: String
+    var onSave: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Rename Speaker")
+                .font(.system(size: 14, weight: .semibold))
+            Text("ID: \(speakerID)")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            TextField("Display name", text: $draft)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(onSave)
+            HStack {
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.escape, modifiers: [])
+                Spacer()
+                Button("Save", action: onSave)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.return, modifiers: [])
+            }
+        }
+        .padding(20)
+        .frame(width: 280)
     }
 }
 

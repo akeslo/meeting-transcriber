@@ -81,7 +81,7 @@ struct SessionRowView: View {
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 40, alignment: .trailing)
 
-            StatusChipView(status: session.status)
+            StatusChipView(status: session.displayStatus)
         }
         .padding(.horizontal, 16)
         .frame(height: 48)

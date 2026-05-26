@@ -64,7 +64,7 @@ struct SessionGridCardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            StatusChipView(status: session.status)
+            StatusChipView(status: session.displayStatus)
         }
         .padding(12)
         .frame(width: 180)

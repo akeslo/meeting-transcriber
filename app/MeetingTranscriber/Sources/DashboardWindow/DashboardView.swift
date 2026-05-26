@@ -89,7 +89,7 @@ struct DashboardView: View {
                         isRecording: status?.state == .recording,
                         onStartStop: onStartStop
                     )
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                     VStack(spacing: 16) {
                         QuickControlsCard(settings: settings)
@@ -290,6 +290,8 @@ private struct StatusCard: View {
                     AudioSourceRow(label: "Built-in Mic", active: true)
                 }
             }
+
+            Spacer(minLength: 0)
 
             Button(action: onStartStop) {
                 Text(isWatching ? "Stop Watching" : "Start Watching")

@@ -15,7 +15,7 @@ struct StatusChipView: View {
 
     static func chipColor(for status: String) -> ChipColor {
         switch status {
-        case "done":
+        case "done", "transcribed", "summarized":
             return .green
         case "transcribing", "diarizing", "waiting", "generatingProtocol":
             return .peachGlow
@@ -30,13 +30,14 @@ struct StatusChipView: View {
 
     static func chipLabel(for status: String) -> String {
         switch status {
-        case "done":               return "Done"
-        case "transcribing":       return "Transcribing"
-        case "diarizing":          return "Diarizing"
-        case "waiting":            return "Waiting"
-        case "generatingProtocol": return "Protocol"
-        case "error":              return "Error"
-        case "saved":              return "Saved"
+        case "done", "transcribed":    return "Transcribed"
+        case "summarized":             return "Summarized"
+        case "transcribing":           return "Transcribing"
+        case "diarizing":              return "Diarizing"
+        case "waiting":                return "Waiting"
+        case "generatingProtocol":     return "Summarizing"
+        case "error":                  return "Error"
+        case "saved":                  return "Saved"
         default:
             return status.prefix(1).uppercased() + status.dropFirst()
         }
