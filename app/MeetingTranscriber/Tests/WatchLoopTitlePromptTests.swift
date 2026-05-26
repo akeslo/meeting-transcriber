@@ -32,7 +32,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop()
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Auto Title", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.confirmTitle("My Custom Title")
         XCTAssertNil(loop.pendingTitle)
@@ -43,7 +44,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop(queue: queue)
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Auto Title", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.confirmTitle("   ")
         XCTAssertNil(loop.pendingTitle)
@@ -55,7 +57,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop(queue: queue)
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Auto Title", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.confirmTitle("  My Meeting  ")
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "My Meeting")
@@ -67,7 +70,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop()
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Auto Title", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.skipTitle()
         XCTAssertNil(loop.pendingTitle)
@@ -78,7 +82,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop(queue: queue)
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Auto Title", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.skipTitle()
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "Auto Title")
@@ -91,7 +96,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
         let loop = makeLoop(queue: queue)
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "Flushed Meeting", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.stop()
         XCTAssertNil(loop.pendingTitle)
@@ -122,7 +128,8 @@ final class WatchLoopTitlePromptTests: XCTestCase {
 
         loop.pendingTitle = PendingTitleEntry(
             suggestedTitle: "First Meeting", appName: "Zoom",
-            recording: makeResult(), participants: []
+            recording: makeResult(), participants: [],
+            suggestedPromptID: nil, suggestedPromptText: nil
         )
         loop.setPending(
             suggestedTitle: "Second Meeting", appName: "Teams",

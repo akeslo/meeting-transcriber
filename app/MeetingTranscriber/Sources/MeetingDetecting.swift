@@ -10,6 +10,10 @@ struct DetectedMeeting: Equatable {
     let detectedAt: Date
     /// When non-nil, overrides WatchLoop's global `noMic` setting for this recording.
     let noMicOverride: Bool?
+    /// When true, WatchLoop gates recording on audio activity confirmation before starting.
+    let audioConfirmRequired: Bool
+    /// When true, WatchLoop stops recording if audio silence is detected.
+    let audioSilenceStopEnabled: Bool
 
     init(
         pattern: AppMeetingPattern,
@@ -18,6 +22,8 @@ struct DetectedMeeting: Equatable {
         windowPID: pid_t,
         detectedAt: Date = Date(),
         noMicOverride: Bool? = nil,
+        audioConfirmRequired: Bool = false,
+        audioSilenceStopEnabled: Bool = false,
     ) {
         self.pattern = pattern
         self.windowTitle = windowTitle
@@ -25,6 +31,8 @@ struct DetectedMeeting: Equatable {
         self.windowPID = windowPID
         self.detectedAt = detectedAt
         self.noMicOverride = noMicOverride
+        self.audioConfirmRequired = audioConfirmRequired
+        self.audioSilenceStopEnabled = audioSilenceStopEnabled
     }
 }
 

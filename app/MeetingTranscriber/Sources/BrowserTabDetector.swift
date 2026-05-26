@@ -102,6 +102,8 @@ class BrowserTabDetector: MeetingDetecting {
                     ownerName: match.processName,
                     windowPID: match.pid,
                     noMicOverride: !site.recordMic,
+                    audioConfirmRequired: true,
+                    audioSilenceStopEnabled: true,
                 )
             }
         }
