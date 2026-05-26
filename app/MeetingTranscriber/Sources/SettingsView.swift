@@ -77,12 +77,15 @@ struct SettingsView: View {
 
         case .advanced:
             AdvancedSettingsView(settings: settings)
+
+        case .logs:
+            LogsSettingsView()
         }
     }
 }
 
 private enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, audio, transcription, speakers, output, advanced
+    case general, audio, transcription, speakers, output, advanced, logs
 
     var id: String {
         rawValue
@@ -96,6 +99,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .speakers: "Speakers"
         case .output: "Output"
         case .advanced: "Advanced"
+        case .logs: "scroll"
         }
     }
 
@@ -107,6 +111,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .speakers: "person.2"
         case .output: "doc.text"
         case .advanced: "wrench.and.screwdriver"
+        case .logs: "scroll"
         }
     }
 }

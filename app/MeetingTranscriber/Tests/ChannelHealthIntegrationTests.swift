@@ -49,14 +49,13 @@ final class ChannelHealthIntegrationTests: XCTestCase {
         XCTAssertFalse(state.appSilentActive)
         XCTAssertEqual(notifier.calls.count, 0)
 
-        // At debounce boundary: mic-silent fires
+        // At debounce boundary: mic-silent flag sets but no notification
+        // (mic silent while app audio active = user is just listening; not an error)
         let event = state.applyChannelHealthTick(recorder: recorder, now: t0.addingTimeInterval(30))
         XCTAssertEqual(event, .started(channel: .mic, quietSince: t0))
         XCTAssertTrue(state.micSilentActive)
         XCTAssertFalse(state.appSilentActive)
-        XCTAssertEqual(notifier.calls.count, 1)
-        XCTAssertEqual(notifier.calls[0].title, "Capture Channel Silent")
-        XCTAssertTrue(notifier.calls[0].body.lowercased().contains("microphone"))
+        XCTAssertEqual(notifier.calls.count, 0)
     }
 
     func testMutedAppAudioWithMicSpeechFiresAppSilent() {
@@ -82,12 +81,13 @@ final class ChannelHealthIntegrationTests: XCTestCase {
 
         _ = state.applyChannelHealthTick(recorder: recorder, now: t0)
         _ = state.applyChannelHealthTick(recorder: recorder, now: t0.addingTimeInterval(30)) // .started
-        XCTAssertEqual(notifier.calls.count, 1)
+        // Mic-silent episode: flag is set, but no notification (user is listening)
+        XCTAssertEqual(notifier.calls.count, 0)
 
         // Subsequent ticks while the episode is latched must not re-fire.
         _ = state.applyChannelHealthTick(recorder: recorder, now: t0.addingTimeInterval(40))
         _ = state.applyChannelHealthTick(recorder: recorder, now: t0.addingTimeInterval(120))
-        XCTAssertEqual(notifier.calls.count, 1, "notifier must fire exactly once per episode")
+        XCTAssertEqual(notifier.calls.count, 0, "notifier must never fire for mic-only silence")
         XCTAssertTrue(state.micSilentActive)
     }
 
@@ -106,8 +106,8 @@ final class ChannelHealthIntegrationTests: XCTestCase {
         XCTAssertEqual(event, .recovered(channel: .mic))
         XCTAssertFalse(state.micSilentActive)
         XCTAssertFalse(state.appSilentActive)
-        // Recovery doesn't fire a notification today — only .started does.
-        XCTAssertEqual(notifier.calls.count, 1)
+        // No notification fired: mic-silent episode suppresses notification.
+        XCTAssertEqual(notifier.calls.count, 0)
     }
 
     // MARK: - Channel switch mid-episode
@@ -137,8 +137,9 @@ final class ChannelHealthIntegrationTests: XCTestCase {
         XCTAssertEqual(event, .started(channel: .app, quietSince: t0.addingTimeInterval(35)))
         XCTAssertFalse(state.micSilentActive)
         XCTAssertTrue(state.appSilentActive)
-        XCTAssertEqual(notifier.calls.count, 2)
-        XCTAssertTrue(notifier.calls[1].body.lowercased().contains("app-audio"))
+        // Only app-silent fires notification (mic-silent episode was suppressed).
+        XCTAssertEqual(notifier.calls.count, 1)
+        XCTAssertTrue(notifier.calls[0].body.lowercased().contains("app-audio"))
     }
 
     // MARK: - Symmetric cases never fire
