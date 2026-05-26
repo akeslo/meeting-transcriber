@@ -646,15 +646,17 @@ final class AppState { // swiftlint:disable:this type_body_length
             case .mic:
                 micSilentActive = true
                 appSilentActive = false
+                // No notification: mic silent while app audio is active is normal
+                // (user is listening). Both-channels-silent is handled by SilentRecordingMonitor.
 
             case .app:
                 appSilentActive = true
                 micSilentActive = false
+                notifier.notify(
+                    title: "Capture Channel Silent",
+                    body: Self.asymmetricSilenceMessage(for: .app),
+                )
             }
-            notifier.notify(
-                title: "Capture Channel Silent",
-                body: Self.asymmetricSilenceMessage(for: channel),
-            )
 
         case .recovered:
             micSilentActive = false
