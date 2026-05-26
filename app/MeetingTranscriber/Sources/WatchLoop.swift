@@ -52,7 +52,7 @@ class WatchLoop {
     /// `appLevelDBFS` / `micLevelDBFS` here at ~10 Hz to drive the asymmetric-silence
     /// indicator. Setter stays private so the recording lifecycle flows through
     /// this class only.
-    private(set) var activeRecorder: (any RecordingProvider)?
+    var activeRecorder: (any RecordingProvider)?
     private var manualRecordingTask: Task<Void, Never>?
 
     var isManualRecording: Bool {
@@ -100,6 +100,8 @@ class WatchLoop {
     /// `monitorManualRecording` switch arms can be exercised without
     /// spawning a real subprocess.
     let pidAliveCheck: (pid_t) -> Bool
+    let audioConfirmTimeout: TimeInterval
+    let silenceStopSecondsProvider: () -> TimeInterval
 
     private var watchTask: Task<Void, Never>?
 
@@ -127,6 +129,8 @@ class WatchLoop {
             .unscoped(AppPaths.transcriberRoot)
         },
         notifier: any AppNotifying = SilentNotifier(),
+        audioConfirmTimeout: TimeInterval = 60,
+        silenceStopSecondsProvider: @escaping () -> TimeInterval = { 0 },
         nowProvider: @escaping () -> Date = Date.init,
         sleepProvider: @escaping (TimeInterval) async throws -> Void = { interval in
             try await Task.sleep(for: .seconds(interval))
@@ -148,6 +152,8 @@ class WatchLoop {
         self.nowProvider = nowProvider
         self.sleepProvider = sleepProvider
         self.pidAliveCheck = pidAliveCheck
+        self.audioConfirmTimeout = audioConfirmTimeout
+        self.silenceStopSecondsProvider = silenceStopSecondsProvider
     }
 
     nonisolated static var defaultOutputDir: URL {
@@ -380,6 +386,15 @@ class WatchLoop {
         activeRecorder = recorder
         defer { activeRecorder = nil }
 
+        // Audio-confirm phase: abort and discard if no browser audio within timeout
+        if meeting.audioConfirmRequired {
+            let confirmed = try await waitForAudioConfirm(meeting, recorder: recorder)
+            if !confirmed {
+                recorder.discard()
+                return
+            }
+        }
+
         // Read participants (Teams)
         var participants: [String] = []
         if meeting.pattern.appName == "Microsoft Teams",
@@ -438,6 +453,28 @@ class WatchLoop {
             }
             try await sleepProvider(pollInterval)
         }
+    }
+
+    // MARK: - Audio Confirm
+
+    func waitForAudioConfirm(_ meeting: DetectedMeeting, recorder: any RecordingProvider) async throws -> Bool {
+        let deadline = nowProvider().addingTimeInterval(audioConfirmTimeout)
+        while !Task.isCancelled {
+            if recorder.appLevelDBFS > -60 {
+                logger.info("audio_confirm_success meeting=\(meeting.pattern.appName, privacy: .public)")
+                return true
+            }
+            if !detector.isMeetingActive(meeting) {
+                logger.info("audio_confirm_tab_closed meeting=\(meeting.pattern.appName, privacy: .public)")
+                return false
+            }
+            if nowProvider() >= deadline {
+                logger.info("audio_confirm_timeout meeting=\(meeting.pattern.appName, privacy: .public) timeout=\(self.audioConfirmTimeout)")
+                return false
+            }
+            try await sleepProvider(pollInterval)
+        }
+        return false
     }
 
     // MARK: - Helpers

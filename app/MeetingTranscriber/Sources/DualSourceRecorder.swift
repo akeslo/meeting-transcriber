@@ -22,6 +22,9 @@ struct RecordingResult {
 protocol RecordingProvider {
     func start(appPID: pid_t, noMic: Bool, micDeviceUID: String?, debugLogging: Bool) throws
     func stop() throws -> RecordingResult
+    /// Stop capture and delete all temp files without producing a `RecordingResult`.
+    /// Called when audio-confirm fails. Default no-op in extension.
+    func discard()
 
     /// Instantaneous app-audio level in dBFS. -120 when no capture session is
     /// active or the tap stopped delivering buffers in the last 0.5 s.
