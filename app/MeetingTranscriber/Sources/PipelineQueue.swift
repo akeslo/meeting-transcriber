@@ -446,20 +446,29 @@ class PipelineQueue {
 
     /// Replace speaker names in a transcript with [Speaker A], [Speaker B], etc.
     /// Matches lines starting with `[Name]: ` (diarized transcript format).
-    static func anonymize(transcript: String) -> String {
+    /// Returns the anonymized transcript and a reverse map (`"Speaker A" → real name`) for de-anonymizing LLM output.
+    static func anonymize(transcript: String) -> (anonymized: String, reverseMap: [String: String]) {
         let pattern = try? NSRegularExpression(pattern: #"^\[([^\]]+)\]:"#, options: .anchorsMatchLines)
         var nameMap: [String: String] = [:]
+        var reverseMap: [String: String] = [:]
         let labels = (0 ..< 26).map { i in "Speaker \(String(UnicodeScalar(65 + i)!))" }
-        return transcript.components(separatedBy: "\n").map { line in
+        let anonymized = transcript.components(separatedBy: "\n").map { line in
             guard let match = pattern?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
                   let nameRange = Range(match.range(at: 1), in: line) else { return line }
             let name = String(line[nameRange])
             if nameMap[name] == nil {
-                nameMap[name] = "[\(labels[min(nameMap.count, labels.count - 1)])]"
+                let label = "[\(labels[min(nameMap.count, labels.count - 1)])]"
+                nameMap[name] = label
+                reverseMap[label] = "[\(name)]"
             }
             guard let replaceRange = line.range(of: "[\(name)]") else { return line }
             return line.replacingCharacters(in: replaceRange, with: nameMap[name]!)
         }.joined(separator: "\n")
+        return (anonymized, reverseMap)
+    }
+
+    private static func deanonymize(text: String, reverseMap: [String: String]) -> String {
+        reverseMap.reduce(text) { $0.replacingOccurrences(of: $1.key, with: $1.value) }
     }
 
     /// Re-enqueue a failed session from its existing audio files.
@@ -1114,10 +1123,13 @@ class PipelineQueue {
             let diarized = transcript.range(
                 of: #"\[\w[\w\s]*\]"#, options: .regularExpression,
             ) != nil
-            let transcriptForLLM = anonymizeTranscript ? Self.anonymize(transcript: transcript) : transcript
-            let protocolMD = try await generator.generate(
+            let (transcriptForLLM, reverseMap) = anonymizeTranscript
+                ? Self.anonymize(transcript: transcript)
+                : (transcript, [:])
+            let rawProtocolMD = try await generator.generate(
                 transcript: transcriptForLLM, title: title, diarized: diarized, promptText: jobPromptText,
             )
+            let protocolMD = anonymizeTranscript ? Self.deanonymize(text: rawProtocolMD, reverseMap: reverseMap) : rawProtocolMD
             let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
             let accessingForProtocol = outputDir.startAccessingSecurityScopedResource()
