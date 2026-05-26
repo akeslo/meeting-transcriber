@@ -48,7 +48,7 @@ final class LogTailModelTests: XCTestCase {
         XCTAssertEqual(model.lines.first?.message, "line 10")
     }
 
-    func test_categories_deduplicatedAndOrdered() {
+    func test_categories_deduplicatedInInsertionOrder() {
         let model = LogTailModel()
         let a = LogLine(id: UUID(), raw: "", timestamp: "", category: "Alpha", message: "")
         let b = LogLine(id: UUID(), raw: "", timestamp: "", category: "Beta", message: "")
