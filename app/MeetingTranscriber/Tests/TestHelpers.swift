@@ -329,7 +329,7 @@ class MockProtocolGen: ProtocolGenerating {
     var capturedDiarized: Bool?
     var shouldThrow = false
 
-    func generate(transcript: String, title: String, diarized: Bool) throws -> String {
+    func generate(transcript: String, title: String, diarized: Bool, promptText: String? = nil) throws -> String {
         generateCalled = true
         capturedTranscript = transcript
         capturedTitle = title

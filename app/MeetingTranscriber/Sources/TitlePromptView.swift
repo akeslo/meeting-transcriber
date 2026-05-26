@@ -2,9 +2,14 @@ import SwiftUI
 
 struct TitlePromptView: View {
     let watchLoop: WatchLoop?
+    let namedPrompts: [NamedPrompt]
 
     @State private var titleText: String = ""
+    @State private var selectedPromptID: UUID? = nil
+    @State private var isManualRecording: Bool = false
     @Environment(\.dismiss) private var dismiss
+
+    private var hasPrompts: Bool { !namedPrompts.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -14,6 +19,23 @@ struct TitlePromptView: View {
             TextField("Meeting title", text: $titleText)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { confirm() }
+
+            if hasPrompts {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Prompt")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Prompt", selection: $selectedPromptID) {
+                        Text("Default (built-in)").tag(UUID?.none)
+                        ForEach(namedPrompts) { prompt in
+                            Text(prompt.name).tag(UUID?.some(prompt.id))
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
+            }
 
             HStack {
                 Spacer()
@@ -29,22 +51,34 @@ struct TitlePromptView: View {
             }
         }
         .padding(20)
-        .frame(width: 380)
+        .frame(width: 400)
         .onAppear {
             titleText = watchLoop?.pendingTitle?.suggestedTitle ?? ""
+            if let suggested = watchLoop?.pendingTitle?.suggestedPromptText,
+               let match = namedPrompts.first(where: { $0.content == suggested }) {
+                selectedPromptID = match.id
+            } else {
+                selectedPromptID = nil
+            }
+            isManualRecording = watchLoop?.pendingTitle?.suggestedPromptText == nil
         }
         .onChange(of: watchLoop?.pendingTitle?.suggestedTitle) { _, newTitle in
             if let newTitle {
                 titleText = newTitle
             } else {
-                // Entry cleared externally (auto-flushed by second recording) — close
                 dismiss()
             }
         }
     }
 
     private func confirm() {
-        watchLoop?.confirmTitle(titleText)
+        let resolvedPromptText: String?
+        if let id = selectedPromptID {
+            resolvedPromptText = namedPrompts.first(where: { $0.id == id })?.content
+        } else {
+            resolvedPromptText = nil
+        }
+        watchLoop?.confirmTitle(titleText, promptText: resolvedPromptText)
         dismiss()
     }
 }

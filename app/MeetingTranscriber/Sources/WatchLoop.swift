@@ -15,6 +15,8 @@ struct PendingTitleEntry: Equatable {
     let appName: String
     let recording: RecordingResult
     let participants: [String]
+    /// Pre-assigned prompt text from the app/website configuration. nil for manual recordings.
+    let suggestedPromptText: String?
 
     static func == (lhs: PendingTitleEntry, rhs: PendingTitleEntry) -> Bool {
         lhs.suggestedTitle == rhs.suggestedTitle &&
@@ -103,6 +105,9 @@ class WatchLoop {
     var onStateChange: ((State, State) -> Void)?
 
     var onManualRecordingCompleted: (() -> Void)?
+
+    /// Resolves a prompt text for an auto-detected app/website name. Injected by AppState.
+    var promptTextResolver: (String) -> String? = { _ in nil }
 
     init(
         detector: any MeetingDetecting = WatchLoop.defaultDetector(),
@@ -265,7 +270,8 @@ class WatchLoop {
                 suggestedTitle: info.title,
                 appName: info.appName,
                 recording: recording,
-                participants: []
+                participants: [],
+                suggestedPromptText: nil  // manual recording: user picks in prompt dialog
             )
             NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
         } catch {
@@ -389,7 +395,8 @@ class WatchLoop {
             suggestedTitle: title,
             appName: meeting.pattern.appName,
             recording: recording,
-            participants: participants
+            participants: participants,
+            suggestedPromptText: promptTextResolver(meeting.pattern.appName)
         )
         NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
     }
@@ -435,14 +442,16 @@ class WatchLoop {
         suggestedTitle: String,
         appName: String,
         recording: RecordingResult,
-        participants: [String]
+        participants: [String],
+        suggestedPromptText: String? = nil
     ) {
         if let existing = pendingTitle {
             enqueueRecording(
                 title: existing.suggestedTitle,
                 appName: existing.appName,
                 recording: existing.recording,
-                participants: existing.participants
+                participants: existing.participants,
+                promptText: existing.suggestedPromptText
             )
             pendingTitle = nil
         }
@@ -450,12 +459,13 @@ class WatchLoop {
             suggestedTitle: suggestedTitle,
             appName: appName,
             recording: recording,
-            participants: participants
+            participants: participants,
+            suggestedPromptText: suggestedPromptText
         )
     }
 
-    /// User confirmed a title. Trims whitespace; falls back to suggestedTitle if blank.
-    func confirmTitle(_ title: String) {
+    /// User confirmed a title and optional prompt. Trims whitespace; falls back to suggestedTitle if blank.
+    func confirmTitle(_ title: String, promptText: String? = nil) {
         guard let entry = pendingTitle else { return }
         pendingTitle = nil
         let resolved = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -463,7 +473,8 @@ class WatchLoop {
             title: resolved.isEmpty ? entry.suggestedTitle : resolved,
             appName: entry.appName,
             recording: entry.recording,
-            participants: entry.participants
+            participants: entry.participants,
+            promptText: promptText ?? entry.suggestedPromptText
         )
         onManualRecordingCompleted?()
     }
@@ -476,7 +487,8 @@ class WatchLoop {
             title: entry.suggestedTitle,
             appName: entry.appName,
             recording: entry.recording,
-            participants: entry.participants
+            participants: entry.participants,
+            promptText: entry.suggestedPromptText
         )
         onManualRecordingCompleted?()
     }
@@ -486,6 +498,7 @@ class WatchLoop {
         appName: String,
         recording: RecordingResult,
         participants: [String] = [],
+        promptText: String? = nil,
     ) {
         if recordOnly() {
             writeRecordOnlySidecar(
@@ -505,6 +518,7 @@ class WatchLoop {
             micPath: recording.micPath,
             micDelay: recording.micDelay,
             participants: participants,
+            promptText: promptText,
         )
         pipelineQueue?.enqueue(job)
         logger.info("Enqueued pipeline job for: \(title)")

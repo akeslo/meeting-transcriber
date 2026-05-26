@@ -22,9 +22,9 @@ struct GeneralSettingsView: View {
             }
 
             Section("Apps to Watch") {
-                Toggle("Microsoft Teams", isOn: $settings.watchTeams)
-                Toggle("Zoom", isOn: $settings.watchZoom)
-                Toggle("Webex", isOn: $settings.watchWebex)
+                appRow("Microsoft Teams", isOn: $settings.watchTeams, promptID: $settings.teamsPromptID)
+                appRow("Zoom", isOn: $settings.watchZoom, promptID: $settings.zoomPromptID)
+                appRow("Webex", isOn: $settings.watchWebex, promptID: $settings.webexPromptID)
             }
 
             watchedWebsitesSection
@@ -88,6 +88,20 @@ struct GeneralSettingsView: View {
     }
 
     @ViewBuilder
+    private func appRow(_ name: String, isOn: Binding<Bool>, promptID: Binding<UUID?>) -> some View {
+        HStack {
+            Toggle(name, isOn: isOn)
+            if !settings.namedPrompts.isEmpty {
+                Spacer()
+                PromptPickerMenu(
+                    promptID: promptID,
+                    prompts: settings.namedPrompts
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
     private var watchedWebsitesSection: some View {
         Section("Watched Websites") {
             Picker("Browser", selection: $settings.watchedBrowser) {
@@ -97,7 +111,7 @@ struct GeneralSettingsView: View {
                 }
             }
             ForEach($settings.watchedWebsites) { $site in
-                WatchedWebsiteRow(site: $site) {
+                WatchedWebsiteRow(site: $site, prompts: settings.namedPrompts) {
                     settings.watchedWebsites.removeAll { $0.id == site.id }
                 } onEdit: {
                     editingWebsite = site
@@ -194,6 +208,7 @@ struct GeneralSettingsView: View {
 
 struct WatchedWebsiteRow: View {
     @Binding var site: WatchedWebsite
+    let prompts: [NamedPrompt]
     let onDelete: () -> Void
     let onEdit: () -> Void
 
@@ -220,6 +235,9 @@ struct WatchedWebsiteRow: View {
                 }
             }
             Spacer()
+            if !prompts.isEmpty {
+                PromptPickerMenu(promptID: $site.promptID, prompts: prompts)
+            }
             Button { onEdit() } label: { Image(systemName: "pencil") }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)

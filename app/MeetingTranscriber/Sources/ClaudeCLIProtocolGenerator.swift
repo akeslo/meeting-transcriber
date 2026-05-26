@@ -23,11 +23,11 @@
 
         // MARK: - ProtocolGenerating
 
-        func generate(transcript: String, title: String, diarized: Bool) async throws -> String {
+        func generate(transcript: String, title: String, diarized: Bool, promptText: String? = nil) async throws -> String {
             var lastError: any Error = ProtocolError.connectionFailed("No attempts")
             for attempt in 1 ... 3 {
                 do {
-                    return try await generateOnce(transcript: transcript, title: title, diarized: diarized)
+                    return try await generateOnce(transcript: transcript, title: title, diarized: diarized, promptText: promptText)
                 } catch ProtocolError.timeout {
                     lastError = ProtocolError.timeout
                 } catch ProtocolError.connectionFailed(let msg) {
@@ -44,8 +44,8 @@
             throw lastError
         }
 
-        private func generateOnce(transcript: String, title _: String, diarized: Bool) async throws -> String {
-            let prompt = ProtocolGenerator.buildSystemPrompt(diarized: diarized, language: language) + transcript
+        private func generateOnce(transcript: String, title _: String, diarized: Bool, promptText: String? = nil) async throws -> String {
+            let prompt = ProtocolGenerator.buildSystemPrompt(promptText: promptText, diarized: diarized, language: language) + transcript
 
             let process = Process()
             let resolvedBin = Self.resolveClaudePath(claudeBin)

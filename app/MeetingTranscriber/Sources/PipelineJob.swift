@@ -59,6 +59,8 @@ struct PipelineJob: Identifiable, Codable {
     var transcriptPath: URL?
     var protocolPath: URL?
     var namingSlug: String?
+    /// Custom prompt text for protocol generation. nil = use built-in default.
+    var promptText: String?
 
     init(
         meetingTitle: String,
@@ -68,6 +70,7 @@ struct PipelineJob: Identifiable, Codable {
         micPath: URL?,
         micDelay: TimeInterval,
         participants: [String] = [],
+        promptText: String? = nil,
     ) {
         self.id = UUID()
         self.meetingTitle = meetingTitle
@@ -86,6 +89,7 @@ struct PipelineJob: Identifiable, Codable {
         self.transcriptPath = nil
         self.protocolPath = nil
         self.namingSlug = nil
+        self.promptText = promptText
     }
 
     init(

@@ -231,7 +231,7 @@ struct MeetingTranscriberApp: App {
         .windowResizability(.contentSize)
 
         Window("Name this Recording", id: "title-prompt") {
-            TitlePromptView(watchLoop: appState.watchLoop)
+            TitlePromptView(watchLoop: appState.watchLoop, namedPrompts: appState.settings.namedPrompts)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 380, height: 130)
@@ -259,6 +259,7 @@ struct MeetingTranscriberApp: App {
                 onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames,
                 onRunDetectionTest: appState.runDetectionTest
             )
+            .environment(\.appState, appState)
             .modelContainer(modelContainer)
             .onAppear { NSApp.setActivationPolicy(.regular) }
             .onDisappear { NSApp.setActivationPolicy(.accessory) }

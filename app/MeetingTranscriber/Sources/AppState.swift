@@ -4,6 +4,20 @@ import Foundation
 import Observation
 import os.log
 import SwiftData
+import SwiftUI
+
+// MARK: - AppState environment key
+
+private struct AppStateKey: EnvironmentKey {
+    static let defaultValue: AppState? = nil
+}
+
+extension EnvironmentValues {
+    var appState: AppState? {
+        get { self[AppStateKey.self] }
+        set { self[AppStateKey.self] = newValue }
+    }
+}
 
 // MARK: - AppNotifying
 
@@ -75,6 +89,14 @@ final class AppState { // swiftlint:disable:this type_body_length
     /// (symmetric silence). Drives the menu-bar **full red** waveform
     /// (both halves tinted simultaneously).
     var recordingSilentActive: Bool = false
+
+    /// Instantaneous app-audio level in dBFS. Updated at 10 Hz while recording;
+    /// resets to -120 when no recording is active. Drives the live level meters in Settings.
+    var appLevelDBFS: Double = -120
+
+    /// Instantaneous mic level in dBFS. Updated at 10 Hz while recording;
+    /// resets to -120 when no recording is active. Drives the live level meters in Settings.
+    var micLevelDBFS: Double = -120
 
     /// Pure state machine driven by the 10-Hz level poll while recording. Lives
     /// here (not on WatchLoop) so its lifecycle outlasts a single recording —
@@ -403,6 +425,7 @@ final class AppState { // swiftlint:disable:this type_body_length
                     notifier: notifier,
                 )
 
+                loop.promptTextResolver = { [settings] appName in settings.promptText(forAppNamed: appName) }
                 attachStateChangeHandler(to: loop, notifyOnRecording: true)
 
                 if let health = permissionHealth {
@@ -581,9 +604,10 @@ final class AppState { // swiftlint:disable:this type_body_length
     /// `appSilentActive` based on the resulting events. Idempotent: calling while already running
     /// is a no-op. Skips entirely when the master toggle is off.
     private func startChannelHealthMonitoring() {
-        guard settings.perChannelIndicatorEnabled else { return }
         guard levelMonitorTask == nil else { return }
-        rebuildChannelHealthMonitor()
+        if settings.perChannelIndicatorEnabled {
+            rebuildChannelHealthMonitor()
+        }
         levelMonitorTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -608,6 +632,9 @@ final class AppState { // swiftlint:disable:this type_body_length
     ) -> ChannelHealthEvent? {
         let mic = recorder.micLevelDBFS
         let app = recorder.appLevelDBFS
+
+        micLevelDBFS = mic
+        appLevelDBFS = app
 
         let event = channelHealthMonitor.update(micDBFS: mic, appDBFS: app, now: now)
         switch event {
@@ -680,6 +707,8 @@ final class AppState { // swiftlint:disable:this type_body_length
         micSilentActive = false
         appSilentActive = false
         recordingSilentActive = false
+        appLevelDBFS = -120
+        micLevelDBFS = -120
     }
 
     // MARK: - Permission Health
