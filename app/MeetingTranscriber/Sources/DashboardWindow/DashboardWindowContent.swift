@@ -21,7 +21,7 @@ struct DashboardWindowContent: View {
     var onSpeakerMutate: (() -> Void)?
     var onRunDetectionTest: (() -> String)? = nil
 
-    @State private var selectedNav: NavItem = .library
+    @State private var selectedNav: NavItem = .dashboard
     @State private var selectedSessionID: UUID?
     @State private var storageLabel: String = "—"
     @State private var elapsedLabel: String = "—"
