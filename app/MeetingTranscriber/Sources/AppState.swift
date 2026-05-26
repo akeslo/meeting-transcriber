@@ -425,6 +425,7 @@ final class AppState { // swiftlint:disable:this type_body_length
                     notifier: notifier,
                 )
 
+                loop.promptIDResolver = { [settings] appName in settings.promptID(forAppNamed: appName) }
                 loop.promptTextResolver = { [settings] appName in settings.promptText(forAppNamed: appName) }
                 attachStateChangeHandler(to: loop, notifyOnRecording: true)
 

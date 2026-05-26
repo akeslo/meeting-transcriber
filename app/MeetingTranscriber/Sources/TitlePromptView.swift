@@ -54,13 +54,8 @@ struct TitlePromptView: View {
         .frame(width: 400)
         .onAppear {
             titleText = watchLoop?.pendingTitle?.suggestedTitle ?? ""
-            if let suggested = watchLoop?.pendingTitle?.suggestedPromptText,
-               let match = namedPrompts.first(where: { $0.content == suggested }) {
-                selectedPromptID = match.id
-            } else {
-                selectedPromptID = nil
-            }
-            isManualRecording = watchLoop?.pendingTitle?.suggestedPromptText == nil
+            selectedPromptID = watchLoop?.pendingTitle?.suggestedPromptID
+            isManualRecording = watchLoop?.pendingTitle?.suggestedPromptID == nil
         }
         .onChange(of: watchLoop?.pendingTitle?.suggestedTitle) { _, newTitle in
             if let newTitle {

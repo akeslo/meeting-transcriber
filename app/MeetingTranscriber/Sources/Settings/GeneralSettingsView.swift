@@ -318,6 +318,7 @@ struct WebsiteEditSheet: View {
                         enabled: website?.enabled ?? true,
                         recordMic: recordMic,
                         useRegex: useRegex,
+                        promptID: website?.promptID,
                     )
                     onSave(saved)
                     dismiss()

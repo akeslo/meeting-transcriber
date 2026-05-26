@@ -445,16 +445,20 @@ final class AppSettings {
         return namedPrompts.first(where: { $0.id == id })?.content
     }
 
+    /// Look up the assigned prompt ID for a given app/website name.
+    func promptID(forAppNamed name: String) -> UUID? {
+        switch name {
+        case "Microsoft Teams": return teamsPromptID
+        case "Zoom":            return zoomPromptID
+        case "Webex":           return webexPromptID
+        default:
+            return watchedWebsites.first(where: { $0.name == name })?.promptID
+        }
+    }
+
     /// Look up the assigned prompt text for a given app/website name.
     func promptText(forAppNamed name: String) -> String? {
-        switch name {
-        case "Microsoft Teams": return promptText(for: teamsPromptID)
-        case "Zoom":            return promptText(for: zoomPromptID)
-        case "Webex":           return promptText(for: webexPromptID)
-        default:
-            let site = watchedWebsites.first(where: { $0.name == name })
-            return promptText(for: site?.promptID)
-        }
+        promptText(for: promptID(forAppNamed: name))
     }
 
     // MARK: - Computed
