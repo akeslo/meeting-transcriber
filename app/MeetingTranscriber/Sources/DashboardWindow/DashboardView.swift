@@ -91,15 +91,13 @@ struct DashboardView: View {
                     )
                     .frame(maxWidth: .infinity, alignment: .top)
 
-                    VStack(spacing: 16) {
-                        QuickControlsCard(settings: settings)
-                        AmbientLevelCard(
-                            appDbfs: settings.lastAppDbfs,
-                            micDbfs: settings.lastMicDbfs,
-                            isActive: status?.state == .recording
-                        )
-                    }
-                    .frame(maxWidth: .infinity)
+                    QuickControlsCard(
+                        settings: settings,
+                        appDbfs: settings.lastAppDbfs,
+                        micDbfs: settings.lastMicDbfs,
+                        isRecording: status?.state == .recording
+                    )
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
 
                 RecentActivitySection(
@@ -334,8 +332,11 @@ private struct AudioSourceRow: View {
 
 private struct QuickControlsCard: View {
     @Bindable var settings: AppSettings
+    let appDbfs: Double
+    let micDbfs: Double
+    let isRecording: Bool
 
-    private var sortformerBinding: Binding<Bool> {
+    private var overlapAwareBinding: Binding<Bool> {
         Binding(
             get: { settings.diarizerMode == .sortformer },
             set: { settings.diarizerMode = $0 ? .sortformer : .offline }
@@ -352,13 +353,22 @@ private struct QuickControlsCard: View {
                 .toggleStyle(.switch)
                 .font(.system(size: 13))
 
-            Toggle("Sortformer (Overlap-aware)", isOn: sortformerBinding)
+            Toggle("Overlap-aware Speaker ID", isOn: overlapAwareBinding)
                 .toggleStyle(.switch)
                 .font(.system(size: 13))
 
             Toggle("Record-only Mode", isOn: $settings.recordOnly)
                 .toggleStyle(.switch)
                 .font(.system(size: 13))
+
+            Divider()
+
+            Text("Ambient Levels")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(spaceIndigo)
+
+            levelRow(label: "App Audio", dbfs: appDbfs)
+            levelRow(label: "Mic", dbfs: micDbfs)
         }
         .padding(20)
         .background(cardBg)
@@ -368,6 +378,43 @@ private struct QuickControlsCard: View {
                 .stroke(paleSlate, lineWidth: 1)
         )
         .environment(\.colorScheme, .light)
+    }
+
+    @ViewBuilder
+    private func levelRow(label: String, dbfs: Double) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 72, alignment: .leading)
+
+            if isRecording {
+                ProgressView(value: normalised(dbfs))
+                    .progressViewStyle(.linear)
+                    .tint(barColor(for: dbfs))
+                    .frame(maxWidth: .infinity)
+
+                Text(String(format: "%.0f dB", dbfs))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.secondary)
+                    .frame(width: 50, alignment: .trailing)
+            } else {
+                Text("—")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func normalised(_ dbfs: Double) -> Double {
+        max(0, min(1, (dbfs + 60) / 60))
+    }
+
+    private func barColor(for dbfs: Double) -> Color {
+        if dbfs < -20 { return .green }
+        if dbfs < -6  { return .yellow }
+        return .orange
     }
 }
 

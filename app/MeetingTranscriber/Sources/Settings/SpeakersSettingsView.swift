@@ -35,7 +35,7 @@ struct SpeakersSettingsView: View {
 
                     if settings.diarizerMode == .sortformer {
                         Label(
-                            "Sortformer does not identify recurring speakers — speaker naming and auto-recognition are disabled.",
+                            "Overlap-aware mode does not identify recurring speakers — speaker naming and auto-recognition are disabled.",
                             systemImage: "exclamationmark.triangle.fill",
                         )
                         .foregroundStyle(.orange)

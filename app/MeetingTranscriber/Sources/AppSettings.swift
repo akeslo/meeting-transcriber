@@ -65,8 +65,8 @@ enum DiarizerMode: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .offline: "Offline (Clustering)"
-        case .sortformer: "Sortformer (Overlap-aware)"
+        case .offline: "Standard"
+        case .sortformer: "Overlap-aware"
         }
     }
 }
