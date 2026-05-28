@@ -1,6 +1,53 @@
 import Foundation
 import SwiftUI
 
+// MARK: - LogLevel
+
+enum LogLevel: String, Sendable {
+    case fault   = "Fault"
+    case error   = "Error"
+    case warning = "Warning"
+    case notice  = "Notice"
+    case info    = "Info"
+    case debug   = "Debug"
+    case other
+
+    init(rawToken: String) {
+        switch rawToken.lowercased() {
+        case "fault":   self = .fault
+        case "error":   self = .error
+        case "warning": self = .warning
+        case "notice":  self = .notice
+        case "info":    self = .info
+        case "debug":   self = .debug
+        default:        self = .other
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .fault:              .red
+        case .error:              .red
+        case .warning:            .orange
+        case .notice:             .primary
+        case .info:               Color(hue: 0.6, saturation: 0.6, brightness: 0.85)
+        case .debug:              .secondary
+        case .other:              .secondary
+        }
+    }
+
+    var label: String? {
+        switch self {
+        case .fault:   "FAULT"
+        case .error:   "ERROR"
+        case .warning: "WARN"
+        case .info:    "INFO"
+        case .debug:   "DEBUG"
+        case .notice, .other: nil
+        }
+    }
+}
+
 // MARK: - LogLine
 
 struct LogLine: Identifiable, Sendable {
@@ -8,12 +55,15 @@ struct LogLine: Identifiable, Sendable {
     let raw: String
     let timestamp: String
     let category: String
+    let level: LogLevel
     let message: String
 
     private static let categoryRegex =
-        try? NSRegularExpression(pattern: #"\((\w[\w\s]*)\)\[\d"#)
+        try? NSRegularExpression(pattern: #"\((\w[\w\s]*)\)\["#)
+    private static let levelRegex =
+        try? NSRegularExpression(pattern: #"\]\s+<(\w+)>:"#)
     private static let messageRegex =
-        try? NSRegularExpression(pattern: #"<\w+>: (.+)$"#, options: .dotMatchesLineSeparators)
+        try? NSRegularExpression(pattern: #"<\w+>:\s+(?:\([\w\s]*\)\s+)?(.+)$"#, options: .dotMatchesLineSeparators)
 
     static func parse(raw: String) -> LogLine {
         let ts = raw.count >= 19 ? String(raw.prefix(19)) : ""
@@ -24,13 +74,19 @@ struct LogLine: Identifiable, Sendable {
             category = String(raw[r])
         }
 
+        var level = LogLevel.other
+        if let m = levelRegex?.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
+           let r = Range(m.range(at: 1), in: raw) {
+            level = LogLevel(rawToken: String(raw[r]))
+        }
+
         var message = raw
         if let m = messageRegex?.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
            let r = Range(m.range(at: 1), in: raw) {
             message = String(raw[r])
         }
 
-        return LogLine(id: UUID(), raw: raw, timestamp: ts, category: category, message: message)
+        return LogLine(id: UUID(), raw: raw, timestamp: ts, category: category, level: level, message: message)
     }
 }
 
@@ -134,6 +190,10 @@ private struct LogLineRow: View {
         return Color(hue: hue, saturation: 0.55, brightness: 0.75)
     }
 
+    private var isHighlighted: Bool {
+        line.level == .error || line.level == .fault || line.level == .warning
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             if !line.timestamp.isEmpty {
@@ -142,6 +202,18 @@ private struct LogLineRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 130, alignment: .leading)
                     .lineLimit(1)
+            }
+            if let badge = line.level.label {
+                Text(badge)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(line.level.color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(line.level.color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .frame(width: 40, alignment: .leading)
+            } else {
+                Color.clear.frame(width: 40, height: 1)
             }
             if !line.category.isEmpty {
                 Text(line.category)
@@ -158,13 +230,14 @@ private struct LogLineRow: View {
             }
             Text(line.message)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.primary)
+                .foregroundStyle(isHighlighted ? line.level.color : Color.primary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(3)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
+        .background(isHighlighted ? line.level.color.opacity(0.04) : Color.clear)
     }
 }
 
