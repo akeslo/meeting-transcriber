@@ -164,7 +164,7 @@ if pgrep -x "MeetingTranscriber" > /dev/null 2>&1; then
 fi
 
 log "Cleaning build artifacts..."
-rm -rf "$SPM_DIR/.build"
+rm -rf "$SPM_DIR/.build" || rm -rf "$SPM_DIR/.build" 2>/dev/null || true
 
 log "Building AudioLeak..."
 cd "$SPM_DIR"

@@ -372,7 +372,18 @@ struct OutputSettingsView: View {
                 ForEach($settings.namedPrompts) { $prompt in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(prompt.name)
+                            HStack(spacing: 6) {
+                                Text(prompt.name)
+                                if settings.defaultPromptID == prompt.id {
+                                    Text("default")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Color.accentColor.opacity(0.15))
+                                        .foregroundStyle(Color.accentColor)
+                                        .clipShape(Capsule())
+                                }
+                            }
                             Text(prompt.content.prefix(60) + (prompt.content.count > 60 ? "…" : ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -381,6 +392,11 @@ struct OutputSettingsView: View {
                         Spacer()
                         Menu {
                             Button("Edit") { editingPrompt = prompt }
+                            if settings.defaultPromptID == prompt.id {
+                                Button("Remove as Default") { settings.defaultPromptID = nil }
+                            } else {
+                                Button("Set as Default") { settings.defaultPromptID = prompt.id }
+                            }
                             Menu("Load Template") {
                                 ForEach(PromptTemplate.allCases, id: \.self) { template in
                                     Button(template.rawValue) {
@@ -390,7 +406,11 @@ struct OutputSettingsView: View {
                             }
                             Divider()
                             Button("Delete", role: .destructive) {
-                                settings.namedPrompts.removeAll { $0.id == prompt.id }
+                                let id = prompt.id
+                                DispatchQueue.main.async {
+                                    if settings.defaultPromptID == id { settings.defaultPromptID = nil }
+                                    settings.namedPrompts.removeAll { $0.id == id }
+                                }
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")

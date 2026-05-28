@@ -95,7 +95,8 @@ struct GeneralSettingsView: View {
                 Spacer()
                 PromptPickerMenu(
                     promptID: promptID,
-                    prompts: settings.namedPrompts
+                    prompts: settings.namedPrompts,
+                    defaultPromptID: settings.defaultPromptID
                 )
             }
         }
@@ -111,8 +112,11 @@ struct GeneralSettingsView: View {
                 }
             }
             ForEach($settings.watchedWebsites) { $site in
-                WatchedWebsiteRow(site: $site, prompts: settings.namedPrompts) {
-                    settings.watchedWebsites.removeAll { $0.id == site.id }
+                WatchedWebsiteRow(site: $site, prompts: settings.namedPrompts, defaultPromptID: settings.defaultPromptID) {
+                    let id = site.id
+                    DispatchQueue.main.async {
+                        settings.watchedWebsites.removeAll { $0.id == id }
+                    }
                 } onEdit: {
                     editingWebsite = site
                 }
@@ -209,6 +213,7 @@ struct GeneralSettingsView: View {
 struct WatchedWebsiteRow: View {
     @Binding var site: WatchedWebsite
     let prompts: [NamedPrompt]
+    var defaultPromptID: UUID? = nil
     let onDelete: () -> Void
     let onEdit: () -> Void
 
@@ -236,7 +241,7 @@ struct WatchedWebsiteRow: View {
             }
             Spacer()
             if !prompts.isEmpty {
-                PromptPickerMenu(promptID: $site.promptID, prompts: prompts)
+                PromptPickerMenu(promptID: $site.promptID, prompts: prompts, defaultPromptID: defaultPromptID)
             }
             Button { onEdit() } label: { Image(systemName: "pencil") }
                 .buttonStyle(.plain)

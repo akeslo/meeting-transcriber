@@ -36,21 +36,25 @@ final class SettingsViewTests: XCTestCase { // swiftlint:disable:this type_body_
         AppSettings(defaults: defaults)
     }
 
-    private func makeSettingsView(
+    private func makeSettingsContentView(
         settings: AppSettings? = nil,
         updateChecker: UpdateChecker? = nil,
-    ) -> SettingsView {
+    ) -> SettingsContentView {
         let qwen3: (any TranscribingEngine)? = {
             if #available(macOS 15, *) { return Qwen3AsrEngine() }
             return nil
         }()
-        return SettingsView(
+        return SettingsContentView(
             settings: settings ?? makeSettings(),
             whisperKitEngine: WhisperKitEngine(),
             parakeetEngine: ParakeetEngine(),
             qwen3Engine: qwen3,
             updateChecker: updateChecker,
             recognitionStatsLog: RecognitionStatsLog(),
+            enrollmentDiarizerFactory: nil,
+            namingDialogActive: false,
+            pipelineBusy: false,
+            onSpeakerMutate: nil,
         )
     }
 
@@ -103,7 +107,7 @@ final class SettingsViewTests: XCTestCase { // swiftlint:disable:this type_body_
     // MARK: - Top-level SettingsView
 
     func testViewRendersWithDefaults() throws {
-        XCTAssertNoThrow(try makeSettingsView().inspect())
+        XCTAssertNoThrow(try makeSettingsContentView().inspect())
     }
 
     // MARK: - General tab

@@ -23,7 +23,7 @@ class PowerAssertionDetector: MeetingDetecting {
         AssertionPattern(
             appName: "Zoom",
             processNames: ["zoom.us", "CptHost"],
-            keywords: [],
+            keywords: ["zoom video", "zoom audio", "zoom meeting", "zoom webinar"],
         ),
         AssertionPattern(
             appName: AppMeetingPattern.simulator.appName,

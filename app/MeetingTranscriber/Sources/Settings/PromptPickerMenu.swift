@@ -1,24 +1,31 @@
 import SwiftUI
 
 /// Compact menu button for picking a named prompt.
-/// Shows the selected prompt name (or "Default") and a chevron.
+/// Shows the selected prompt name (or the default prompt name, or "Default") and a chevron.
 struct PromptPickerMenu: View {
     @Binding var promptID: UUID?
     let prompts: [NamedPrompt]
+    var defaultPromptID: UUID? = nil
+
+    private var defaultPromptName: String? {
+        guard let id = defaultPromptID else { return nil }
+        return prompts.first(where: { $0.id == id })?.name
+    }
 
     private var label: String {
-        guard let id = promptID,
-              let match = prompts.first(where: { $0.id == id })
-        else { return "Default" }
-        return match.name
+        if let id = promptID, let match = prompts.first(where: { $0.id == id }) {
+            return match.name
+        }
+        return defaultPromptName.map { "\($0) (default)" } ?? "Default"
     }
 
     var body: some View {
         Menu {
-            Button("Default") { promptID = nil }
-            if !prompts.isEmpty {
+            Button(defaultPromptName.map { "\($0) (default)" } ?? "Default") { promptID = nil }
+            let nonDefaultPrompts = prompts.filter { $0.id != defaultPromptID }
+            if !nonDefaultPrompts.isEmpty {
                 Divider()
-                ForEach(prompts) { prompt in
+                ForEach(nonDefaultPrompts) { prompt in
                     Button(prompt.name) { promptID = prompt.id }
                 }
             }
