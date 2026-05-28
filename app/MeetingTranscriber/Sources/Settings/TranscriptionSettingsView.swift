@@ -74,6 +74,9 @@ struct TranscriptionSettingsView: View {
                 }
 
                 engineStatusView
+
+                Toggle("Preload model on app launch", isOn: $settings.preloadModelOnStartup)
+                    .help("Load the transcription model immediately at startup so it's ready before the first meeting.")
             }
             .accessibilityIdentifier("transcriptionSection")
             .recordOnlyDisabled(settings.recordOnly)

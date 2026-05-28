@@ -328,7 +328,7 @@ final class AppState { // swiftlint:disable:this type_body_length
     }
 
     var isModelReady: Bool {
-        _modelReadyOverride ?? (activeTranscriptionEngine.modelState == .loaded)
+        _modelReadyOverride ?? (activeTranscriptionEngine.modelState != .downloading && activeTranscriptionEngine.modelState != .loading)
     }
 
     /// Test-only override; nil in production.
@@ -436,6 +436,10 @@ final class AppState { // swiftlint:disable:this type_body_length
 
                 configurePipelineCallbacks()
 
+                // Preload model in background so it's ready when the first meeting ends.
+                let engine = self.activeTranscriptionEngine
+                Task { await engine.loadModel() }
+
                 watchLoop = loop
                 loop.start()
             }
@@ -453,6 +457,9 @@ final class AppState { // swiftlint:disable:this type_body_length
             _ = await Permissions.ensureMicrophoneAccess()
 
             ensurePipelineQueue()
+            syncLanguageSettings()
+            let engine = self.activeTranscriptionEngine
+            Task { await engine.loadModel() }
 
             let loop = WatchLoop(
                 recorderFactory: { DualSourceRecorder() },
@@ -510,6 +517,15 @@ final class AppState { // swiftlint:disable:this type_body_length
         guard !existing.isEmpty else { return 0 }
         enqueueFiles(existing)
         return existing.count
+    }
+
+    func rerunProtocolOnly(session: RecordingSession, promptText: String?) {
+        ensurePipelineQueue()
+        pipelineQueue.rerunProtocolOnly(
+            session: session,
+            outputDir: settings.effectiveOutputDir,
+            promptText: promptText
+        )
     }
 
     func enqueueFiles(_ urls: [URL]) {
@@ -761,9 +777,10 @@ final class AppState { // swiftlint:disable:this type_body_length
     /// Push current language/vocabulary settings into the active engine.
     /// Idempotent — each branch only writes when the value actually differs,
     /// so unchanged settings don't churn the engine's `@Observable` watchers.
-    private func syncLanguageSettings() {
+    func syncLanguageSettings() {
         switch settings.transcriptionEngine {
         case .whisperKit:
+            if whisperKit.modelVariant != settings.whisperKitModel { whisperKit.modelVariant = settings.whisperKitModel }
             let next = settings.whisperLanguageOrNil
             if whisperKit.language != next { whisperKit.language = next }
 

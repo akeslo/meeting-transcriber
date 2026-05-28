@@ -246,6 +246,10 @@ final class AppSettings {
         didSet { defaults.set(diarize, forKey: "diarize") }
     }
 
+    var preloadModelOnStartup: Bool {
+        didSet { defaults.set(preloadModelOnStartup, forKey: "preloadModelOnStartup") }
+    }
+
     var vadEnabled: Bool {
         didSet { defaults.set(vadEnabled, forKey: "vadEnabled") }
     }
@@ -439,6 +443,17 @@ final class AppSettings {
         }
     }
 
+    /// The prompt used when no per-app/site override is set. nil = built-in system prompt.
+    var defaultPromptID: UUID? {
+        didSet { defaults.set(defaultPromptID?.uuidString, forKey: "defaultPromptID") }
+    }
+
+    /// Name of the current default prompt, for display in picker menus.
+    var defaultPromptName: String? {
+        guard let id = defaultPromptID else { return nil }
+        return namedPrompts.first(where: { $0.id == id })?.name
+    }
+
     /// Look up the text content of a prompt by ID. Returns nil when ID is nil or not found.
     func promptText(for id: UUID?) -> String? {
         guard let id else { return nil }
@@ -457,8 +472,12 @@ final class AppSettings {
     }
 
     /// Look up the assigned prompt text for a given app/website name.
+    /// Falls back to the global default prompt when no per-app override is set.
     func promptText(forAppNamed name: String) -> String? {
-        promptText(for: promptID(forAppNamed: name))
+        if let id = promptID(forAppNamed: name) {
+            return promptText(for: id)
+        }
+        return promptText(for: defaultPromptID)
     }
 
     // MARK: - Computed
@@ -491,6 +510,7 @@ final class AppSettings {
         } else {
             namedPrompts = []
         }
+        defaultPromptID = defaults.string(forKey: "defaultPromptID").flatMap(UUID.init)
 
         if let data = defaults.data(forKey: "watchedWebsites"),
            let sites = try? JSONDecoder().decode([WatchedWebsite].self, from: data) {
@@ -520,6 +540,7 @@ final class AppSettings {
         parakeetLanguage = defaults.object(forKey: "parakeetLanguage") as? String ?? ""
         customVocabularyPath = defaults.string(forKey: "customVocabularyPath") ?? ""
         diarize = defaults.object(forKey: "diarize") as? Bool ?? true
+        preloadModelOnStartup = defaults.object(forKey: "preloadModelOnStartup") as? Bool ?? false
         vadEnabled = defaults.object(forKey: "vadEnabled") as? Bool ?? false
         vadThreshold = defaults.object(forKey: "vadThreshold") as? Float ?? 0.5
         vadPreset = (defaults.string(forKey: "vadPreset").flatMap(VadPreset.init(rawValue:))) ?? .balanced
@@ -564,5 +585,18 @@ final class AppSettings {
         #endif
         checkForUpdates = defaults.object(forKey: "checkForUpdates") as? Bool ?? true
         includePreReleases = defaults.object(forKey: "includePreReleases") as? Bool ?? false
+
+        // Migrate: seed Teams web entries if neither pattern is present yet.
+        let teamsPatterns = ["teams.microsoft.com/_#/meet", "teams.live.com/v2"]
+        let existingPatterns = Set(watchedWebsites.map(\.urlPattern))
+        for pattern in teamsPatterns where !existingPatterns.contains(pattern) {
+            let name = pattern.contains("live.com") ? "Teams Web (Personal)" : "Teams Web (Work)"
+            watchedWebsites.append(WatchedWebsite(
+                name: name,
+                urlPattern: pattern,
+                enabled: true,
+                recordMic: true
+            ))
+        }
     }
 }

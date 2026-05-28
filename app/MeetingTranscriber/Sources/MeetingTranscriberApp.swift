@@ -116,6 +116,9 @@ struct MeetingTranscriberApp: App {
                 },
                 onProcessFiles: processAudioFiles,
                 onQuit: quit,
+                micDeviceName: appState.settings.micName,
+                appSourceName: appState.currentStatus?.meeting?.app ?? "",
+                levelSource: { (mic: appState.micLevelDBFS, app: appState.appLevelDBFS) },
             )
         } label: { // swiftlint:disable:this closure_body_length
             Label {
@@ -150,24 +153,12 @@ struct MeetingTranscriberApp: App {
                 closeWindow(id: "dashboard")
             }
             .task {
-                switch appState.settings.transcriptionEngine {
-                case .whisperKit:
-                    appState.whisperKit.modelVariant = appState.settings.whisperKitModel
-                    appState.whisperKit.language = appState.settings.whisperLanguageOrNil
-                    await appState.whisperKit.loadModel()
-
-                case .parakeet:
-                    await appState.parakeetEngine.loadModel()
-
-                case .qwen3:
-                    if #available(macOS 15, *) {
-                        appState.qwen3Engine.language = appState.settings.qwen3LanguageOrNil
-                        await appState.qwen3Engine.loadModel()
-                    }
-                }
+                appState.modelContext = modelContainer.mainContext
             }
             .task {
-                appState.modelContext = modelContainer.mainContext
+                guard appState.settings.preloadModelOnStartup else { return }
+                appState.syncLanguageSettings()
+                await appState.activeTranscriptionEngine.loadModel()
             }
             .task {
                 appState.updateChecker.startPeriodicChecks(settings: appState.settings)
@@ -231,7 +222,11 @@ struct MeetingTranscriberApp: App {
         .windowResizability(.contentSize)
 
         Window("Name this Recording", id: "title-prompt") {
-            TitlePromptView(watchLoop: appState.watchLoop, namedPrompts: appState.settings.namedPrompts)
+            TitlePromptView(
+                watchLoop: appState.watchLoop,
+                namedPrompts: appState.settings.namedPrompts,
+                defaultPromptID: appState.settings.defaultPromptID
+            )
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 380, height: 130)
@@ -257,7 +252,10 @@ struct MeetingTranscriberApp: App {
                 namingDialogActive: appState.pipelineQueue.pendingSpeakerNaming != nil,
                 pipelineBusy: appState.pipelineQueue.isProcessing,
                 onSpeakerMutate: appState.pipelineQueue.refreshKnownSpeakerNames,
-                onRunDetectionTest: appState.runDetectionTest
+                onRunDetectionTest: appState.runDetectionTest,
+                onRerunSession: { session, promptText in
+                    appState.rerunProtocolOnly(session: session, promptText: promptText)
+                }
             )
             .environment(\.appState, appState)
             .modelContainer(modelContainer)
