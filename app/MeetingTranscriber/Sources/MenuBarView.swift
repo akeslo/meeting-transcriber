@@ -14,6 +14,10 @@ struct MenuBarView: View {
     let onNameSpeakers: (() -> Void)?
     let onProcessFiles: () -> Void
     let onQuit: () -> Void
+    var micDeviceName: String = ""
+    var appSourceName: String = ""
+    /// Called at ~10 Hz to get (micDBFS, appDBFS). Closure avoids stale Double snapshots.
+    var levelSource: (() -> (mic: Double, app: Double))? = nil
 
     private var state: TranscriberState {
         status?.state ?? .idle
@@ -91,6 +95,14 @@ struct MenuBarView: View {
                 .font(.caption)
                 .foregroundStyle(.red)
                 .padding(.horizontal, 4)
+        }
+
+        if state == .recording {
+            AudioLevelsView(
+                appSourceName: appSourceName,
+                micDeviceName: micDeviceName,
+                levelSource: levelSource
+            )
         }
     }
 
@@ -206,6 +218,86 @@ struct MenuBarView: View {
             .red
         default:
             .gray
+        }
+    }
+}
+
+// MARK: - Self-updating audio level rows
+
+/// Polls its own timer so level bars stay live regardless of Scene-body observation cadence.
+private struct AudioLevelsView: View {
+    let appSourceName: String
+    let micDeviceName: String
+    let levelSource: (() -> (mic: Double, app: Double))?
+
+    @State private var micLevel: Double = -120
+    @State private var appLevel: Double = -120
+    private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            if !appSourceName.isEmpty {
+                levelRow(label: appSourceName, icon: "desktopcomputer", level: appLevel)
+            }
+            levelRow(
+                label: micDeviceName.isEmpty ? "Microphone" : micDeviceName,
+                icon: "mic.fill",
+                level: micLevel
+            )
+            Divider()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .onReceive(timer) { _ in
+            if let levels = levelSource?() {
+                micLevel = levels.mic
+                appLevel = levels.app
+            }
+        }
+    }
+
+    private func levelRow(label: String, icon: String, level: Double) -> some View {
+        let fraction = max(0, min(1, (level + 60) / 60))
+        let color: Color = level > -6 ? .red : level > -20 ? .yellow : .green
+        let dbText = level <= -119 ? "—" : "\(Int(level)) dB"
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Text(dbText)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(color.opacity(level <= -119 ? 0.4 : 0.9))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .green.opacity(0.9), location: 0),
+                                    .init(color: .green.opacity(0.9), location: 0.55),
+                                    .init(color: .yellow.opacity(0.9), location: 0.75),
+                                    .init(color: .red.opacity(0.9), location: 1.0),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing,
+                            )
+                        )
+                        .frame(width: geo.size.width * fraction)
+                        .animation(.linear(duration: 0.08), value: fraction)
+                }
+            }
+            .frame(height: 8)
         }
     }
 }

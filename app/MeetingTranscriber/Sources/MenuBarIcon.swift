@@ -127,11 +127,12 @@ enum MenuBarIcon {
     ) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
-            // Draw heartbeat base in Space Indigo.
+            // Draw heartbeat base — red while recording, Space Indigo otherwise.
             // For .error and permissionOverlay, draw at reduced alpha so the red ring
             // reads clearly against the base path.
             let baseAlpha: CGFloat = (badge == .error || permissionOverlay) ? 0.30 : 1.0
-            spaceIndigo.withAlphaComponent(baseAlpha).setStroke()
+            let baseColor: NSColor = badge == .recording ? NSColor.systemRed : spaceIndigo
+            baseColor.withAlphaComponent(baseAlpha).setStroke()
             drawHeartbeat(in: rect)
 
             // Tint halves AFTER the base body is drawn.
