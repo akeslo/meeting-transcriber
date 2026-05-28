@@ -28,6 +28,7 @@ struct DetailPaneView: View {
                 .task(id: session.id) {
                     titleDraft = session.title
                     folderDraft = session.folderGroup
+                    activeDetailTab = .protocol_
                 }
         } else if let job {
             jobDetail(job)
@@ -184,6 +185,7 @@ struct DetailPaneView: View {
             Divider()
 
             MeetingDetailReader(session: session, settings: settings, activeTab: $activeDetailTab)
+                .id(session.id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -326,7 +328,7 @@ struct DetailPaneView: View {
 
     private func revealInFinder(for session: RecordingSession) {
         let folder = settings.effectiveOutputDir.appendingPathComponent(session.folderPath)
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+        NSWorkspace.shared.open(folder)
     }
 
     // MARK: - Commit actions

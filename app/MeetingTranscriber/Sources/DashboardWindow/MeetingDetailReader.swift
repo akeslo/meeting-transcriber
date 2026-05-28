@@ -71,6 +71,11 @@ struct MeetingDetailReader: View {
             await loadContent()
             loadAudio()
         }
+        .onChange(of: session.status) { _, newStatus in
+            if newStatus == SessionStatus.done {
+                Task { await loadContent() }
+            }
+        }
         .onReceive(playbackTimer) { _ in
             guard isPlaying, let player else { return }
             playbackPosition = player.currentTime
@@ -124,7 +129,8 @@ struct MeetingDetailReader: View {
     // MARK: - Transcript tab
 
     private var transcriptTab: some View {
-        ScrollViewReader { proxy in
+        ZStack(alignment: .topTrailing) {
+          ScrollViewReader { proxy in
             List(segments) { segment in
                 TranscriptSegmentView(
                     segment: segment,
@@ -167,19 +173,51 @@ struct MeetingDetailReader: View {
                 )
             }
         }
+          if !segments.isEmpty {
+              Button {
+                  let text = segments.map { seg in
+                      "\(resolvedName(seg.speaker)): \(seg.body)"
+                  }.joined(separator: "\n\n")
+                  NSPasteboard.general.clearContents()
+                  NSPasteboard.general.setString(text, forType: .string)
+              } label: {
+                  Image(systemName: "doc.on.doc")
+                      .font(.system(size: 12))
+                      .foregroundStyle(.secondary)
+              }
+              .buttonStyle(.plain)
+              .padding(10)
+              .help("Copy transcript to clipboard")
+          }
+        }
     }
 
     // MARK: - Protocol tab
 
     private var protocolTab: some View {
-        ScrollView {
-            if protocolContent.isEmpty {
-                Text("No summary generated for this session.")
-                    .foregroundStyle(.secondary)
-                    .padding(20)
-            } else {
-                MarkdownView(content: protocolContent)
-                    .padding(20)
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                if protocolContent.isEmpty {
+                    Text("No summary generated for this session.")
+                        .foregroundStyle(.secondary)
+                        .padding(20)
+                } else {
+                    MarkdownView(content: protocolContent)
+                        .padding(20)
+                }
+            }
+            if !protocolContent.isEmpty {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(protocolContent, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+                .help("Copy summary to clipboard")
             }
         }
     }
