@@ -119,7 +119,6 @@ final class WatchLoopE2ETests: XCTestCase { // swiftlint:disable:this balanced_x
 
         let meeting = makeMeeting()
         try await loop.handleMeeting(meeting)
-        loop.skipTitle()
 
         // Verify recording happened
         XCTAssertTrue(recorder.startCalled)

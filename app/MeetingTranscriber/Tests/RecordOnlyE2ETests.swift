@@ -36,7 +36,6 @@ final class RecordOnlyE2ETests: XCTestCase { // swiftlint:disable:this balanced_
         let loop = makeRecordOnlyLoop(outputDir: outputDir)
 
         try await loop.handleMeeting(makeMeeting())
-        loop.skipTitle()
 
         XCTAssertTrue(queue.jobs.isEmpty, "record-only must not enqueue a pipeline job")
         XCTAssertTrue(notifier.calls.isEmpty, "no failure notification on the happy path")
@@ -77,7 +76,6 @@ final class RecordOnlyE2ETests: XCTestCase { // swiftlint:disable:this balanced_
         let loop = makeRecordOnlyLoop(outputDir: unwritable)
 
         try await loop.handleMeeting(makeMeeting())
-        loop.skipTitle()
 
         XCTAssertTrue(queue.jobs.isEmpty, "still no enqueue when sidecar write fails")
         XCTAssertEqual(notifier.calls.count, 1, "user must be notified about lost record-only output")

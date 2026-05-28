@@ -276,14 +276,12 @@ class WatchLoop {
         var failureMessage: String?
         do {
             let recording = try recorder.stop()
-            setPending(
-                suggestedTitle: info.title,
+            enqueueRecording(
+                title: info.title,
                 appName: info.appName,
                 recording: recording,
-                participants: [],
-                suggestedPromptText: nil  // manual recording: user picks in prompt dialog
+                participants: []
             )
-            NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
         } catch {
             logger.error("Failed to stop manual recording: \(error)")
             failureMessage = error.localizedDescription
@@ -296,6 +294,7 @@ class WatchLoop {
             next.detail = ""
             if let failureMessage { next.lastError = failureMessage }
         }
+        onManualRecordingCompleted?()
     }
 
     private func monitorManualRecording(pid: pid_t) async {
@@ -416,15 +415,13 @@ class WatchLoop {
         let recording = try recorder.stop()
 
         let appName = meeting.pattern.appName
-        setPending(
-            suggestedTitle: title,
+        enqueueRecording(
+            title: title,
             appName: appName,
             recording: recording,
             participants: participants,
-            suggestedPromptID: promptIDResolver(appName),
-            suggestedPromptText: promptTextResolver(appName)
+            promptText: promptTextResolver(appName)
         )
-        NotificationCenter.default.post(name: .showTitlePrompt, object: nil)
     }
 
     // MARK: - Meeting End Detection

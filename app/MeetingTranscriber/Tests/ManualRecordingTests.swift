@@ -62,20 +62,13 @@ final class ManualRecordingTests: XCTestCase {
 
     // MARK: - Stop
 
-    func testStopManualRecordingSetssPendingTitle() async throws {
+    func testStopManualRecordingEnqueuesImmediately() async throws {
         let queue = PipelineQueue()
         let (loop, _) = makeLoop(pipelineQueue: queue)
         try await loop.startManualRecording(pid: 1234, appName: "Chrome", title: "Standup")
 
         loop.stopManualRecording()
 
-        // Recording is now pending title confirmation — not yet enqueued.
-        XCTAssertEqual(queue.jobs.count, 0)
-        XCTAssertEqual(loop.pendingTitle?.suggestedTitle, "Standup")
-        XCTAssertEqual(loop.pendingTitle?.appName, "Chrome")
-
-        // Confirming the title enqueues the job.
-        loop.confirmTitle("Standup")
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "Standup")
         XCTAssertEqual(queue.jobs.first?.appName, "Chrome")

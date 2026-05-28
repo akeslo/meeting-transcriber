@@ -234,10 +234,6 @@ final class WatchLoopTests: XCTestCase {
         XCTAssertFalse(loop.isManualRecording)
         XCTAssertEqual(loop.state, .idle)
         XCTAssertTrue(recorder.stopCalled)
-        // stopManualRecording stages to pendingTitle; confirm to enqueue.
-        XCTAssertEqual(queue.jobs.count, 0)
-        XCTAssertEqual(loop.pendingTitle?.suggestedTitle, "Standup")
-        loop.confirmTitle("Standup")
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "Standup")
         XCTAssertEqual(queue.jobs.first?.appName, "Chrome")
@@ -338,8 +334,6 @@ final class WatchLoopTests: XCTestCase {
         }
         try await loop.startManualRecording(pid: 42, appName: appName, title: title)
         loop.stopManualRecording()
-        // stopManualRecording now stages to pendingTitle; confirm to trigger enqueue/sidecar.
-        loop.confirmTitle(title)
         return loop
     }
 
@@ -433,7 +427,6 @@ final class WatchLoopTests: XCTestCase {
         recorder.mixPath = mixURL
         try await loop.startManualRecording(pid: 42, appName: "Microsoft Teams", title: "Standup")
         loop.stopManualRecording()
-        loop.confirmTitle("Standup")
 
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(queue.jobs.first?.meetingTitle, "Standup")

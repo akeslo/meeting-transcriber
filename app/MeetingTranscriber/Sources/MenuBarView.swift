@@ -235,16 +235,20 @@ private struct AudioLevelsView: View {
     private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             Divider()
-            if !appSourceName.isEmpty {
-                levelRow(label: appSourceName, icon: "desktopcomputer", level: appLevel)
+            HStack(alignment: .top, spacing: 10) {
+                if !appSourceName.isEmpty {
+                    levelRow(label: appSourceName, icon: "desktopcomputer", level: appLevel)
+                }
+                if !appSourceName.isEmpty { Divider().frame(height: 28) }
+                levelRow(
+                    label: micDeviceName.isEmpty ? "Microphone" : micDeviceName,
+                    icon: "mic.fill",
+                    level: micLevel
+                )
             }
-            levelRow(
-                label: micDeviceName.isEmpty ? "Microphone" : micDeviceName,
-                icon: "mic.fill",
-                level: micLevel
-            )
+            .padding(.vertical, 4)
             Divider()
         }
         .padding(.horizontal, 8)
@@ -299,5 +303,6 @@ private struct AudioLevelsView: View {
             }
             .frame(height: 8)
         }
+        .frame(maxWidth: .infinity)
     }
 }

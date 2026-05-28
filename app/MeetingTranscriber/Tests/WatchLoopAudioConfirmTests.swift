@@ -118,7 +118,6 @@ final class WatchLoopAudioConfirmTests: XCTestCase {
             sleepProvider: { await clock.sleep(for: $0) },
         )
         try await loop.handleMeeting(makeMeeting())
-        loop.skipTitle()
         XCTAssertFalse(recorder.discardCalled)
         XCTAssertTrue(recorder.stopCalled)
         XCTAssertEqual(queue.jobs.count, 1)
@@ -141,7 +140,6 @@ final class WatchLoopAudioConfirmTests: XCTestCase {
             sleepProvider: { await clock.sleep(for: $0) },
         )
         try await loop.handleMeeting(makeMeeting(audioConfirmRequired: false))
-        loop.skipTitle()
         XCTAssertFalse(recorder.discardCalled, "confirm phase must be skipped when flag is false")
         XCTAssertEqual(queue.jobs.count, 1)
     }
