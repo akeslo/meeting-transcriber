@@ -496,6 +496,46 @@ class PipelineQueue {
         enqueue(job)
     }
 
+    /// Re-generate the protocol for an already-transcribed session using a custom prompt.
+    /// Reads the existing transcript from disk, runs only LLM generation, and updates the session.
+    func rerunProtocolOnly(session: RecordingSession, outputDir: URL, promptText: String?) {
+        let folder = outputDir.appendingPathComponent(session.folderPath)
+        let transcriptURL = folder.appendingPathComponent(RecordingFileSuffix.transcript)
+        guard let transcript = try? String(contentsOf: transcriptURL, encoding: .utf8) else {
+            logger.warning("rerunProtocolOnly: transcript not found at \(transcriptURL.path, privacy: .public)")
+            return
+        }
+        let hasCustomPrompt = promptText != nil
+        logger.info("rerunProtocolOnly: session=\(session.title, privacy: .private) customPrompt=\(hasCustomPrompt, privacy: .public) transcript=\(transcript.count, privacy: .public)chars")
+        var job = PipelineJob(
+            meetingTitle: session.title,
+            appName: session.appName,
+            mixPath: nil, appPath: nil, micPath: nil,
+            micDelay: 0,
+            participants: session.participantNames,
+            promptText: promptText
+        )
+        job.transcriptPath = transcriptURL
+        job.startedAt = Date()
+        let jobID = job.id
+        jobs.append(job)
+        session.status = SessionStatus.waiting
+        Task { [weak self] in
+            guard let self else { return }
+            await self.generateProtocol(
+                jobID: jobID,
+                transcript: transcript,
+                title: session.title,
+                sessionDir: folder,
+                outputDir: outputDir
+            )
+            self.jobs.removeAll { $0.id == jobID }
+            session.hasProtocol = true
+            session.status = SessionStatus.done
+            try? self.modelContext?.save()
+        }
+    }
+
     func updateJobState(id: UUID, to newState: JobState, error: String? = nil) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
         let oldState = jobs[index].state
@@ -1109,10 +1149,15 @@ class PipelineQueue {
     /// stash its path on the job. No-op if no protocol generator is configured.
     /// Used by: main pipeline (if no naming pending), reapplySpeakerNames
     /// (after confirm), skipped/stale paths (with current auto-names).
-    private func generateProtocol(
+    func generateProtocol(
         jobID: UUID, transcript: String, title: String, sessionDir: URL, outputDir: URL,
     ) async {
-        guard let protocolGeneratorFactory, let generator = protocolGeneratorFactory() else {
+        guard let protocolGeneratorFactory else {
+            logger.warning("generateProtocol: no factory — provider not configured")
+            return
+        }
+        guard let generator = protocolGeneratorFactory() else {
+            logger.warning("generateProtocol: factory returned nil — provider=none or misconfigured")
             return
         }
         let shortID = PipelineJob.shortID(for: jobID)
@@ -1126,6 +1171,7 @@ class PipelineQueue {
             let (transcriptForLLM, reverseMap) = anonymizeTranscript
                 ? Self.anonymize(transcript: transcript)
                 : (transcript, [:])
+            logger.info("[\(shortID, privacy: .public)] protocol_generate_start diarized=\(diarized, privacy: .public) customPrompt=\(jobPromptText != nil, privacy: .public)")
             let rawProtocolMD = try await generator.generate(
                 transcript: transcriptForLLM, title: title, diarized: diarized, promptText: jobPromptText,
             )

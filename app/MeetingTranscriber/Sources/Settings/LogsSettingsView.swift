@@ -16,7 +16,7 @@ struct LogLine: Identifiable, Sendable {
         try? NSRegularExpression(pattern: #"<\w+>: (.+)$"#, options: .dotMatchesLineSeparators)
 
     static func parse(raw: String) -> LogLine {
-        let ts = raw.count >= 15 ? String(raw.prefix(15)) : ""
+        let ts = raw.count >= 19 ? String(raw.prefix(19)) : ""
 
         var category = ""
         if let m = categoryRegex?.firstMatch(in: raw, range: NSRange(raw.startIndex..., in: raw)),
@@ -80,7 +80,7 @@ final class LogTailModel {
             .filter { !$0.isEmpty }
             .suffix(500)
             .map { LogLine.parse(raw: $0) }
-        lines = Array(parsed)
+        lines = Array(parsed.reversed())
         updateCategories(from: lines)
     }
 
@@ -96,9 +96,9 @@ final class LogTailModel {
             .filter { !$0.isEmpty }
             .map { LogLine.parse(raw: $0) }
         guard !newLines.isEmpty else { return }
-        lines.append(contentsOf: newLines)
+        lines.insert(contentsOf: newLines.reversed(), at: 0)
         if lines.count > Self.maxLines {
-            lines.removeFirst(lines.count - Self.maxLines)
+            lines.removeLast(lines.count - Self.maxLines)
         }
         updateCategories(from: newLines)
     }
@@ -114,9 +114,9 @@ final class LogTailModel {
 
     /// Test seam: inject pre-built lines directly, bypassing file IO.
     func appendForTesting(_ newLines: [LogLine]) {
-        lines.append(contentsOf: newLines)
+        lines.insert(contentsOf: newLines.reversed(), at: 0)
         if lines.count > Self.maxLines {
-            lines.removeFirst(lines.count - Self.maxLines)
+            lines.removeLast(lines.count - Self.maxLines)
         }
         updateCategories(from: newLines)
     }
@@ -140,7 +140,7 @@ private struct LogLineRow: View {
                 Text(line.timestamp)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
-                    .frame(width: 105, alignment: .leading)
+                    .frame(width: 130, alignment: .leading)
                     .lineLimit(1)
             }
             if !line.category.isEmpty {
@@ -174,8 +174,6 @@ struct LogsSettingsView: View {
     @State private var model = LogTailModel()
     @State private var searchText = ""
     @State private var selectedCategory: String? = nil
-    @State private var autoScroll = true
-
     private var visibleLines: [LogLine] {
         model.lines.filter { line in
             let catOK: Bool = {
@@ -246,16 +244,6 @@ struct LogsSettingsView: View {
             .foregroundStyle(.secondary)
             .help("Copy filtered log lines to clipboard")
 
-            if !autoScroll {
-                Button {
-                    autoScroll = true
-                } label: {
-                    Label("Jump to Bottom", systemImage: "arrow.down.to.line")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -318,23 +306,10 @@ struct LogsSettingsView: View {
             }
             .frame(maxWidth: .infinity)
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(visibleLines) { line in
-                            LogLineRow(line: line)
-                                .id(line.id)
-                        }
-                        Color.clear
-                            .frame(height: 1)
-                            .id("log-bottom-sentinel")
-                            .onAppear { autoScroll = true }
-                            .onDisappear { autoScroll = false }
-                    }
-                }
-                .onChange(of: model.lines.count) { _, _ in
-                    if autoScroll {
-                        proxy.scrollTo("log-bottom-sentinel", anchor: .bottom)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(visibleLines) { line in
+                        LogLineRow(line: line)
                     }
                 }
             }

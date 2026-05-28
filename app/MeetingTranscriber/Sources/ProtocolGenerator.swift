@@ -19,48 +19,36 @@ extension ProtocolGenerating {
 enum ProtocolGenerator {
     static let protocolPrompt = """
     You are a professional meeting minute taker.
-    Create a structured meeting protocol in {LANGUAGE} from the following transcript.
-
-    Return ONLY the finished Markdown document - no explanations, no introduction,
-    no comments before or after.
+    Create a structured meeting protocol in {LANGUAGE} from the transcript below.
+    Return ONLY the Markdown document. No preamble, no comments.
 
     Use exactly this structure:
 
     # Meeting Protocol - [Meeting Title]
-    **Date:** [Date from context or today]
-
+    **Date:** [Date or today]
     ---
 
-    ## Summary
-    [3-5 sentence summary of the meeting]
+    ## Next Step
+    [2 line max next step statement]
 
     ## Participants
-    - [Name 1]
-    - [Name 2]
-
-    ## Topics Discussed
-
-    ### [Topic 1]
-    [What was discussed]
-
-    ### [Topic 2]
-    [What was discussed]
-
-    ## Decisions
-    - [Decision 1]
-    - [Decision 2]
-
+    **[Company]:**
+    - [Name], [Title]
     ## Tasks
-    | Task | Responsible | Deadline | Priority |
-    |------|-------------|----------|----------|
-    | [Description] | [Name] | [Date or open] | 🔴 high / 🟡 medium / 🟢 low |
-
+    | Task | Responsible | Deadline |
+    |------|-------------|----------|
+    | [Description] | [Name] | [Date or open] |
+    ## Summary
+    [3-5 sentences]
+    ## Topics Discussed
+    ### [Topic]
+    [Discussion]
+    ## Decisions
+    - [Decision]
     ## Open Questions
-    - [Question 1]
-    - [Question 2]
+    - [Question]
 
-    Do NOT include the full transcript in the output – it will be appended automatically.
-
+    Do NOT include the transcript - it is appended automatically.
     ---
     Transcript:
     """
