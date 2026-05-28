@@ -20,6 +20,7 @@ struct DashboardWindowContent: View {
     var pipelineBusy: Bool
     var onSpeakerMutate: (() -> Void)?
     var onRunDetectionTest: (() -> String)? = nil
+    var onRerunSession: ((RecordingSession, String?) -> Void)? = nil
 
     @State private var selectedNav: NavItem = .dashboard
     @State private var selectedSessionID: UUID?
@@ -79,7 +80,10 @@ struct DashboardWindowContent: View {
                 LibraryView(
                     pipelineQueue: pipelineQueue,
                     selectedSessionID: $selectedSessionID,
-                    onDeleteSession: deleteSession
+                    onDeleteSession: deleteSession,
+                    namedPrompts: settings.namedPrompts,
+                    defaultPromptID: settings.defaultPromptID,
+                    onRerunWithPrompt: onRerunSession
                 )
                 .frame(width: 280)
 
@@ -124,7 +128,16 @@ struct DashboardWindowContent: View {
             LibraryView(
                 pipelineQueue: pipelineQueue,
                 selectedSessionID: $selectedSessionID,
-                onDeleteSession: deleteSession
+                onDeleteSession: deleteSession,
+                namedPrompts: settings.namedPrompts,
+                defaultPromptID: settings.defaultPromptID,
+                onRerunWithPrompt: { session, promptText in
+                    pipelineQueue.rerunProtocolOnly(
+                        session: session,
+                        outputDir: settings.effectiveOutputDir,
+                        promptText: promptText
+                    )
+                }
             )
         case .dashboard:
             DashboardView(

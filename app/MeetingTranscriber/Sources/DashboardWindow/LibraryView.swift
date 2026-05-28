@@ -5,6 +5,9 @@ struct LibraryView: View {
     var pipelineQueue: PipelineQueue
     @Binding var selectedSessionID: UUID?
     var onDeleteSession: (RecordingSession) -> Void
+    var namedPrompts: [NamedPrompt] = []
+    var defaultPromptID: UUID? = nil
+    var onRerunWithPrompt: ((RecordingSession, String?) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -398,6 +401,11 @@ struct LibraryView: View {
                     try? modelContext.save()
                     let dir = AppPaths.transcriberRoot.appendingPathComponent(session.folderPath)
                     try? SessionMeta.updateFields(in: dir, folderGroup: folder)
+                },
+                namedPrompts: namedPrompts,
+                defaultPromptID: defaultPromptID,
+                onRerunWithPrompt: onRerunWithPrompt.map { callback in
+                    { promptText in callback(session, promptText) }
                 }
             )
             .onTapGesture {

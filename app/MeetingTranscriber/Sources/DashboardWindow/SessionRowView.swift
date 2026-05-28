@@ -36,6 +36,9 @@ struct SessionRowView: View {
     var onRename: ((String) -> Void)? = nil
     var onAddTag: ((String) -> Void)? = nil
     var onSetFolder: ((String) -> Void)? = nil
+    var namedPrompts: [NamedPrompt] = []
+    var defaultPromptID: UUID? = nil
+    var onRerunWithPrompt: ((String?) -> Void)? = nil
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -134,6 +137,24 @@ struct SessionRowView: View {
                     }
                 } label: {
                     Label("Move to Folder", systemImage: "folder")
+                }
+            }
+            if let onRerunWithPrompt {
+                let defaultName = defaultPromptID
+                    .flatMap { id in namedPrompts.first(where: { $0.id == id })?.name }
+                let nonDefaultPrompts = namedPrompts.filter { $0.id != defaultPromptID }
+                Menu {
+                    Button(defaultName.map { "\($0) (default)" } ?? "Default Prompt") {
+                        onRerunWithPrompt(nil)
+                    }
+                    if !nonDefaultPrompts.isEmpty {
+                        Divider()
+                        ForEach(nonDefaultPrompts) { prompt in
+                            Button(prompt.name) { onRerunWithPrompt(prompt.content) }
+                        }
+                    }
+                } label: {
+                    Label("Re-run Summary…", systemImage: "arrow.clockwise.circle")
                 }
             }
             Divider()
