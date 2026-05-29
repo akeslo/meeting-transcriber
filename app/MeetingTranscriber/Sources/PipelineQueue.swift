@@ -661,15 +661,17 @@ class PipelineQueue {
                 cachedSegments = segments
                 transcript = segments.map(\.formattedLine).joined(separator: "\n")
             } else {
-                // Single-source: resample mix to 16kHz
-                guard let mixPath else {
+                // Single-source: resample mix (or app-only / mic-only fallback) to 16kHz.
+                // appPath without micPath occurs when a retried session only has one track on disk.
+                let singleSourcePath = mixPath ?? appPath ?? micPath
+                guard let singleSourcePath else {
                     throw NSError(
                         domain: "PipelineQueue", code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Single-source job missing mixPath"],
+                        userInfo: [NSLocalizedDescriptionKey: "Single-source job has no audio file"],
                     )
                 }
                 let mix16k = workDir.appendingPathComponent("mix_16k.wav")
-                try await AudioMixer.resampleFile(from: mixPath, to: mix16k)
+                try await AudioMixer.resampleFile(from: singleSourcePath, to: mix16k)
 
                 // Optional VAD preprocessing: trim silence before transcription
                 var vadMap: VadSegmentMap?
@@ -1176,7 +1178,11 @@ class PipelineQueue {
                 transcript: transcriptForLLM, title: title, diarized: diarized, promptText: jobPromptText,
             )
             let protocolMD = anonymizeTranscript ? Self.deanonymize(text: rawProtocolMD, reverseMap: reverseMap) : rawProtocolMD
-            let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcript
+            let transcriptMD = transcript
+                .components(separatedBy: "\n")
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+            let fullMD = protocolMD + "\n\n---\n\n## Full Transcript\n\n" + transcriptMD
             let mdPath = sessionDir.appendingPathComponent(RecordingFileSuffix.protocol_)
             let accessingForProtocol = outputDir.startAccessingSecurityScopedResource()
             defer { if accessingForProtocol { outputDir.stopAccessingSecurityScopedResource() } }

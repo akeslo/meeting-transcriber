@@ -27,6 +27,7 @@ struct MarkdownView: View {
         case numbered(String)
         case rule
         case paragraph(String)
+        case transcript(ts: String, speaker: String, body: String)
         case table([[String]])   // rows of parsed cells; first row is header
         case spacer
     }
@@ -75,8 +76,7 @@ struct MarkdownView: View {
                     result.append(.table(rows))
                 }
             } else if isTimestampLine(trimmed) {
-                // Transcript timestamp lines stay as individual blocks
-                result.append(.paragraph(trimmed))
+                result.append(parseTranscriptLine(trimmed))
             } else {
                 // Merge consecutive plain lines into one paragraph,
                 // stopping before any line that starts a new structural element.
@@ -136,6 +136,22 @@ struct MarkdownView: View {
         return between.contains(":") && between.allSatisfy { $0.isNumber || $0 == ":" }
     }
 
+    /// Parse `[MM:SS] Speaker: body` or `[MM:SS] body` into a `.transcript` block.
+    private func parseTranscriptLine(_ s: String) -> Block {
+        guard let closeIdx = s.firstIndex(of: "]") else { return .paragraph(s) }
+        let ts = String(s[s.index(after: s.startIndex)..<closeIdx])
+        let rest = String(s[s.index(after: closeIdx)...]).trimmingCharacters(in: .whitespaces)
+        if let colonIdx = rest.firstIndex(of: ":") {
+            let speakerPart = String(rest[rest.startIndex..<colonIdx]).trimmingCharacters(in: .whitespaces)
+            let bodyPart = String(rest[rest.index(after: colonIdx)...]).trimmingCharacters(in: .whitespaces)
+            // Only treat it as speaker:body if the speaker part looks like a label (no spaces or short)
+            if !speakerPart.isEmpty && speakerPart.count <= 20 {
+                return .transcript(ts: ts, speaker: speakerPart, body: bodyPart)
+            }
+        }
+        return .transcript(ts: ts, speaker: "", body: rest)
+    }
+
     // MARK: - Block views
 
     @ViewBuilder
@@ -181,6 +197,29 @@ struct MarkdownView: View {
                 .font(.system(size: 13))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 2)
+        case .transcript(let ts, let speaker, let body):
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(ts)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    if !speaker.isEmpty {
+                        Text(speaker)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                Text(body)
+                    .font(.system(size: 13))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(.primary)
+            }
+            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .padding(.vertical, 2)
         case .table(let rows):
             tableView(rows)
                 .padding(.vertical, 6)
