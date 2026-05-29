@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import SwiftUI
 
 /// A running GUI application that can be selected for recording.
@@ -44,6 +45,7 @@ struct AppPickerView: View {
     @State private var apps: [RunningApp] = []
     @State private var selectedApp: RunningApp?
     @State private var meetingTitle: String = ""
+    @State private var lastAutoTitle: String = ""
 
     init(
         appsProvider: any RunningAppsProvider = SystemRunningAppsProvider(),
@@ -95,6 +97,15 @@ struct AppPickerView: View {
                 .tag(app)
             }
             .frame(minHeight: 200)
+            .onChange(of: selectedApp) { _, newApp in
+                guard let app = newApp else { return }
+                let windowTitle = frontWindowTitle(for: app.id)
+                let autoTitle = windowTitle.map { "\(app.name) \u{2014} \($0)" } ?? app.name
+                if meetingTitle.isEmpty || meetingTitle == lastAutoTitle {
+                    meetingTitle = autoTitle
+                    lastAutoTitle = autoTitle
+                }
+            }
 
             Divider()
 
@@ -126,5 +137,15 @@ struct AppPickerView: View {
         .onAppear {
             apps = appsProvider.runningApps()
         }
+    }
+
+    /// Returns the title of the frontmost visible window owned by the given PID.
+    private func frontWindowTitle(for pid: pid_t) -> String? {
+        let options = CGWindowListOption([.optionOnScreenOnly, .excludeDesktopElements])
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[CFString: Any]] else { return nil }
+        return list
+            .filter { ($0[kCGWindowOwnerPID] as? Int32) == pid }
+            .compactMap { $0[kCGWindowName] as? String }
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 }
