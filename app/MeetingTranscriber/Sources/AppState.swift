@@ -177,6 +177,7 @@ final class AppState { // swiftlint:disable:this type_body_length
         syncLanguageSettings()
         observeEngineSettings()
         startDockBadgeUpdater()
+        observeStopFromNotification()
 
         #if !APPSTORE
             // Env var force-enables at launch only — preserves back-compat with
@@ -686,9 +687,10 @@ final class AppState { // swiftlint:disable:this type_body_length
         switch silentEvent {
         case .started:
             recordingSilentActive = true
-            notifier.notify(
-                title: "Recording Appears Silent",
-                body: Self.silentRecordingMessage,
+            (notifier as? NotificationManager)?.notifyWithStopAction(
+                title: "No Audio Detected",
+                body: "Recording has been silent for \(Int(settings.asymmetricSilenceWarningSeconds))s. Stop if the meeting ended.",
+                identifier: "silence-warning",
             )
 
         case .recovered:
@@ -730,6 +732,23 @@ final class AppState { // swiftlint:disable:this type_body_length
         recordingSilentActive = false
         appLevelDBFS = -120
         micLevelDBFS = -120
+    }
+
+    private func observeStopFromNotification() {
+        NotificationCenter.default.addObserver(
+            forName: .stopRecordingFromNotification,
+            object: nil,
+            queue: nil,
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.watchLoop?.isManualRecording == true {
+                    self.stopManualRecording()
+                } else if self.watchLoop?.isActive == true {
+                    self.toggleWatching()
+                }
+            }
+        }
     }
 
     // MARK: - Permission Health

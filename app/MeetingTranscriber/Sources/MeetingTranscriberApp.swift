@@ -11,6 +11,7 @@ extension Notification.Name {
     static let showSettings = Notification.Name("showSettings")
     static let closeSettings = Notification.Name("closeSettings")
     static let showTitlePrompt = Notification.Name("showTitlePrompt")
+    static let stopRecordingFromNotification = Notification.Name("stopRecordingFromNotification")
 }
 
 /// Renders the menu-bar icon and ticks the animation frame in its own

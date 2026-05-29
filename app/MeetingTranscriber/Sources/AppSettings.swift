@@ -528,7 +528,7 @@ final class AppSettings {
         perChannelIndicatorEnabled = defaults.object(forKey: "perChannelIndicatorEnabled") as? Bool ?? true
         asymmetricSilenceWarningSeconds = max(30, min(
             300,
-            defaults.object(forKey: "asymmetricSilenceWarningSeconds") as? Double ?? 90,
+            defaults.object(forKey: "asymmetricSilenceWarningSeconds") as? Double ?? 60,
         ))
 
         transcriptionEngine = (defaults.string(forKey: "transcriptionEngine")
