@@ -145,7 +145,9 @@ struct SessionRowView: View {
                 let nonDefaultPrompts = namedPrompts.filter { $0.id != defaultPromptID }
                 Menu {
                     Button(defaultName.map { "\($0) (default)" } ?? "Default Prompt") {
-                        onRerunWithPrompt(nil)
+                        let defaultContent = defaultPromptID
+                            .flatMap { id in namedPrompts.first(where: { $0.id == id })?.content }
+                        onRerunWithPrompt(defaultContent)
                     }
                     if !nonDefaultPrompts.isEmpty {
                         Divider()
