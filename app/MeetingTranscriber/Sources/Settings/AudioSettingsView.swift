@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import SwiftUI
 
 struct AudioSettingsView: View {
@@ -58,12 +59,54 @@ struct AudioSettingsView: View {
     }
 
     private func refreshAudioDevices() {
-        let session = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.microphone, .external],
-            mediaType: .audio,
-            position: .unspecified,
+        let devicesID = AudioObjectID(kAudioObjectSystemObject)
+        var propAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
         )
-        audioDevices = session.devices.map { (id: $0.uniqueID, name: $0.localizedName) }
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(devicesID, &propAddr, 0, nil, &dataSize) == noErr else { return }
+        let count = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var deviceIDs = [AudioDeviceID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(devicesID, &propAddr, 0, nil, &dataSize, &deviceIDs) == noErr else { return }
+
+        audioDevices = deviceIDs.compactMap { deviceID in
+            var inputAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyStreamConfiguration,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var inputSize: UInt32 = 0
+            guard AudioObjectGetPropertyDataSize(deviceID, &inputAddr, 0, nil, &inputSize) == noErr,
+                  inputSize >= MemoryLayout<AudioBufferList>.size else { return nil }
+            let bufferList = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: Int(inputSize))
+            defer { bufferList.deallocate() }
+            guard AudioObjectGetPropertyData(deviceID, &inputAddr, 0, nil, &inputSize, bufferList) == noErr,
+                  bufferList.pointee.mNumberBuffers > 0 else { return nil }
+
+            var nameAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioObjectPropertyName,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var nameRef: Unmanaged<CFString>?
+            var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>>.size)
+            guard AudioObjectGetPropertyData(deviceID, &nameAddr, 0, nil, &nameSize, &nameRef) == noErr,
+                  let name = nameRef?.takeRetainedValue() as String? else { return nil }
+
+            var uidAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyDeviceUID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var uidRef: Unmanaged<CFString>?
+            var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>>.size)
+            guard AudioObjectGetPropertyData(deviceID, &uidAddr, 0, nil, &uidSize, &uidRef) == noErr,
+                  let uid = uidRef?.takeRetainedValue() as String? else { return nil }
+
+            return (id: uid, name: name)
+        }
     }
 }
 
