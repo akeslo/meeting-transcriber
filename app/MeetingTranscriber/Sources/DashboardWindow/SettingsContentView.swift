@@ -9,7 +9,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case speakers     = "Speakers"
     case output       = "Output"
     case advanced     = "Advanced"
-    case logs         = "Logs"
 
     var id: String { rawValue }
 
@@ -21,7 +20,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .speakers:      return "person.2"
         case .output:        return "doc.text"
         case .advanced:      return "gearshape.2"
-        case .logs:          return "scroll"
         }
     }
 }
@@ -142,8 +140,6 @@ struct SettingsContentView: View {
                     OutputSettingsView(settings: settings)
                 case .advanced:
                     AdvancedSettingsView(settings: settings)
-                case .logs:
-                    LogsSettingsView()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

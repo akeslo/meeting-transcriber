@@ -6,6 +6,7 @@ enum NavItem: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case library   = "Library"
     case settings  = "Settings"
+    case logs      = "Logs"
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum NavItem: String, CaseIterable, Identifiable {
         case .dashboard: return "square.grid.2x2"
         case .library:   return "folder"
         case .settings:  return "gearshape"
+        case .logs:      return "scroll"
         }
     }
 }

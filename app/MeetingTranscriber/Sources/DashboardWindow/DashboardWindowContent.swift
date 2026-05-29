@@ -164,6 +164,8 @@ struct DashboardWindowContent: View {
                 onSpeakerMutate: onSpeakerMutate,
                 onRunDetectionTest: onRunDetectionTest
             )
+        case .logs:
+            LogsSettingsView()
         }
     }
 
